@@ -1,134 +1,537 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="id">
+
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
 
-  <title>PatternMaker V1.2</title>
+  <meta charset="UTF-8">
 
-  <link rel="stylesheet" href="style.css">
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  >
+
+  <title>
+    PatternMaker
+  </title>
+
+  <link
+    rel="stylesheet"
+    href="style.css"
+  >
+
 </head>
+
 
 <body>
 
-<header>
-  <h1>PatternMaker V1.2</h1>
-  <p>Bodice + sleeve anak — prototype parametrik</p>
-</header>
 
-<main>
+  <!-- =====================================
+       HEADER
+  ====================================== -->
 
-  <section class="panel">
+  <header>
 
-    <h2>Ukuran Anak</h2>
+    <h1>
+      PatternMaker
+    </h1>
 
-    <label>
-      Umur
-      <input id="age" type="number" value="6" min="1" max="14">
-    </label>
+    <p>
+      Custom Pattern & Fabric Optimization
+    </p>
 
-    <label>
-      Lingkar dada (cm)
-      <input id="bust" type="number" value="64" step=".1">
-    </label>
-
-    <label>
-      Lingkar pinggang (cm)
-      <input id="waist" type="number" value="58" step=".1">
-    </label>
-
-    <label>
-      Lebar bahu total (cm)
-      <input id="shoulder" type="number" value="27" step=".1">
-    </label>
-
-    <label>
-      Panjang badan (cm)
-      <input id="bodyLength" type="number" value="30" step=".1">
-    </label>
-
-    <label>
-      Lingkar leher (cm)
-      <input id="neck" type="number" value="27" step=".1">
-    </label>
-
-    <label>
-      Lingkar lengan atas (cm)
-      <input id="upperArm" type="number" value="21" step=".1">
-    </label>
-
-    <label>
-      Panjang lengan (cm)
-      <input id="sleeveLength" type="number" value="38" step=".1">
-    </label>
-
-    <label>
-      Lingkar ujung lengan (cm)
-      <input id="wrist" type="number" value="16" step=".1">
-    </label>
-
-    <h2>Material</h2>
-
-    <label>
-      Bahan
-
-      <select id="fabric">
-        <option value="rib">Rib knit</option>
-        <option value="woven">Woven / non-stretch</option>
-      </select>
-    </label>
-
-    <label>
-      Negative ease (%)
-
-      <input
-        id="negativeEase"
-        type="number"
-        value="8"
-        min="0"
-        max="30"
-        step="1">
-    </label>
-
-    <label>
-      Seam allowance (cm)
-
-      <input
-        id="seam"
-        type="number"
-        value="1"
-        min="0"
-        max="3"
-        step=".1">
-    </label>
-
-    <button id="generate">
-      GENERATE PATTERN
-    </button>
-
-    <button id="download" class="secondary">
-      DOWNLOAD SVG
-    </button>
-
-    <div id="info"></div>
-
-  </section>
+  </header>
 
 
-  <section class="preview">
 
-    <div id="status">
-      Pola siap dibuat.
-    </div>
+  <!-- =====================================
+       MAIN
+  ====================================== -->
 
-    <div id="canvasWrap"></div>
-
-  </section>
-
-</main>
+  <main>
 
 
-<script type="module" src="app.js"></script>
+    <!-- ===================================
+         LEFT PANEL
+    ==================================== -->
+
+    <section class="panel">
+
+
+      <!-- ================================
+           MEASUREMENTS
+      ================================= -->
+
+      <h2>
+        Ukuran
+      </h2>
+
+
+      <label>
+
+        Lingkar Dada (cm)
+
+        <input
+          id="bust"
+          type="number"
+          value="64"
+          min="1"
+          step="0.1"
+        >
+
+      </label>
+
+
+      <label>
+
+        Lingkar Pinggang (cm)
+
+        <input
+          id="waist"
+          type="number"
+          value="58"
+          min="1"
+          step="0.1"
+        >
+
+      </label>
+
+
+      <label>
+
+        Lebar Bahu (cm)
+
+        <input
+          id="shoulder"
+          type="number"
+          value="27"
+          min="1"
+          step="0.1"
+        >
+
+      </label>
+
+
+      <label>
+
+        Lingkar Leher (cm)
+
+        <input
+          id="neck"
+          type="number"
+          value="28"
+          min="1"
+          step="0.1"
+        >
+
+      </label>
+
+
+      <label>
+
+        Panjang Badan (cm)
+
+        <input
+          id="bodyLength"
+          type="number"
+          value="30"
+          min="1"
+          step="0.1"
+        >
+
+      </label>
+
+
+      <label>
+
+        Lingkar Lengan Atas (cm)
+
+        <input
+          id="upperArm"
+          type="number"
+          value="24"
+          min="1"
+          step="0.1"
+        >
+
+      </label>
+
+
+      <label>
+
+        Lingkar Pergelangan (cm)
+
+        <input
+          id="wrist"
+          type="number"
+          value="18"
+          min="1"
+          step="0.1"
+        >
+
+      </label>
+
+
+      <label>
+
+        Panjang Lengan (cm)
+
+        <input
+          id="sleeveLength"
+          type="number"
+          value="40"
+          min="1"
+          step="0.1"
+        >
+
+      </label>
+
+
+      <!-- ================================
+           EASE
+      ================================= -->
+
+      <h2>
+        Fit
+      </h2>
+
+
+      <label>
+
+        Negative Ease (%)
+
+        <input
+          id="negativeEase"
+          type="number"
+          value="5"
+          min="0"
+          max="50"
+          step="0.1"
+        >
+
+      </label>
+
+
+      <!-- ================================
+           MATERIAL & FABRIC
+      ================================= -->
+
+      <h2>
+        Material & Kain
+      </h2>
+
+
+      <label>
+
+        Jenis bahan
+
+        <select id="fabricMaterial">
+
+          <option value="sublime_jersey">
+            Sublime Jersey
+          </option>
+
+          <option value="rib_knit">
+            Rib Knit
+          </option>
+
+          <option value="cotton">
+            Cotton
+          </option>
+
+          <option value="woven">
+            Woven / Non Stretch
+          </option>
+
+        </select>
+
+      </label>
+
+
+      <label>
+
+        Lebar kain (cm)
+
+        <input
+          id="fabricWidth"
+          type="number"
+          value="150"
+          min="1"
+          step="0.1"
+        >
+
+      </label>
+
+
+      <label>
+
+        Panjang kain tersedia (cm)
+
+        <input
+          id="fabricLength"
+          type="number"
+          value="500"
+          min="1"
+          step="0.1"
+        >
+
+      </label>
+
+
+      <label>
+
+        Selvedge kiri (cm)
+
+        <input
+          id="selvedgeLeft"
+          type="number"
+          value="0"
+          min="0"
+          step="0.1"
+        >
+
+      </label>
+
+
+      <label>
+
+        Selvedge kanan (cm)
+
+        <input
+          id="selvedgeRight"
+          type="number"
+          value="0"
+          min="0"
+          step="0.1"
+        >
+
+      </label>
+
+
+      <label>
+
+        Arah motif
+
+        <select id="printDirection">
+
+          <option value="directional">
+            Searah
+          </option>
+
+          <option value="free">
+            Bebas
+          </option>
+
+        </select>
+
+      </label>
+
+
+      <label>
+
+        Jumlah pakaian
+
+        <input
+          id="garmentQuantity"
+          type="number"
+          value="1"
+          min="1"
+          step="1"
+        >
+
+      </label>
+
+
+      <!-- ================================
+           FABRIC INFORMATION
+      ================================= -->
+
+      <div id="fabricInfo">
+
+        <strong>
+          Informasi Kain
+        </strong>
+
+
+        <p>
+
+          Material:
+
+          <span id="materialName">
+            Sublime Jersey
+          </span>
+
+        </p>
+
+
+        <p>
+
+          Lebar kain:
+
+          <span id="displayFabricWidth">
+            150
+          </span>
+
+          cm
+
+        </p>
+
+
+        <p>
+
+          Lebar efektif:
+
+          <span id="effectiveWidth">
+            150
+          </span>
+
+          cm
+
+        </p>
+
+
+        <p>
+
+          Panjang kain:
+
+          <span id="displayFabricLength">
+            500
+          </span>
+
+          cm
+
+        </p>
+
+
+        <p>
+
+          Stretch:
+
+          <span id="fabricStretch">
+            High
+          </span>
+
+        </p>
+
+
+        <p>
+
+          Arah stretch:
+
+          <span id="stretchDirection">
+            Crosswise
+          </span>
+
+        </p>
+
+
+        <p>
+
+          Rotasi pola:
+
+          <span id="allowedRotation">
+            0°, 180°
+          </span>
+
+        </p>
+
+      </div>
+
+
+      <!-- ================================
+           BUTTON
+      ================================= -->
+
+      <button
+        id="generateBtn"
+        type="button"
+      >
+        Generate Pattern
+      </button>
+
+
+      <button
+        id="optimizeBtn"
+        type="button"
+        class="secondary"
+      >
+        Optimize Fabric
+      </button>
+
+
+      <button
+        id="downloadBtn"
+        type="button"
+        class="secondary"
+      >
+        Download SVG
+      </button>
+
+
+      <!-- ================================
+           STATUS
+      ================================= -->
+
+      <div id="info">
+
+        <small>
+
+          PatternMaker V1.3 Prototype
+
+        </small>
+
+      </div>
+
+
+    </section>
+
+
+
+    <!-- ===================================
+         PREVIEW
+    ==================================== -->
+
+    <section class="preview">
+
+
+      <h2>
+        Pattern Preview
+      </h2>
+
+
+      <div id="status">
+
+        Siap membuat pola.
+
+      </div>
+
+
+      <div id="canvasWrap">
+
+        <!--
+          SVG pattern akan
+          ditampilkan di sini.
+        -->
+
+      </div>
+
+
+    </section>
+
+
+  </main>
+
+
+
+  <!-- =====================================
+       APPLICATION
+  ====================================== -->
+
+  <script
+    type="module"
+    src="app.js"
+  ></script>
+
 
 </body>
+
 </html>
