@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>PatternMaker V1</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header><h1>PatternMaker V1</h1><p>Pattern engine pakaian anak — prototype offline</p></header>
+<main>
+<section class="panel">
+  <h2>Ukuran Anak</h2>
+  <label>Umur <input id="age" type="number" value="6" min="1" max="14"> tahun</label>
+  <label>Lingkar dada <input id="bust" type="number" value="64" step="0.1"> cm</label>
+  <label>Lingkar pinggang <input id="waist" type="number" value="58" step="0.1"> cm</label>
+  <label>Lebar bahu <input id="shoulder" type="number" value="27" step="0.1"> cm</label>
+  <label>Panjang badan <input id="bodyLength" type="number" value="30" step="0.1"> cm</label>
+  <label>Lingkar leher <input id="neck" type="number" value="27" step="0.1"> cm</label>
+  <label>Jenis bahan
+    <select id="fabric">
+      <option value="rib">Rib knit</option>
+      <option value="woven">Woven / non-stretch</option>
+    </select>
+  </label>
+  <label>Stretch kain (%) <input id="stretch" type="number" value="30" step="1" min="0" max="80"></label>
+  <label>Negative ease (%) <input id="negativeEase" type="number" value="8" step="1" min="0" max="30"></label>
+  <button id="generate">Generate Pattern</button>
+  <button id="download" class="secondary">Download SVG</button>
+</section>
+
+<section class="preview">
+  <div class="toolbar"><span id="status">Siap membuat pola.</span></div>
+  <div id="canvasWrap"></div>
+</section>
+</main>
+<script type="module" src="app.js"></script>
+</body>
+</html>
