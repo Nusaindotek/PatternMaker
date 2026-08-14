@@ -1576,4 +1576,4 @@ updateFabricInformation();
 
 setStatus(
   "Masukkan ukuran kemudian tekan GENERATE PATTERN."
-);
+);.
