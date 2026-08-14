@@ -1,29 +1,57 @@
-const getNumber = (id) => {
-  const element = document.getElementById(id);
+/* =========================================
+   PatternMaker
+   MEASUREMENTS ENGINE V1.3
+========================================= */
+
+
+/* =========================================
+   GET NUMBER
+========================================= */
+
+function getNumber(id) {
+
+  const element =
+    document.getElementById(id);
 
   if (!element) {
     return 0;
   }
 
   return Number(element.value) || 0;
-};
+
+}
 
 
-/* =========================
+/* =========================================
+   GET VALUE
+========================================= */
+
+function getValue(id) {
+
+  const element =
+    document.getElementById(id);
+
+  if (!element) {
+    return "";
+  }
+
+  return element.value;
+
+}
+
+
+/* =========================================
    GET USER MEASUREMENTS
-========================= */
+========================================= */
 
 export function getMeasurements() {
 
-  const fabric =
-    document.getElementById("fabric").value;
 
+  /* ===============================
+     BODY
+  =============================== */
 
   const measurements = {
-
-    /* =====================
-       BODY
-    ===================== */
 
     age:
       getNumber("age"),
@@ -44,9 +72,9 @@ export function getMeasurements() {
       getNumber("neck"),
 
 
-    /* =====================
+    /* ===============================
        SLEEVE
-    ===================== */
+    =============================== */
 
     upperArm:
       getNumber("upperArm"),
@@ -58,33 +86,68 @@ export function getMeasurements() {
       getNumber("wrist"),
 
 
-    /* =====================
+    /* ===============================
        MATERIAL
-    ===================== */
+    =============================== */
 
     fabric:
-      fabric,
+      getValue("fabricMaterial"),
 
 
-    /* =====================
+    /* ===============================
        NEGATIVE EASE
-    ===================== */
+    =============================== */
 
     negativeEase:
-      fabric === "rib"
-        ? getNumber("negativeEase")
-        : 0,
+      getNumber("negativeEase"),
 
 
-    /* =====================
-       SEAM ALLOWANCE
-    ===================== */
+    /* ===============================
+       SEAM
+    =============================== */
 
     seam:
-      getNumber("seam")
+      getNumber("seam") || 1,
+
+
+    /* ===============================
+       FABRIC DATA
+    =============================== */
+
+    fabricWidth:
+      getNumber("fabricWidth"),
+
+    fabricLength:
+      getNumber("fabricLength"),
+
+    selvedgeLeft:
+      getNumber("selvedgeLeft"),
+
+    selvedgeRight:
+      getNumber("selvedgeRight"),
+
+
+    /* ===============================
+       PRINT
+    =============================== */
+
+    printDirection:
+      getValue("printDirection"),
+
+
+    /* ===============================
+       QUANTITY
+    =============================== */
+
+    garmentQuantity:
+      Math.max(
+        1,
+        getNumber("garmentQuantity")
+      )
 
   };
 
 
   return measurements;
+
 }
