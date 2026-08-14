@@ -1,39 +1,134 @@
 <!doctype html>
 <html lang="id">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>PatternMaker V1</title>
+
+  <title>PatternMaker V1.2</title>
+
   <link rel="stylesheet" href="style.css">
 </head>
-<body>
-<header><h1>PatternMaker V1</h1><p>Pattern engine pakaian anak — prototype offline</p></header>
-<main>
-<section class="panel">
-  <h2>Ukuran Anak</h2>
-  <label>Umur <input id="age" type="number" value="6" min="1" max="14"> tahun</label>
-  <label>Lingkar dada <input id="bust" type="number" value="64" step="0.1"> cm</label>
-  <label>Lingkar pinggang <input id="waist" type="number" value="58" step="0.1"> cm</label>
-  <label>Lebar bahu <input id="shoulder" type="number" value="27" step="0.1"> cm</label>
-  <label>Panjang badan <input id="bodyLength" type="number" value="30" step="0.1"> cm</label>
-  <label>Lingkar leher <input id="neck" type="number" value="27" step="0.1"> cm</label>
-  <label>Jenis bahan
-    <select id="fabric">
-      <option value="rib">Rib knit</option>
-      <option value="woven">Woven / non-stretch</option>
-    </select>
-  </label>
-  <label>Stretch kain (%) <input id="stretch" type="number" value="30" step="1" min="0" max="80"></label>
-  <label>Negative ease (%) <input id="negativeEase" type="number" value="8" step="1" min="0" max="30"></label>
-  <button id="generate">Generate Pattern</button>
-  <button id="download" class="secondary">Download SVG</button>
-</section>
 
-<section class="preview">
-  <div class="toolbar"><span id="status">Siap membuat pola.</span></div>
-  <div id="canvasWrap"></div>
-</section>
+<body>
+
+<header>
+  <h1>PatternMaker V1.2</h1>
+  <p>Bodice + sleeve anak — prototype parametrik</p>
+</header>
+
+<main>
+
+  <section class="panel">
+
+    <h2>Ukuran Anak</h2>
+
+    <label>
+      Umur
+      <input id="age" type="number" value="6" min="1" max="14">
+    </label>
+
+    <label>
+      Lingkar dada (cm)
+      <input id="bust" type="number" value="64" step=".1">
+    </label>
+
+    <label>
+      Lingkar pinggang (cm)
+      <input id="waist" type="number" value="58" step=".1">
+    </label>
+
+    <label>
+      Lebar bahu total (cm)
+      <input id="shoulder" type="number" value="27" step=".1">
+    </label>
+
+    <label>
+      Panjang badan (cm)
+      <input id="bodyLength" type="number" value="30" step=".1">
+    </label>
+
+    <label>
+      Lingkar leher (cm)
+      <input id="neck" type="number" value="27" step=".1">
+    </label>
+
+    <label>
+      Lingkar lengan atas (cm)
+      <input id="upperArm" type="number" value="21" step=".1">
+    </label>
+
+    <label>
+      Panjang lengan (cm)
+      <input id="sleeveLength" type="number" value="38" step=".1">
+    </label>
+
+    <label>
+      Lingkar ujung lengan (cm)
+      <input id="wrist" type="number" value="16" step=".1">
+    </label>
+
+    <h2>Material</h2>
+
+    <label>
+      Bahan
+
+      <select id="fabric">
+        <option value="rib">Rib knit</option>
+        <option value="woven">Woven / non-stretch</option>
+      </select>
+    </label>
+
+    <label>
+      Negative ease (%)
+
+      <input
+        id="negativeEase"
+        type="number"
+        value="8"
+        min="0"
+        max="30"
+        step="1">
+    </label>
+
+    <label>
+      Seam allowance (cm)
+
+      <input
+        id="seam"
+        type="number"
+        value="1"
+        min="0"
+        max="3"
+        step=".1">
+    </label>
+
+    <button id="generate">
+      GENERATE PATTERN
+    </button>
+
+    <button id="download" class="secondary">
+      DOWNLOAD SVG
+    </button>
+
+    <div id="info"></div>
+
+  </section>
+
+
+  <section class="preview">
+
+    <div id="status">
+      Pola siap dibuat.
+    </div>
+
+    <div id="canvasWrap"></div>
+
+  </section>
+
 </main>
+
+
 <script type="module" src="app.js"></script>
+
 </body>
 </html>
