@@ -1,5 +1,5 @@
 /* =========================================
-   PatternMaker V1.2
+   PatternMaker V1.3
    SVG GEOMETRY ENGINE
 ========================================= */
 
@@ -12,11 +12,7 @@ function createGrid(width, height) {
 
   let output = "";
 
-  for (
-    let x = 0;
-    x <= width;
-    x += 5
-  ) {
+  for (let x = 0; x <= width; x += 5) {
 
     output += `
       <line
@@ -30,12 +26,7 @@ function createGrid(width, height) {
 
   }
 
-
-  for (
-    let y = 0;
-    y <= height;
-    y += 5
-  ) {
+  for (let y = 0; y <= height; y += 5) {
 
     output += `
       <line
@@ -49,7 +40,6 @@ function createGrid(width, height) {
 
   }
 
-
   return output;
 
 }
@@ -59,10 +49,7 @@ function createGrid(width, height) {
    BODICE PATH
 ========================================= */
 
-function createBodicePath(
-  points,
-  front = true
-) {
+function createBodicePath(points, front = true) {
 
   const {
     A,
@@ -74,13 +61,6 @@ function createBodicePath(
   } = points;
 
 
-  /*
-    Kedalaman neckline.
-
-    Front lebih dalam
-    dibandingkan back.
-  */
-
   const neckDepth =
     front
       ? 4.5
@@ -88,50 +68,26 @@ function createBodicePath(
 
 
   return `
-    M
-    ${A[0]}
-    ${A[1] + neckDepth}
+    M ${A[0]} ${A[1] + neckDepth}
 
-    L
-    ${A[0]}
-    ${F[1]}
+    L ${A[0]} ${F[1]}
 
-    L
-    ${E[0]}
-    ${E[1]}
+    L ${E[0]} ${E[1]}
 
-    L
-    ${D[0]}
-    ${D[1]}
-
-    /*
-      Armhole curve
-    */
+    L ${D[0]} ${D[1]}
 
     C
-    ${D[0]}
-    ${D[1] - 2.4},
+      ${D[0]} ${D[1] - 2.4}
+      ${C[0] + 1.1} ${C[1] + 0.5}
+      ${C[0]} ${C[1]}
 
-    ${C[0] + 1.1}
-    ${C[1] + 0.5},
-
-    ${C[0]}
-    ${C[1]}
-
-    L
-    ${B[0]}
-    ${B[1]}
-
-    /*
-      Shoulder / neckline
-    */
+    L ${B[0]} ${B[1]}
 
     Q
-    ${A[0] + neckDepth * 0.85}
-    ${A[1]},
+      ${A[0] + neckDepth * 0.85} ${A[1]}
+      ${A[0]} ${A[1] + neckDepth}
 
-    ${A[0]}
-    ${A[1] + neckDepth}
+    Z
   `;
 
 }
@@ -144,61 +100,29 @@ function createBodicePath(
 function createSleevePath(s) {
 
   return `
-    M
-    ${s.left[0]}
-    ${s.left[1]}
+    M ${s.left[0]} ${s.left[1]}
 
-    L
-    ${s.leftCap[0]}
-    ${s.leftCap[1]}
-
-    /*
-      Sleeve cap kiri
-    */
+    L ${s.leftCap[0]} ${s.leftCap[1]}
 
     C
-    ${s.leftCap[0] + 3}
-    ${s.leftCap[1] - 3},
-
-    ${s.top[0] - 2}
-    ${s.top[1] + 1},
-
-    ${s.top[0]}
-    ${s.top[1]}
-
-    /*
-      Sleeve cap kanan
-    */
+      ${s.leftCap[0] + 3} ${s.leftCap[1] - 3}
+      ${s.top[0] - 2} ${s.top[1] + 1}
+      ${s.top[0]} ${s.top[1]}
 
     C
-    ${s.top[0] + 2}
-    ${s.top[1] + 1},
+      ${s.top[0] + 2} ${s.top[1] + 1}
+      ${s.rightCap[0] - 3} ${s.rightCap[1] - 3}
+      ${s.rightCap[0]} ${s.rightCap[1]}
 
-    ${s.rightCap[0] - 3}
-    ${s.rightCap[1] - 3},
+    L ${s.right[0]} ${s.right[1]}
 
-    ${s.rightCap[0]}
-    ${s.rightCap[1]}
+    L ${s.bottomRight[0]} ${s.bottomRight[1]}
 
-    L
-    ${s.right[0]}
-    ${s.right[1]}
+    L ${s.bottomLeft[0]} ${s.bottomLeft[1]}
 
-    /*
-      Ujung lengan
-    */
+    L ${s.left[0]} ${s.left[1]}
 
-    L
-    ${s.bottomRight[0]}
-    ${s.bottomRight[1]}
-
-    L
-    ${s.bottomLeft[0]}
-    ${s.bottomLeft[1]}
-
-    L
-    ${s.left[0]}
-    ${s.left[1]}
+    Z
   `;
 
 }
@@ -208,11 +132,7 @@ function createSleevePath(s) {
    GRAINLINE
 ========================================= */
 
-function createGrainline(
-  x,
-  y1,
-  y2
-) {
+function createGrainline(x, y1, y2) {
 
   return `
     <line
@@ -239,11 +159,7 @@ function createGrainline(
    TEXT LABEL
 ========================================= */
 
-function createLabel(
-  text,
-  x,
-  y
-) {
+function createLabel(text, x, y) {
 
   return `
     <text
@@ -268,11 +184,18 @@ export function renderPattern(
   measurements
 ) {
 
-  const width =
-    140;
 
-  const height =
-    65;
+  /* =======================================
+     HITUNG UKURAN SVG
+  ======================================= */
+
+  const width = 140;
+
+  const height = Math.max(
+    65,
+    measurements.bodyLength + 25,
+    measurements.sleeveLength + 25
+  );
 
 
   /* =======================================
@@ -287,7 +210,7 @@ export function renderPattern(
 
 
   /* =======================================
-     BODICE
+     BODICE FRONT
   ======================================= */
 
   const frontPath =
@@ -296,6 +219,10 @@ export function renderPattern(
       true
     );
 
+
+  /* =======================================
+     BODICE BACK
+  ======================================= */
 
   const backPath =
     createBodicePath(
@@ -315,36 +242,23 @@ export function renderPattern(
 
 
   /* =======================================
-     RETURN SVG
+     SVG
   ======================================= */
 
   return `
 
     <svg
-
       xmlns="http://www.w3.org/2000/svg"
-
-      viewBox="
-        0
-        0
-        ${width}
-        ${height}
-      "
-
-      width="${width}cm"
-
-      height="${height}cm"
-
+      viewBox="0 0 ${width} ${height}"
+      width="100%"
+      height="auto"
+      preserveAspectRatio="xMidYMid meet"
     >
-
-      <!-- GRID -->
 
       ${grid}
 
 
-      <!-- ================================
-           BODICE FRONT
-      ================================= -->
+      <!-- FRONT -->
 
       <path
         class="pattern"
@@ -352,9 +266,7 @@ export function renderPattern(
       />
 
 
-      <!-- ================================
-           BODICE BACK
-      ================================= -->
+      <!-- BACK -->
 
       <path
         class="pattern"
@@ -362,9 +274,7 @@ export function renderPattern(
       />
 
 
-      <!-- ================================
-           SLEEVE
-      ================================= -->
+      <!-- SLEEVE -->
 
       <path
         class="pattern"
@@ -372,9 +282,7 @@ export function renderPattern(
       />
 
 
-      <!-- ================================
-           GRAINLINES
-      ================================= -->
+      <!-- FRONT GRAIN -->
 
       ${createGrainline(
         14,
@@ -382,11 +290,17 @@ export function renderPattern(
         35
       )}
 
+
+      <!-- BACK GRAIN -->
+
       ${createGrainline(
         59,
         18,
         35
       )}
+
+
+      <!-- SLEEVE GRAIN -->
 
       ${createGrainline(
         108,
@@ -395,43 +309,41 @@ export function renderPattern(
       )}
 
 
-      <!-- ================================
-           LABELS
-      ================================= -->
+      <!-- LABELS -->
 
       ${createLabel(
-        "FRONT — FOLD",
+        "FRONT - FOLD",
         10,
         50
       )}
 
+
       ${createLabel(
-        "BACK — FOLD",
+        "BACK - FOLD",
         55,
         50
       )}
 
+
       ${createLabel(
-        "SLEEVE — CUT 2",
+        "SLEEVE - CUT 2",
         95,
         52
       )}
 
 
-      <!-- ================================
-           INFORMATION
-      ================================= -->
+      <!-- TITLE -->
 
       <text
         class="small"
         x="5"
         y="5"
       >
-        PatternMaker V1.2
-        • Prototype
-        • Units: cm
+        PatternMaker V1.3 - Units: cm
       </text>
 
+
+      <!-- CAP EASE -->
 
       <text
         class="note"
@@ -439,7 +351,7 @@ export function renderPattern(
         y="57"
       >
         Cap ease:
-        ${sleeve.capEase.toFixed(1)}
+        ${Number(sleeve.capEase || 0).toFixed(1)}
         cm
       </text>
 
