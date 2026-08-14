@@ -1,183 +1,446 @@
-/* =========================================
-   PatternMaker V1.2
+/* =========================================================
+   PatternMaker V1.5
    SLEEVE ENGINE
-========================================= */
+   ---------------------------------------------------------
+   Basic sleeve untuk anak
+   Dioptimalkan untuk knit / jersey / rib knit
+   Unit: centimeter
+========================================================= */
 
 
-/* =========================================
+/* =========================================================
+   DISTANCE
+========================================================= */
+
+function distance(a, b) {
+
+  return Math.hypot(
+    b[0] - a[0],
+    b[1] - a[1]
+  );
+
+}
+
+
+/* =========================================================
+   BEZIER LENGTH
+========================================================= */
+
+function bezierLength(
+  p0,
+  p1,
+  p2,
+  p3,
+  steps = 30
+) {
+
+  let length = 0;
+
+  let previous = p0;
+
+
+  for (
+    let i = 1;
+    i <= steps;
+    i++
+  ) {
+
+    const t =
+      i / steps;
+
+    const mt =
+      1 - t;
+
+
+    const x =
+      mt * mt * mt * p0[0] +
+      3 * mt * mt * t * p1[0] +
+      3 * mt * t * t * p2[0] +
+      t * t * t * p3[0];
+
+
+    const y =
+      mt * mt * mt * p0[1] +
+      3 * mt * mt * t * p1[1] +
+      3 * mt * t * t * p2[1] +
+      t * t * t * p3[1];
+
+
+    const current = [
+      x,
+      y
+    ];
+
+
+    length +=
+      distance(
+        previous,
+        current
+      );
+
+
+    previous =
+      current;
+
+  }
+
+
+  return length;
+
+}
+
+
+/* =========================================================
    SLEEVE ENGINE
-========================================= */
+========================================================= */
 
-export function makeSleeve(m, bodice) {
+export function makeSleeve(
+  m,
+  bodice
+) {
 
+  /* =======================================================
+     EASE
+  ======================================================= */
 
-  /* =======================================
-     SLEEVE EASE
-
-     Rib knit:
-     lebih kecil karena kain stretch.
-
-     Woven:
-     diberi sedikit ruang.
-  ======================================= */
-
-  const sleeveEase =
-    m.fabric === "rib"
-      ? 0.5
-      : 1.5;
+  const fabric =
+    String(
+      m.fabric || ""
+    ).toLowerCase();
 
 
-  /* =======================================
-     SETENGAH LINGKAR LENGAN ATAS
-  ======================================= */
+  let sleeveEase = 1;
+
+
+  if (
+    fabric === "rib" ||
+    fabric === "rib_knit"
+  ) {
+
+    sleeveEase =
+      0;
+
+  }
+
+  else if (
+    fabric === "sublime_jersey"
+  ) {
+
+    sleeveEase =
+      0.5;
+
+  }
+
+  else {
+
+    sleeveEase =
+      1.5;
+
+  }
+
+
+  /* =======================================================
+     ARM MEASUREMENT
+  ======================================================= */
+
+  const negativeEase =
+    Number(
+      m.negativeEase
+    ) || 0;
+
+
+  const easeFactor =
+    Math.max(
+      0.5,
+      1 -
+      negativeEase / 100
+    );
+
 
   const upperArm =
-    m.upperArm *
-    (1 - m.negativeEase / 100);
+    Number(
+      m.upperArm
+    ) *
+    easeFactor;
+
+
+  const wrist =
+    Number(
+      m.wrist
+    ) *
+    easeFactor;
+
+
+  /* =======================================================
+     WIDTH
+  ======================================================= */
+
+  const upperArmWidth =
+    Math.max(
+      8,
+      upperArm +
+      sleeveEase * 2
+    );
+
+
+  const wristWidth =
+    Math.max(
+      6,
+      wrist +
+      sleeveEase * 2
+    );
 
 
   const upperArmHalf =
-    upperArm / 2;
-
-
-  /* =======================================
-     SETENGAH LINGKAR UJUNG LENGAN
-  ======================================= */
-
-  const wrist =
-    m.wrist *
-    (1 - m.negativeEase / 100);
+    upperArmWidth / 2;
 
 
   const wristHalf =
-    wrist / 2;
+    wristWidth / 2;
 
 
-  /* =======================================
-     POSISI POLA LENGAN
-
-     Diletakkan di sebelah kanan
-     bodice pada preview SVG.
-  ======================================= */
+  /* =======================================================
+     POSITION
+  ======================================================= */
 
   const x =
     95;
+
 
   const y =
     12;
 
 
-  /* =======================================
-     PANJANG LENGAN
-  ======================================= */
+  /* =======================================================
+     SLEEVE LENGTH
+  ======================================================= */
 
   const sleeveLength =
-    m.sleeveLength;
-
-
-  /* =======================================
-     TINGGI KEPALA LENGAN
-
-     Prototype awal.
-
-     Nanti akan kita kalibrasi
-     berdasarkan sistem drafting.
-  ======================================= */
-
-  const capHeight =
     Math.max(
-      7,
-      bodice.armDepth * 0.55
+      5,
+      Number(
+        m.sleeveLength
+      )
     );
 
 
-  /* =======================================
-     TITIK POLA LENGAN
-  ======================================= */
+  /* =======================================================
+     SLEEVE CAP HEIGHT
+     -------------------------------------------------------
+     Mengikuti armhole bodice.
+  ======================================================= */
 
-  const left = [
-    x,
-    y + sleeveLength
-  ];
+  const capHeight =
+    Math.max(
+
+      7,
+
+      Math.min(
+        15,
+        bodice.armDepth *
+        0.55
+      )
+
+    );
 
 
-  const leftCap = [
-    x,
-    y + capHeight
-  ];
+  /* =======================================================
+     CENTER TOP
+  ======================================================= */
+
+  const centerX =
+    x +
+    upperArmHalf;
 
 
   const top = [
-    x + upperArmHalf + 2,
+
+    centerX,
+
     y
+
+  ];
+
+
+  /* =======================================================
+     LEFT / RIGHT CAP
+  ======================================================= */
+
+  const leftCap = [
+
+    x,
+
+    y +
+    capHeight
+
   ];
 
 
   const rightCap = [
-    x + (upperArmHalf * 2) + 4,
-    y + capHeight
+
+    x +
+    upperArmWidth,
+
+    y +
+    capHeight
+
+  ];
+
+
+  /* =======================================================
+     HEM
+  ======================================================= */
+
+  const left = [
+
+    x,
+
+    y +
+    sleeveLength
+
   ];
 
 
   const right = [
-    x + (upperArmHalf * 2) + 4,
-    y + sleeveLength
+
+    x +
+    upperArmWidth,
+
+    y +
+    sleeveLength
+
   ];
 
 
-  /* =======================================
-     UJUNG LENGAN KIRI
-  ======================================= */
+  /* =======================================================
+     WRIST
+  ======================================================= */
 
   const bottomLeft = [
-    x + upperArmHalf + 2 - wristHalf,
-    y + sleeveLength
+
+    centerX -
+    wristHalf,
+
+    y +
+    sleeveLength
+
   ];
 
-
-  /* =======================================
-     UJUNG LENGAN KANAN
-  ======================================= */
 
   const bottomRight = [
-    x + upperArmHalf + 2 + wristHalf,
-    y + sleeveLength
+
+    centerX +
+    wristHalf,
+
+    y +
+    sleeveLength
+
   ];
 
 
-  /* =======================================
-     PANJANG CAP
+  /* =======================================================
+     SLEEVE CAP CURVES
+  ======================================================= */
 
-     V1.2 masih menggunakan
-     pendekatan sederhana.
-  ======================================= */
+  const leftControl1 = [
 
-  const capHalf =
-    bodice.armholeLength / 2;
+    leftCap[0] +
+    upperArmWidth * 0.10,
+
+    leftCap[1] -
+    capHeight * 0.35
+
+  ];
 
 
-  const capLength =
-    capHalf + capHalf;
+  const leftControl2 = [
+
+    centerX -
+    upperArmWidth * 0.25,
+
+    top[1] +
+    1
+
+  ];
 
 
-  /* =======================================
-     CAP EASE
+  const rightControl1 = [
 
-     Perbedaan antara panjang cap
-     dan armhole bodice.
-  ======================================= */
+    centerX +
+    upperArmWidth * 0.25,
 
-  const capEase =
-    Math.max(
-      0,
-      capLength -
-      bodice.armholeLength
+    top[1] +
+    1
+
+  ];
+
+
+  const rightControl2 = [
+
+    rightCap[0] -
+    upperArmWidth * 0.10,
+
+    rightCap[1] -
+    capHeight * 0.35
+
+  ];
+
+
+  /* =======================================================
+     CALCULATE CAP LENGTH
+  ======================================================= */
+
+  const leftCapLength =
+    bezierLength(
+
+      leftCap,
+
+      leftControl1,
+      leftControl2,
+      top
+
     );
 
 
-  /* =======================================
-     RETURN DATA
-  ======================================= */
+  const rightCapLength =
+    bezierLength(
+
+      top,
+
+      rightControl1,
+      rightControl2,
+      rightCap
+
+    );
+
+
+  const capLength =
+    leftCapLength +
+    rightCapLength;
+
+
+  /* =======================================================
+     ARMHOLE TARGET
+  ======================================================= */
+
+  const armholeTarget =
+    Number(
+      bodice.armholeLength
+    ) || 0;
+
+
+  /* =======================================================
+     CAP EASE
+  ======================================================= */
+
+  const capEase =
+    capLength -
+    armholeTarget;
+
+
+  /* =======================================================
+     RETURN
+  ======================================================= */
 
   return {
 
@@ -195,11 +458,25 @@ export function makeSleeve(m, bodice) {
 
     bottomRight,
 
+    leftControl1,
+
+    leftControl2,
+
+    rightControl1,
+
+    rightControl2,
+
     capHeight,
 
     capLength,
 
     capEase,
+
+    armholeTarget,
+
+    upperArmWidth,
+
+    wristWidth,
 
     ease:
       sleeveEase
