@@ -1,12 +1,11 @@
 /* =========================================================
-   PatternMaker
-   SEAM ALLOWANCE ENGINE V1.0
+   PatternMaker V1.5
+   SEAM ENGINE
    ---------------------------------------------------------
-   Fungsi:
-   - menentukan kampuh
-   - membuat offset pola
-   - membedakan garis jahit dan garis potong
-   - mendukung kampuh berbeda per sisi
+   Mengatur kampuh pola berdasarkan bagian pakaian
+   dan jenis bahan.
+
+   Satuan: cm
 ========================================================= */
 
 
@@ -16,93 +15,257 @@
 
 const DEFAULT_SEAM = {
 
-  top: 1.0,
-
-  bottom: 1.0,
-
-  side: 1.0,
-
-  armhole: 1.0,
+  neckline: 0.7,
 
   shoulder: 1.0,
 
-  neckline: 1.0,
+  armhole: 1.0,
 
-  sleeve: 1.0
+  side: 1.0,
+
+  bottom: 2.0,
+
+  sleeveCap: 1.0,
+
+  sleeveSide: 1.0,
+
+  sleeveBottom: 2.0,
+
+  fold: 0
 
 };
 
 
 /* =========================================================
-   NORMALIZE SEAM
+   MATERIAL SEAM
 ========================================================= */
 
-export function normalizeSeam(
-  seam = {}
-) {
+const MATERIAL_SEAM = {
 
-  return {
+  sublime_jersey: {
 
-    top:
-      Number.isFinite(Number(seam.top))
-        ? Number(seam.top)
-        : DEFAULT_SEAM.top,
+    neckline: 0.7,
 
-    bottom:
-      Number.isFinite(Number(seam.bottom))
-        ? Number(seam.bottom)
-        : DEFAULT_SEAM.bottom,
+    shoulder: 1.0,
 
-    side:
-      Number.isFinite(Number(seam.side))
-        ? Number(seam.side)
-        : DEFAULT_SEAM.side,
+    armhole: 1.0,
 
-    armhole:
-      Number.isFinite(Number(seam.armhole))
-        ? Number(seam.armhole)
-        : DEFAULT_SEAM.armhole,
+    side: 1.0,
 
-    shoulder:
-      Number.isFinite(Number(seam.shoulder))
-        ? Number(seam.shoulder)
-        : DEFAULT_SEAM.shoulder,
+    bottom: 2.0,
 
-    neckline:
-      Number.isFinite(Number(seam.neckline))
-        ? Number(seam.neckline)
-        : DEFAULT_SEAM.neckline,
+    sleeveCap: 1.0,
 
-    sleeve:
-      Number.isFinite(Number(seam.sleeve))
-        ? Number(seam.sleeve)
-        : DEFAULT_SEAM.sleeve
+    sleeveSide: 1.0,
 
-  };
+    sleeveBottom: 2.0
+
+  },
+
+
+  rib_knit: {
+
+    neckline: 0.7,
+
+    shoulder: 1.0,
+
+    armhole: 1.0,
+
+    side: 1.0,
+
+    bottom: 2.0,
+
+    sleeveCap: 1.0,
+
+    sleeveSide: 1.0,
+
+    sleeveBottom: 2.0
+
+  },
+
+
+  cotton: {
+
+    neckline: 0.7,
+
+    shoulder: 1.0,
+
+    armhole: 1.0,
+
+    side: 1.0,
+
+    bottom: 2.0,
+
+    sleeveCap: 1.0,
+
+    sleeveSide: 1.0,
+
+    sleeveBottom: 2.0
+
+  },
+
+
+  woven: {
+
+    neckline: 0.7,
+
+    shoulder: 1.0,
+
+    armhole: 1.0,
+
+    side: 1.0,
+
+    bottom: 2.0,
+
+    sleeveCap: 1.0,
+
+    sleeveSide: 1.0,
+
+    sleeveBottom: 2.0
+
+  }
+
+};
+
+
+/* =========================================================
+   NORMALIZE MATERIAL
+========================================================= */
+
+function normalizeMaterial(material) {
+
+  if (!material) {
+
+    return "sublime_jersey";
+
+  }
+
+
+  return String(material)
+
+    .toLowerCase()
+
+    .trim()
+
+    .replace(/\s+/g, "_");
 
 }
 
 
 /* =========================================================
-   CREATE SEAM CONFIG
+   NUMBER
+========================================================= */
+
+function safeNumber(
+  value,
+  fallback = 0
+) {
+
+  const number =
+    Number(value);
+
+
+  if (
+    Number.isFinite(number)
+  ) {
+
+    return number;
+
+  }
+
+
+  return fallback;
+
+}
+
+
+/* =========================================================
+   CREATE SEAM
 ========================================================= */
 
 export function createSeam(
   options = {}
 ) {
 
-  const seam =
-    normalizeSeam(
-      options
+
+  const material =
+    normalizeMaterial(
+      options.material
     );
+
+
+  const materialSeam =
+    MATERIAL_SEAM[material] ||
+    MATERIAL_SEAM.sublime_jersey;
+
+
+  const custom =
+    options.seam || {};
 
 
   return {
 
-    enabled:
-      options.enabled !== false,
+    neckline:
+      safeNumber(
+        custom.neckline,
+        materialSeam.neckline
+      ),
 
-    ...seam
+
+    shoulder:
+      safeNumber(
+        custom.shoulder,
+        materialSeam.shoulder
+      ),
+
+
+    armhole:
+      safeNumber(
+        custom.armhole,
+        materialSeam.armhole
+      ),
+
+
+    side:
+      safeNumber(
+        custom.side,
+        materialSeam.side
+      ),
+
+
+    bottom:
+      safeNumber(
+        custom.bottom,
+        materialSeam.bottom
+      ),
+
+
+    sleeveCap:
+      safeNumber(
+        custom.sleeveCap,
+        materialSeam.sleeveCap
+      ),
+
+
+    sleeveSide:
+      safeNumber(
+        custom.sleeveSide,
+        materialSeam.sleeveSide
+      ),
+
+
+    sleeveBottom:
+      safeNumber(
+        custom.sleeveBottom,
+        materialSeam.sleeveBottom
+      ),
+
+
+    fold:
+      safeNumber(
+        custom.fold,
+        DEFAULT_SEAM.fold
+      )
 
   };
 
@@ -110,46 +273,89 @@ export function createSeam(
 
 
 /* =========================================================
-   GET UNIFORM SEAM
+   CREATE UNIFORM SEAM
    ---------------------------------------------------------
-   Untuk kain seperti jersey/rib knit
-   kita bisa menggunakan satu ukuran kampuh.
+   Digunakan ketika user hanya memasukkan satu
+   nilai kampuh umum pada form.
+
+   Contoh:
+
+   seam = 1
+
+   maka seluruh bagian utama = 1 cm,
+   kecuali bagian bawah yang tetap menggunakan
+   nilai khusus 2 cm jika tidak ditentukan.
 ========================================================= */
 
 export function createUniformSeam(
   value = 1
 ) {
 
-  const amount =
-    Number(value);
 
-
-  const safeAmount =
-    Number.isFinite(amount) &&
-    amount >= 0
-
-      ? amount
-
-      : 1;
+  const seam =
+    safeNumber(
+      value,
+      1
+    );
 
 
   return {
 
-    enabled: true,
+    neckline:
+      seam,
 
-    top: safeAmount,
+    shoulder:
+      seam,
 
-    bottom: safeAmount,
+    armhole:
+      seam,
 
-    side: safeAmount,
+    side:
+      seam,
 
-    armhole: safeAmount,
+    bottom:
+      seam,
 
-    shoulder: safeAmount,
+    sleeveCap:
+      seam,
 
-    neckline: safeAmount,
+    sleeveSide:
+      seam,
 
-    sleeve: safeAmount
+    sleeveBottom:
+      seam,
+
+    fold:
+      0
+
+  };
+
+}
+
+
+/* =========================================================
+   GET MATERIAL SEAM
+========================================================= */
+
+export function getMaterialSeam(
+  material
+) {
+
+
+  const key =
+    normalizeMaterial(
+      material
+    );
+
+
+  const seam =
+    MATERIAL_SEAM[key] ||
+    MATERIAL_SEAM.sublime_jersey;
+
+
+  return {
+
+    ...seam
 
   };
 
@@ -162,168 +368,82 @@ export function createUniformSeam(
 
 export function getSeamValue(
   seam,
-  side
+  part
 ) {
+
 
   if (!seam) {
 
-    return 1;
+    return 0;
 
   }
-
-
-  const value =
-    Number(
-      seam[side]
-    );
 
 
   if (
-    !Number.isFinite(value)
+    Object.prototype.hasOwnProperty.call(
+      seam,
+      part
+    )
   ) {
 
-    return 1;
+    return safeNumber(
+      seam[part]
+    );
 
   }
+
+
+  return 0;
+
+}
+
+
+/* =========================================================
+   MAX SEAM
+   ---------------------------------------------------------
+   Digunakan oleh Fabric Optimizer sebagai buffer
+   konservatif sebelum kita memiliki true geometric
+   offset.
+========================================================= */
+
+export function getMaximumSeam(
+  seam
+) {
+
+
+  if (!seam) {
+
+    return 0;
+
+  }
+
+
+  const values = [
+
+    seam.neckline,
+
+    seam.shoulder,
+
+    seam.armhole,
+
+    seam.side,
+
+    seam.bottom,
+
+    seam.sleeveCap,
+
+    seam.sleeveSide,
+
+    seam.sleeveBottom
+
+  ];
 
 
   return Math.max(
-    0,
-    value
-  );
-
-}
-
-
-/* =========================================================
-   APPLY SEAM TO RECTANGLE
-   ---------------------------------------------------------
-   Digunakan oleh Fabric Optimizer.
-
-   Ini bukan bentuk pola final.
-   Fungsi ini menghitung bounding box
-   setelah kampuh ditambahkan.
-========================================================= */
-
-export function expandBounds(
-  bounds,
-  seam = 1
-) {
-
-  if (
-    !bounds
-  ) {
-
-    return {
-
-      width: 0,
-
-      height: 0
-
-    };
-
-  }
-
-
-  const amount =
-    Math.max(
-      0,
-      Number(seam) || 0
-    );
-
-
-  return {
-
-    width:
-      Number(bounds.width || 0)
-      +
-      amount * 2,
-
-    height:
-      Number(bounds.height || 0)
-      +
-      amount * 2
-
-  };
-
-}
-
-
-/* =========================================================
-   APPLY SEAM TO PIECE
-========================================================= */
-
-export function applySeamToPiece(
-  piece,
-  seam = 1
-) {
-
-  if (!piece) {
-
-    return null;
-
-  }
-
-
-  const expanded =
-    expandBounds(
-      piece,
-      seam
-    );
-
-
-  return {
-
-    ...piece,
-
-    originalWidth:
-      piece.width,
-
-    originalHeight:
-      piece.height,
-
-    width:
-      expanded.width,
-
-    height:
-      expanded.height,
-
-    seam:
-
-      Math.max(
-        0,
-        Number(seam) || 0
-      )
-
-  };
-
-}
-
-
-/* =========================================================
-   APPLY SEAM TO PIECES
-========================================================= */
-
-export function applySeamToPieces(
-  pieces,
-  seam = 1
-) {
-
-  if (
-    !Array.isArray(pieces)
-  ) {
-
-    return [];
-
-  }
-
-
-  return pieces.map(
-    piece =>
-      applySeamToPiece(
-        piece,
-        seam
-      )
+    ...values.map(
+      value =>
+        safeNumber(value)
+    )
   );
 
 }
@@ -337,6 +457,7 @@ export function getSeamSummary(
   seam
 ) {
 
+
   if (!seam) {
 
     return null;
@@ -346,50 +467,32 @@ export function getSeamSummary(
 
   return {
 
-    enabled:
-      seam.enabled !== false,
-
-    top:
-      getSeamValue(
-        seam,
-        "top"
-      ),
-
-    bottom:
-      getSeamValue(
-        seam,
-        "bottom"
-      ),
-
-    side:
-      getSeamValue(
-        seam,
-        "side"
-      ),
-
-    armhole:
-      getSeamValue(
-        seam,
-        "armhole"
-      ),
+    neckline:
+      seam.neckline,
 
     shoulder:
-      getSeamValue(
-        seam,
-        "shoulder"
-      ),
+      seam.shoulder,
 
-    neckline:
-      getSeamValue(
-        seam,
-        "neckline"
-      ),
+    armhole:
+      seam.armhole,
 
-    sleeve:
-      getSeamValue(
-        seam,
-        "sleeve"
-      )
+    side:
+      seam.side,
+
+    bottom:
+      seam.bottom,
+
+    sleeveCap:
+      seam.sleeveCap,
+
+    sleeveSide:
+      seam.sleeveSide,
+
+    sleeveBottom:
+      seam.sleeveBottom,
+
+    fold:
+      seam.fold
 
   };
 
@@ -397,52 +500,113 @@ export function getSeamSummary(
 
 
 /* =========================================================
-   CALCULATE SEAM AREA
-   ---------------------------------------------------------
-   Estimasi tambahan area bounding box.
+   VALIDATE SEAM
 ========================================================= */
 
-export function calculateSeamArea(
-  piece,
-  seam = 1
+export function validateSeam(
+  seam
 ) {
 
-  if (!piece) {
 
-    return 0;
+  if (!seam) {
+
+    return {
+
+      valid:
+        false,
+
+      errors: [
+        "Data kampuh tidak tersedia."
+      ]
+
+    };
 
   }
 
 
-  const originalArea =
-    Number(piece.width || 0) *
-    Number(piece.height || 0);
+  const errors = [];
 
 
-  const expanded =
-    expandBounds(
-      piece,
-      seam
-    );
+  const fields = [
+
+    "neckline",
+
+    "shoulder",
+
+    "armhole",
+
+    "side",
+
+    "bottom",
+
+    "sleeveCap",
+
+    "sleeveSide",
+
+    "sleeveBottom"
+
+  ];
 
 
-  const expandedArea =
-    expanded.width *
-    expanded.height;
+  fields.forEach(
+    field => {
+
+      const value =
+        Number(
+          seam[field]
+        );
 
 
-  return Math.max(
-    0,
-    expandedArea -
-    originalArea
+      if (
+        !Number.isFinite(value) ||
+        value < 0
+      ) {
+
+        errors.push(
+          `${field} tidak valid.`
+        );
+
+      }
+
+    }
   );
+
+
+  return {
+
+    valid:
+      errors.length === 0,
+
+    errors
+
+  };
 
 }
 
 
 /* =========================================================
-   DEFAULT EXPORT DATA
+   MATERIAL LIST
 ========================================================= */
 
-export const DEFAULT_SEAM_VALUES =
-  DEFAULT_SEAM;
+export function getSeamMaterialList() {
+
+  return Object.keys(
+    MATERIAL_SEAM
+  ).map(
+    key => ({
+
+      key,
+
+      name:
+        key
+          .replace(/_/g, " ")
+          .replace(
+            /\b\w/g,
+            letter =>
+              letter.toUpperCase()
+          )
+
+    })
+  );
+
+}
