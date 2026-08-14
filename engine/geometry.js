@@ -1,64 +1,39 @@
 /* =========================================================
-   PatternMaker
-   SVG GEOMETRY ENGINE V1.4
-   ---------------------------------------------------------
+   PatternMaker V1.5
+   SVG GEOMETRY ENGINE
+
    Fungsi:
-   - menggambar bodice depan
-   - menggambar bodice belakang
-   - menggambar sleeve
-   - neckline curve
-   - armhole curve
+   - membuat grid
+   - membuat garis pola / sewing line
+   - membuat garis kampuh / cutting line
+   - membuat sleeve
    - grainline
-   - label pola
-   - grid
-   - responsive SVG preview
+   - label
+   - ukuran pola
 ========================================================= */
-
-
-/* =========================================================
-   FORMAT NUMBER
-========================================================= */
-
-function n(value, digits = 2) {
-
-  const number = Number(value);
-
-  if (!Number.isFinite(number)) {
-    return 0;
-  }
-
-  return Number(
-    number.toFixed(digits)
-  );
-
-}
 
 
 /* =========================================================
    GRID
 ========================================================= */
 
-function createGrid(
-  width,
-  height,
-  step = 5
-) {
+function createGrid(width, height) {
 
   let output = "";
 
   for (
     let x = 0;
     x <= width;
-    x += step
+    x += 5
   ) {
 
     output += `
       <line
         class="grid"
-        x1="${n(x)}"
+        x1="${x}"
         y1="0"
-        x2="${n(x)}"
-        y2="${n(height)}"
+        x2="${x}"
+        y2="${height}"
       />
     `;
 
@@ -68,16 +43,16 @@ function createGrid(
   for (
     let y = 0;
     y <= height;
-    y += step
+    y += 5
   ) {
 
     output += `
       <line
         class="grid"
         x1="0"
-        y1="${n(y)}"
-        x2="${n(width)}"
-        y2="${n(y)}"
+        y1="${y}"
+        x2="${width}"
+        y2="${y}"
       />
     `;
 
@@ -90,26 +65,13 @@ function createGrid(
 
 
 /* =========================================================
-   CREATE BODICE PATH
-   ---------------------------------------------------------
-   Urutan:
-   neckline
-   shoulder
-   armhole
-   side seam
-   waist
-   center fold
+   BODICE SEWING PATH
 ========================================================= */
 
 function createBodicePath(
   points,
   front = true
 ) {
-
-  if (!points) {
-    return "";
-  }
-
 
   const {
     A,
@@ -121,285 +83,153 @@ function createBodicePath(
   } = points;
 
 
-  if (
-    !A ||
-    !B ||
-    !C ||
-    !D ||
-    !E ||
-    !F
-  ) {
-
-    return "";
-
-  }
-
-
-  /*
-    Front neckline lebih dalam.
-    Back neckline lebih dangkal.
-  */
-
   const neckDepth =
     front
       ? 4.5
       : 2.5;
 
 
-  /*
-    Titik neckline.
-  */
-
-  const neckStart = [
-    A[0],
-    A[1] + neckDepth
-  ];
-
-
-  /*
-    Gunakan armhole dari Bodice Engine
-    jika tersedia.
-  */
-
-  const armhole = front
-    ? points.frontArm
-    : points.backArm;
-
-
-  /*
-    Jika armhole tidak tersedia,
-    gunakan fallback sederhana.
-  */
-
-  let armPath = "";
-
-
-  if (
-    armhole &&
-    armhole.length >= 4
-  ) {
-
-    armPath = `
-
-      C
-      ${n(armhole[1][0])}
-      ${n(armhole[1][1])},
-
-      ${n(armhole[2][0])}
-      ${n(armhole[2][1])},
-
-      ${n(armhole[3][0])}
-      ${n(armhole[3][1])}
-
-    `;
-
-  }
-
-  else {
-
-    armPath = `
-
-      C
-      ${n(C[0] + 1.2)}
-      ${n(C[1] + 3)},
-
-      ${n(D[0] + 1.2)}
-      ${n(D[1] - 3)},
-
-      ${n(D[0])}
-      ${n(D[1])}
-
-    `;
-
-  }
-
-
-  /*
-    Neckline control point.
-  */
-
-  const neckControlX =
-    A[0] +
-    Math.max(
-      1,
-      (B[0] - A[0]) * 0.45
-    );
-
-
-  const neckControlY =
-    A[1] +
-    neckDepth;
-
-
-  /*
-    Main path.
-  */
-
   return `
-
     M
-    ${n(neckStart[0])}
-    ${n(neckStart[1])}
+    ${A[0]}
+    ${A[1] + neckDepth}
+
+    L
+    ${A[0]}
+    ${F[1]}
+
+    L
+    ${E[0]}
+    ${E[1]}
+
+    L
+    ${D[0]}
+    ${D[1]}
+
+    C
+    ${D[0]}
+    ${D[1] - 2.4},
+
+    ${C[0] + 1.1}
+    ${C[1] + 0.5},
+
+    ${C[0]}
+    ${C[1]}
+
+    L
+    ${B[0]}
+    ${B[1]}
 
     Q
-    ${n(neckControlX)}
-    ${n(neckControlY)},
+    ${A[0] + neckDepth * 0.85}
+    ${A[1]},
 
-    ${n(B[0])}
-    ${n(B[1])}
-
-    L
-    ${n(C[0])}
-    ${n(C[1])}
-
-    ${armPath}
-
-    L
-    ${n(E[0])}
-    ${n(E[1])}
-
-    L
-    ${n(F[0])}
-    ${n(F[1])}
-
-    L
-    ${n(neckStart[0])}
-    ${n(neckStart[1])}
+    ${A[0]}
+    ${A[1] + neckDepth}
 
     Z
-
   `;
 
 }
 
 
 /* =========================================================
-   SLEEVE PATH
+   SLEEVE SEWING PATH
 ========================================================= */
 
-function createSleevePath(
-  sleeve
-) {
-
-  if (!sleeve) {
-    return "";
-  }
-
-
-  const {
-    left,
-    leftCap,
-    top,
-    rightCap,
-    right,
-    bottomLeft,
-    bottomRight
-  } = sleeve;
-
-
-  if (
-    !left ||
-    !leftCap ||
-    !top ||
-    !rightCap ||
-    !right ||
-    !bottomLeft ||
-    !bottomRight
-  ) {
-
-    return "";
-
-  }
-
-
-  /*
-    Sleeve cap kiri
-  */
-
-  const leftControl1 = [
-
-    leftCap[0] + 3,
-    leftCap[1] - 3
-
-  ];
-
-
-  const leftControl2 = [
-
-    top[0] - 2,
-    top[1] + 1
-
-  ];
-
-
-  /*
-    Sleeve cap kanan
-  */
-
-  const rightControl1 = [
-
-    top[0] + 2,
-    top[1] + 1
-
-  ];
-
-
-  const rightControl2 = [
-
-    rightCap[0] - 3,
-    rightCap[1] - 3
-
-  ];
-
+function createSleevePath(s) {
 
   return `
-
     M
-    ${n(left[0])}
-    ${n(left[1])}
+    ${s.left[0]}
+    ${s.left[1]}
 
     L
-    ${n(leftCap[0])}
-    ${n(leftCap[1])}
+    ${s.leftCap[0]}
+    ${s.leftCap[1]}
 
     C
-    ${n(leftControl1[0])}
-    ${n(leftControl1[1])},
+    ${s.leftCap[0] + 3}
+    ${s.leftCap[1] - 3},
 
-    ${n(leftControl2[0])}
-    ${n(leftControl2[1])},
+    ${s.top[0] - 2}
+    ${s.top[1] + 1},
 
-    ${n(top[0])}
-    ${n(top[1])}
+    ${s.top[0]}
+    ${s.top[1]}
 
     C
-    ${n(rightControl1[0])}
-    ${n(rightControl1[1])},
+    ${s.top[0] + 2}
+    ${s.top[1] + 1},
 
-    ${n(rightControl2[0])}
-    ${n(rightControl2[1])},
+    ${s.rightCap[0] - 3}
+    ${s.rightCap[1] - 3},
 
-    ${n(rightCap[0])}
-    ${n(rightCap[1])}
-
-    L
-    ${n(right[0])}
-    ${n(right[1])}
+    ${s.rightCap[0]}
+    ${s.rightCap[1]}
 
     L
-    ${n(bottomRight[0])}
-    ${n(bottomRight[1])}
+    ${s.right[0]}
+    ${s.right[1]}
 
     L
-    ${n(bottomLeft[0])}
-    ${n(bottomLeft[1])}
+    ${s.bottomRight[0]}
+    ${s.bottomRight[1]}
 
     L
-    ${n(left[0])}
-    ${n(left[1])}
+    ${s.bottomLeft[0]}
+    ${s.bottomLeft[1]}
+
+    L
+    ${s.left[0]}
+    ${s.left[1]}
 
     Z
+  `;
 
+}
+
+
+/* =========================================================
+   APPROXIMATE OFFSET PATH
+
+   V1.5
+
+   Ini adalah prototype kampuh.
+
+   Kita belum menggunakan true geometric
+   offset seperti pada CAD engine.
+
+   Untuk tahap awal kita memperbesar
+   bounding visual secara sederhana.
+
+========================================================= */
+
+function createSeamPath(
+  path,
+  seam = 1
+) {
+
+  /*
+    SVG tidak menyediakan offset path
+    secara native.
+
+    Karena itu pada V1.5 kita menggunakan
+    stroke tambahan sebagai visual kampuh.
+
+    Garis utama:
+      sewing line
+
+    Garis luar:
+      seam allowance
+  */
+
+  return `
+    <path
+      class="seam"
+      d="${path}"
+      stroke-width="${seam * 2}"
+    />
   `;
 
 }
@@ -416,23 +246,41 @@ function createGrainline(
 ) {
 
   return `
-
     <line
       class="grain"
-      x1="${n(x)}"
-      y1="${n(y1)}"
-      x2="${n(x)}"
-      y2="${n(y2)}"
+      x1="${x}"
+      y1="${y1}"
+      x2="${x}"
+      y2="${y2}"
+    />
+
+    <polygon
+      class="grainArrow"
+      points="
+        ${x},${y1}
+        ${x - 1},${y1 + 3}
+        ${x},${y1 + 2}
+        ${x + 1},${y1 + 3}
+      "
+    />
+
+    <polygon
+      class="grainArrow"
+      points="
+        ${x},${y2}
+        ${x - 1},${y2 - 3}
+        ${x},${y2 - 2}
+        ${x + 1},${y2 - 3}
+      "
     />
 
     <text
       class="small"
-      x="${n(x + 1)}"
-      y="${n((y1 + y2) / 2)}"
+      x="${x + 1.5}"
+      y="${(y1 + y2) / 2}"
     >
       GRAIN
     </text>
-
   `;
 
 }
@@ -449,270 +297,57 @@ function createLabel(
 ) {
 
   return `
-
     <text
       class="label"
-      x="${n(x)}"
-      y="${n(y)}"
+      x="${x}"
+      y="${y}"
     >
       ${text}
     </text>
-
   `;
 
 }
 
 
 /* =========================================================
-   PIECE TITLE
+   DIMENSION LINE
 ========================================================= */
 
-function createPieceTitle(
-  text,
-  x,
-  y
+function createDimension(
+  x1,
+  y1,
+  x2,
+  y2,
+  text
 ) {
+
+  const midX =
+    (x1 + x2) / 2;
+
+
+  const midY =
+    (y1 + y2) / 2;
+
 
   return `
 
+    <line
+      class="dimension"
+      x1="${x1}"
+      y1="${y1}"
+      x2="${x2}"
+      y2="${y2}"
+    />
+
     <text
-      class="pieceTitle"
-      x="${n(x)}"
-      y="${n(y)}"
+      class="dimensionText"
+      x="${midX}"
+      y="${midY - 1}"
     >
       ${text}
     </text>
 
   `;
-
-}
-
-
-/* =========================================================
-   FIND ALL POINTS
-   ---------------------------------------------------------
-   Digunakan untuk menentukan ukuran SVG otomatis.
-========================================================= */
-
-function collectPoints(
-  bodice,
-  sleeve
-) {
-
-  const points = [];
-
-
-  /*
-    Bodice Front
-  */
-
-  if (
-    bodice &&
-    bodice.front
-  ) {
-
-    Object.values(
-      bodice.front
-    ).forEach(point => {
-
-      if (
-        Array.isArray(point) &&
-        point.length >= 2
-      ) {
-
-        points.push(point);
-
-      }
-
-    });
-
-  }
-
-
-  /*
-    Bodice Back
-  */
-
-  if (
-    bodice &&
-    bodice.back
-  ) {
-
-    Object.values(
-      bodice.back
-    ).forEach(point => {
-
-      if (
-        Array.isArray(point) &&
-        point.length >= 2
-      ) {
-
-        points.push(point);
-
-      }
-
-    });
-
-  }
-
-
-  /*
-    Front armhole
-  */
-
-  if (
-    bodice &&
-    bodice.frontArm
-  ) {
-
-    bodice.frontArm.forEach(point => {
-
-      if (
-        Array.isArray(point) &&
-        point.length >= 2
-      ) {
-
-        points.push(point);
-
-      }
-
-    });
-
-  }
-
-
-  /*
-    Back armhole
-  */
-
-  if (
-    bodice &&
-    bodice.backArm
-  ) {
-
-    bodice.backArm.forEach(point => {
-
-      if (
-        Array.isArray(point) &&
-        point.length >= 2
-      ) {
-
-        points.push(point);
-
-      }
-
-    });
-
-  }
-
-
-  /*
-    Sleeve
-  */
-
-  if (sleeve) {
-
-    Object.values(
-      sleeve
-    ).forEach(value => {
-
-      if (
-        Array.isArray(value) &&
-        value.length >= 2
-      ) {
-
-        points.push(value);
-
-      }
-
-    });
-
-  }
-
-
-  return points;
-
-}
-
-
-/* =========================================================
-   CALCULATE VIEWBOX
-========================================================= */
-
-function calculateViewBox(
-  points
-) {
-
-  if (
-    !points ||
-    !points.length
-  ) {
-
-    return {
-
-      minX: 0,
-      minY: 0,
-      width: 140,
-      height: 65
-
-    };
-
-  }
-
-
-  const xs =
-    points.map(
-      point => Number(point[0])
-    );
-
-
-  const ys =
-    points.map(
-      point => Number(point[1])
-    );
-
-
-  const minX =
-    Math.min(...xs);
-
-
-  const maxX =
-    Math.max(...xs);
-
-
-  const minY =
-    Math.min(...ys);
-
-
-  const maxY =
-    Math.max(...ys);
-
-
-  const padding =
-    8;
-
-
-  return {
-
-    minX:
-      minX - padding,
-
-    minY:
-      minY - padding,
-
-    width:
-      Math.max(
-        40,
-        maxX - minX + padding * 2
-      ),
-
-    height:
-      Math.max(
-        40,
-        maxY - minY + padding * 2
-      )
-
-  };
 
 }
 
@@ -728,35 +363,45 @@ export function renderPattern(
 ) {
 
 
-  /*
-    Kumpulkan semua titik
-    untuk menentukan viewBox.
-  */
+  /* =======================================================
+     CANVAS SIZE
 
-  const points =
-    collectPoints(
-      bodice,
-      sleeve
-    );
+     Kita beri ruang lebih besar agar
+     pola tidak langsung terpotong.
 
-
-  const viewBox =
-    calculateViewBox(
-      points
-    );
-
+  ======================================================= */
 
   const width =
-    viewBox.width;
+    150;
 
 
   const height =
-    viewBox.height;
+    Math.max(
+
+      100,
+
+      measurements.bodyLength + 40
+
+    );
 
 
-  /*
-    Grid.
-  */
+  /* =======================================================
+     SEAM
+
+     Jika input seam kosong,
+     gunakan 1 cm.
+
+  ======================================================= */
+
+  const seam =
+    Number(
+      measurements.seam
+    ) || 1;
+
+
+  /* =======================================================
+     GRID
+  ======================================================= */
 
   const grid =
     createGrid(
@@ -765,31 +410,37 @@ export function renderPattern(
     );
 
 
-  /*
-    Bodice Front.
-  */
+  /* =======================================================
+     BODICE FRONT
+  ======================================================= */
 
   const frontPath =
     createBodicePath(
+
       bodice.front,
+
       true
+
     );
 
 
-  /*
-    Bodice Back.
-  */
+  /* =======================================================
+     BODICE BACK
+  ======================================================= */
 
   const backPath =
     createBodicePath(
+
       bodice.back,
+
       false
+
     );
 
 
-  /*
-    Sleeve.
-  */
+  /* =======================================================
+     SLEEVE
+  ======================================================= */
 
   const sleevePath =
     createSleevePath(
@@ -797,129 +448,60 @@ export function renderPattern(
     );
 
 
-  /*
-    Posisi label.
-  */
+  /* =======================================================
+     SEAM VISUAL
+  ======================================================= */
 
-  const frontLabelX =
-    bodice.front.A[0];
+  const frontSeam =
+    createSeamPath(
 
+      frontPath,
 
-  const frontLabelY =
-    bodice.front.F[1] + 6;
+      seam
 
-
-  const backLabelX =
-    bodice.back.A[0];
+    );
 
 
-  const backLabelY =
-    bodice.back.F[1] + 6;
+  const backSeam =
+    createSeamPath(
+
+      backPath,
+
+      seam
+
+    );
 
 
-  const sleeveLabelX =
-    sleeve.left[0];
+  const sleeveSeam =
+    createSeamPath(
+
+      sleevePath,
+
+      seam
+
+    );
 
 
-  const sleeveLabelY =
-    sleeve.left[1] + 6;
+  /* =======================================================
+     DIMENSIONS
+  ======================================================= */
+
+  const frontWidth =
+    Math.abs(
+
+      bodice.front.D[0] -
+      bodice.front.A[0]
+
+    );
 
 
-  /*
-    Grainline Front.
-  */
+  const bodyLength =
+    Math.abs(
 
-  const frontGrainX =
-    bodice.front.A[0] +
-    4;
+      bodice.front.F[1] -
+      bodice.front.A[1]
 
-
-  const frontGrainY1 =
-    bodice.front.B[1] +
-    7;
-
-
-  const frontGrainY2 =
-    bodice.front.F[1] -
-    5;
-
-
-  /*
-    Grainline Back.
-  */
-
-  const backGrainX =
-    bodice.back.A[0] +
-    4;
-
-
-  const backGrainY1 =
-    bodice.back.B[1] +
-    7;
-
-
-  const backGrainY2 =
-    bodice.back.F[1] -
-    5;
-
-
-  /*
-    Grainline Sleeve.
-  */
-
-  const sleeveGrainX =
-    sleeve.top[0];
-
-
-  const sleeveGrainY1 =
-    sleeve.top[1] +
-    5;
-
-
-  const sleeveGrainY2 =
-    sleeve.left[1] -
-    5;
-
-
-  /*
-    Cap ease.
-  */
-
-  const capEase =
-    sleeve &&
-    Number.isFinite(
-      Number(sleeve.capEase)
-    )
-
-      ? Number(sleeve.capEase)
-
-      : 0;
-
-
-  /*
-    Material.
-  */
-
-  const material =
-    measurements &&
-    measurements.fabric
-
-      ? measurements.fabric
-
-      : "";
-
-
-  /*
-    Age.
-  */
-
-  const age =
-    measurements &&
-    measurements.age
-
-      ? measurements.age
-
-      : "";
+    );
 
 
   /* =======================================================
@@ -928,39 +510,40 @@ export function renderPattern(
 
   return `
 
-    <svg
+  <svg
 
-      xmlns="http://www.w3.org/2000/svg"
+    xmlns="http://www.w3.org/2000/svg"
 
-      viewBox="
-        ${n(viewBox.minX)}
-        ${n(viewBox.minY)}
-        ${n(viewBox.width)}
-        ${n(viewBox.height)}
-      "
+    viewBox="
+      0
+      0
+      ${width}
+      ${height}
+    "
 
-      width="100%"
+    preserveAspectRatio="xMidYMid meet"
 
-      preserveAspectRatio="xMidYMid meet"
+    width="100%"
 
-      role="img"
+    style="
+      max-width:100%;
+      height:auto;
+      display:block;
+    "
 
-      aria-label="PatternMaker pattern preview"
+  >
 
-    >
+    <defs>
 
       <style>
 
         .grid {
 
           stroke:
-            #e5e7eb;
+            #e5e5e5;
 
           stroke-width:
             0.15;
-
-          fill:
-            none;
 
         }
 
@@ -968,19 +551,36 @@ export function renderPattern(
         .pattern {
 
           fill:
-            rgba(255,255,255,0.55);
+            rgba(255,255,255,0.35);
 
           stroke:
-            #111827;
+            #111;
 
           stroke-width:
             0.45;
 
-          stroke-linejoin:
-            round;
+          vector-effect:
+            non-scaling-stroke;
 
-          stroke-linecap:
-            round;
+        }
+
+
+        .seam {
+
+          fill:
+            none;
+
+          stroke:
+            #777;
+
+          stroke-width:
+            0.35;
+
+          stroke-dasharray:
+            1.2 0.8;
+
+          vector-effect:
+            non-scaling-stroke;
 
         }
 
@@ -988,13 +588,21 @@ export function renderPattern(
         .grain {
 
           stroke:
-            #374151;
+            #222;
 
           stroke-width:
-            0.3;
+            0.35;
 
-          stroke-dasharray:
-            1.5 1;
+          vector-effect:
+            non-scaling-stroke;
+
+        }
+
+
+        .grainArrow {
+
+          fill:
+            #222;
 
         }
 
@@ -1006,31 +614,13 @@ export function renderPattern(
             sans-serif;
 
           font-size:
-            2.2px;
+            2.5px;
 
           font-weight:
-            600;
+            bold;
 
           fill:
-            #111827;
-
-        }
-
-
-        .pieceTitle {
-
-          font-family:
-            Arial,
-            sans-serif;
-
-          font-size:
-            2.6px;
-
-          font-weight:
-            700;
-
-          fill:
-            #111827;
+            #111;
 
         }
 
@@ -1042,10 +632,10 @@ export function renderPattern(
             sans-serif;
 
           font-size:
-            1.5px;
+            1.7px;
 
           fill:
-            #4b5563;
+            #444;
 
         }
 
@@ -1057,159 +647,304 @@ export function renderPattern(
             sans-serif;
 
           font-size:
-            1.7px;
+            1.8px;
 
           fill:
-            #374151;
+            #555;
+
+        }
+
+
+        .dimension {
+
+          stroke:
+            #555;
+
+          stroke-width:
+            0.25;
+
+          stroke-dasharray:
+            0.8 0.8;
+
+          vector-effect:
+            non-scaling-stroke;
+
+        }
+
+
+        .dimensionText {
+
+          font-family:
+            Arial,
+            sans-serif;
+
+          font-size:
+            1.7px;
+
+          text-anchor:
+            middle;
+
+          fill:
+            #444;
 
         }
 
       </style>
 
-
-      <!-- =========================================
-           GRID
-      ========================================== -->
-
-      <g>
-
-        ${grid}
-
-      </g>
+    </defs>
 
 
-      <!-- =========================================
-           FRONT BODICE
-      ========================================== -->
+    <!-- =================================================
+         GRID
+    ================================================= -->
 
-      <path
-        class="pattern"
-        d="${frontPath}"
-      />
+    ${grid}
 
 
-      ${createPieceTitle(
-        "FRONT",
-        frontLabelX,
-        frontLabelY - 3
-      )}
+    <!-- =================================================
+         FRONT SEAM ALLOWANCE
+    ================================================= -->
+
+    ${frontSeam}
 
 
-      ${createLabel(
-        "FRONT — FOLD",
-        frontLabelX,
-        frontLabelY
-      )}
+    <!-- =================================================
+         FRONT SEWING LINE
+    ================================================= -->
+
+    <path
+      class="pattern"
+      d="${frontPath}"
+    />
 
 
-      ${createGrainline(
-        frontGrainX,
-        frontGrainY1,
-        frontGrainY2
-      )}
+    <!-- =================================================
+         BACK SEAM ALLOWANCE
+    ================================================= -->
+
+    ${backSeam}
 
 
-      <!-- =========================================
-           BACK BODICE
-      ========================================== -->
+    <!-- =================================================
+         BACK SEWING LINE
+    ================================================= -->
 
-      <path
-        class="pattern"
-        d="${backPath}"
-      />
-
-
-      ${createPieceTitle(
-        "BACK",
-        backLabelX,
-        backLabelY - 3
-      )}
+    <path
+      class="pattern"
+      d="${backPath}"
+    />
 
 
-      ${createLabel(
-        "BACK — FOLD",
-        backLabelX,
-        backLabelY
-      )}
+    <!-- =================================================
+         SLEEVE SEAM ALLOWANCE
+    ================================================= -->
+
+    ${sleeveSeam}
 
 
-      ${createGrainline(
-        backGrainX,
-        backGrainY1,
-        backGrainY2
-      )}
+    <!-- =================================================
+         SLEEVE SEWING LINE
+    ================================================= -->
+
+    <path
+      class="pattern"
+      d="${sleevePath}"
+    />
 
 
-      <!-- =========================================
-           SLEEVE
-      ========================================== -->
+    <!-- =================================================
+         FRONT GRAIN
+    ================================================= -->
 
-      <path
-        class="pattern"
-        d="${sleevePath}"
-      />
+    ${createGrainline(
 
+      14,
 
-      ${createPieceTitle(
-        "SLEEVE",
-        sleeveLabelX,
-        sleeveLabelY - 3
-      )}
+      18,
 
+      Math.min(
+        height - 10,
+        18 + bodyLength * 0.65
+      )
 
-      ${createLabel(
-        "SLEEVE — CUT 2",
-        sleeveLabelX,
-        sleeveLabelY
-      )}
+    )}
 
 
-      ${createGrainline(
-        sleeveGrainX,
-        sleeveGrainY1,
-        sleeveGrainY2
-      )}
+    <!-- =================================================
+         BACK GRAIN
+    ================================================= -->
+
+    ${createGrainline(
+
+      59,
+
+      18,
+
+      Math.min(
+        height - 10,
+        18 + bodyLength * 0.65
+      )
+
+    )}
 
 
-      <!-- =========================================
-           HEADER INFORMATION
-      ========================================== -->
+    <!-- =================================================
+         SLEEVE GRAIN
+    ================================================= -->
 
-      <text
-        class="small"
-        x="${n(viewBox.minX + 3)}"
-        y="${n(viewBox.minY + 4)}"
-      >
-        PatternMaker V1.4
-      </text>
+    ${createGrainline(
 
+      108,
 
-      <text
-        class="small"
-        x="${n(viewBox.minX + 3)}"
-        y="${n(viewBox.minY + 6)}"
-      >
-        ${age ? `Age: ${age} years` : ""}
-        ${material ? ` • ${material}` : ""}
-      </text>
+      19,
+
+      Math.min(
+        height - 10,
+        45
+      )
+
+    )}
 
 
-      <!-- =========================================
-           SLEEVE CAP INFO
-      ========================================== -->
+    <!-- =================================================
+         LABEL FRONT
+    ================================================= -->
 
-      <text
-        class="note"
-        x="${n(sleeveLabelX)}"
-        y="${n(sleeveLabelY + 3)}"
-      >
-        Cap ease:
-        ${n(capEase, 1)}
-        cm
-      </text>
+    ${createLabel(
+
+      "FRONT — FOLD",
+
+      10,
+
+      Math.min(
+        height - 15,
+        50
+      )
+
+    )}
 
 
-    </svg>
+    <!-- =================================================
+         LABEL BACK
+    ================================================= -->
+
+    ${createLabel(
+
+      "BACK — FOLD",
+
+      55,
+
+      Math.min(
+        height - 15,
+        50
+      )
+
+    )}
+
+
+    <!-- =================================================
+         LABEL SLEEVE
+    ================================================= -->
+
+    ${createLabel(
+
+      "SLEEVE — CUT 2",
+
+      95,
+
+      Math.min(
+        height - 13,
+        52
+      )
+
+    )}
+
+
+    <!-- =================================================
+         DIMENSION BODY
+    ================================================= -->
+
+    ${createDimension(
+
+      bodice.front.A[0] - 3,
+
+      bodice.front.A[1],
+
+      bodice.front.A[0] - 3,
+
+      bodice.front.F[1],
+
+      `${bodyLength.toFixed(1)} cm`
+
+    )}
+
+
+    <!-- =================================================
+         DIMENSION WIDTH
+    ================================================= -->
+
+    ${createDimension(
+
+      bodice.front.A[0],
+
+      bodice.front.F[1] + 4,
+
+      bodice.front.D[0],
+
+      bodice.front.F[1] + 4,
+
+      `${frontWidth.toFixed(1)} cm`
+
+    )}
+
+
+    <!-- =================================================
+         INFORMATION
+    ================================================= -->
+
+    <text
+      class="small"
+      x="5"
+      y="5"
+    >
+      PatternMaker V1.5
+    </text>
+
+
+    <text
+      class="small"
+      x="5"
+      y="8"
+    >
+      Units: cm
+    </text>
+
+
+    <text
+      class="note"
+      x="95"
+      y="57"
+    >
+      Seam:
+      ${seam.toFixed(1)}
+      cm
+    </text>
+
+
+    <text
+      class="note"
+      x="95"
+      y="60"
+    >
+      Cap ease:
+      ${Number(
+        sleeve.capEase || 0
+      ).toFixed(1)}
+      cm
+    </text>
+
+
+  </svg>
 
   `;
 
