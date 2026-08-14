@@ -2,14 +2,16 @@
    PatternMaker V1.5
    MAIN APPLICATION
    ---------------------------------------------------------
-   ENGINE:
+   Menghubungkan:
+
    - Measurement Engine
    - Bodice Engine
    - Sleeve Engine
    - Geometry Engine
    - Fabric Engine
+   - Seam Engine
    - Fabric Optimizer
-   - Fabric Nesting Preview
+
 ========================================================= */
 
 
@@ -42,6 +44,11 @@ import {
 } from "./engine/fabric.js";
 
 
+import {
+  createUniformSeam
+} from "./engine/seam.js";
+
+
 /* =========================================================
    GLOBAL STATE
 ========================================================= */
@@ -55,6 +62,8 @@ let lastBodice = null;
 let lastSleeve = null;
 
 let lastFabric = null;
+
+let lastSeam = null;
 
 let lastOptimization = null;
 
@@ -70,28 +79,54 @@ function el(id) {
 }
 
 
-function number(id, fallback = 0) {
+/* =========================================================
+   NUMBER HELPER
+========================================================= */
 
-  const node = el(id);
+function number(
+  id,
+  fallback = 0
+) {
+
+  const node =
+    el(id);
+
 
   if (!node) {
+
     return fallback;
+
   }
+
 
   const value =
     Number(node.value);
 
+
   return Number.isFinite(value)
+
     ? value
+
     : fallback;
 
 }
 
 
-function round(value, digits = 1) {
+/* =========================================================
+   ROUND
+========================================================= */
+
+function round(
+  value,
+  digits = 1
+) {
 
   const factor =
-    Math.pow(10, digits);
+    Math.pow(
+      10,
+      digits
+    );
+
 
   return Math.round(
     value * factor
@@ -104,7 +139,9 @@ function round(value, digits = 1) {
    MATERIAL NAME
 ========================================================= */
 
-function materialName(key) {
+function materialName(
+  key
+) {
 
   const names = {
 
@@ -122,16 +159,41 @@ function materialName(key) {
 
   };
 
-  return names[key] || key;
+
+  return (
+    names[key] ||
+    key
+  );
 
 }
 
 
 /* =========================================================
-   UPDATE FABRIC INFORMATION
+   STATUS
+========================================================= */
+
+function setStatus(
+  message
+) {
+
+  if (
+    el("status")
+  ) {
+
+    el("status").textContent =
+      message;
+
+  }
+
+}
+
+
+/* =========================================================
+   FABRIC INFORMATION
 ========================================================= */
 
 function updateFabricInformation() {
+
 
   const measurements =
     getMeasurements();
@@ -162,7 +224,13 @@ function updateFabricInformation() {
     fabric;
 
 
-  if (el("materialName")) {
+  /* =======================================================
+     MATERIAL
+  ======================================================= */
+
+  if (
+    el("materialName")
+  ) {
 
     el("materialName").textContent =
       fabric.materialName;
@@ -170,7 +238,13 @@ function updateFabricInformation() {
   }
 
 
-  if (el("displayFabricWidth")) {
+  /* =======================================================
+     WIDTH
+  ======================================================= */
+
+  if (
+    el("displayFabricWidth")
+  ) {
 
     el("displayFabricWidth").textContent =
       fabric.width;
@@ -178,7 +252,13 @@ function updateFabricInformation() {
   }
 
 
-  if (el("effectiveWidth")) {
+  /* =======================================================
+     EFFECTIVE WIDTH
+  ======================================================= */
+
+  if (
+    el("effectiveWidth")
+  ) {
 
     el("effectiveWidth").textContent =
       fabric.effectiveWidth;
@@ -186,7 +266,13 @@ function updateFabricInformation() {
   }
 
 
-  if (el("displayFabricLength")) {
+  /* =======================================================
+     LENGTH
+  ======================================================= */
+
+  if (
+    el("displayFabricLength")
+  ) {
 
     el("displayFabricLength").textContent =
       fabric.length;
@@ -194,7 +280,13 @@ function updateFabricInformation() {
   }
 
 
-  if (el("fabricStretch")) {
+  /* =======================================================
+     STRETCH
+  ======================================================= */
+
+  if (
+    el("fabricStretch")
+  ) {
 
     el("fabricStretch").textContent =
       fabric.stretch;
@@ -202,7 +294,13 @@ function updateFabricInformation() {
   }
 
 
-  if (el("stretchDirection")) {
+  /* =======================================================
+     STRETCH DIRECTION
+  ======================================================= */
+
+  if (
+    el("stretchDirection")
+  ) {
 
     el("stretchDirection").textContent =
       fabric.stretchDirection;
@@ -210,11 +308,23 @@ function updateFabricInformation() {
   }
 
 
-  if (el("allowedRotation")) {
+  /* =======================================================
+     ROTATION
+  ======================================================= */
+
+  if (
+    el("allowedRotation")
+  ) {
 
     el("allowedRotation").textContent =
+
       fabric.allowedRotation
-        .map(value => value + "°")
+
+        .map(
+          value =>
+            value + "°"
+        )
+
         .join(", ");
 
   }
@@ -226,12 +336,55 @@ function updateFabricInformation() {
 
 
 /* =========================================================
+   SEAM INFORMATION
+========================================================= */
+
+function updateSeamInformation() {
+
+
+  const measurements =
+    getMeasurements();
+
+
+  /*
+    Untuk tahap awal:
+
+    satu nilai kampuh digunakan
+    untuk seluruh sisi pola.
+  */
+
+  const seamValue =
+    measurements.seam || 1;
+
+
+  const seam =
+    createUniformSeam(
+      seamValue
+    );
+
+
+  lastSeam =
+    seam;
+
+
+  return seam;
+
+}
+
+
+/* =========================================================
    GENERATE PATTERN
 ========================================================= */
 
 function generatePattern() {
 
+
   try {
+
+
+    /* =====================================================
+       MEASUREMENTS
+    ===================================================== */
 
     const measurements =
       getMeasurements();
@@ -241,6 +394,10 @@ function generatePattern() {
       measurements;
 
 
+    /* =====================================================
+       FABRIC
+    ===================================================== */
+
     const fabric =
       updateFabricInformation();
 
@@ -249,29 +406,48 @@ function generatePattern() {
       fabric;
 
 
-    /* ---------------------------------------
+    /* =====================================================
+       SEAM
+    ===================================================== */
+
+    const seam =
+      updateSeamInformation();
+
+
+    lastSeam =
+      seam;
+
+
+    /* =====================================================
        VALIDATION
-    --------------------------------------- */
+    ===================================================== */
 
     if (
+
       measurements.bust <= 0 ||
+
       measurements.waist <= 0 ||
+
       measurements.shoulder <= 0 ||
+
       measurements.bodyLength <= 0
+
     ) {
+
 
       setStatus(
         "Periksa kembali ukuran anak."
       );
+
 
       return;
 
     }
 
 
-    /* ---------------------------------------
-       BODICE
-    --------------------------------------- */
+    /* =====================================================
+       BODICE ENGINE
+    ===================================================== */
 
     const bodice =
       makeBodice(
@@ -283,9 +459,9 @@ function generatePattern() {
       bodice;
 
 
-    /* ---------------------------------------
-       SLEEVE
-    --------------------------------------- */
+    /* =====================================================
+       SLEEVE ENGINE
+    ===================================================== */
 
     const sleeve =
       makeSleeve(
@@ -298,15 +474,19 @@ function generatePattern() {
       sleeve;
 
 
-    /* ---------------------------------------
-       SVG POLA
-    --------------------------------------- */
+    /* =====================================================
+       SVG
+    ===================================================== */
 
     const svg =
       renderPattern(
+
         bodice,
+
         sleeve,
+
         measurements
+
       );
 
 
@@ -314,11 +494,13 @@ function generatePattern() {
       svg;
 
 
-    /* ---------------------------------------
+    /* =====================================================
        PREVIEW
-    --------------------------------------- */
+    ===================================================== */
 
-    if (el("canvasWrap")) {
+    if (
+      el("canvasWrap")
+    ) {
 
       el("canvasWrap").innerHTML =
         svg;
@@ -326,63 +508,72 @@ function generatePattern() {
     }
 
 
-    /* ---------------------------------------
+    /* =====================================================
        STATUS
-    --------------------------------------- */
+    ===================================================== */
 
     setStatus(
 
       `Pola berhasil dibuat • ` +
+
       `Usia ${measurements.age} tahun • ` +
+
       `${fabric.materialName} • ` +
-      `Kain ${fabric.width} cm`
+
+      `Kain ${fabric.width} cm • ` +
+
+      `Kampuh ${seam.side} cm`
 
     );
 
 
-    /* ---------------------------------------
-       RESET OPTIMIZER
-    --------------------------------------- */
+    /* =====================================================
+       RESET OPTIMIZATION
+    ===================================================== */
 
     resetOptimization();
 
 
-    /* ---------------------------------------
-       REMOVE OLD NESTING
-    --------------------------------------- */
+    /* =====================================================
+       SCROLL
+    ===================================================== */
 
-    removeNestingPreview();
+    if (
+      el("canvasWrap")
+    ) {
+
+      el("canvasWrap").scrollIntoView({
+
+        behavior:
+          "smooth",
+
+        block:
+          "center"
+
+      });
+
+    }
 
 
   }
 
   catch (error) {
 
+
     console.error(
+
       "PatternMaker error:",
+
       error
+
     );
 
 
     setStatus(
+
       "Terjadi kesalahan saat membuat pola."
+
     );
-
-  }
-
-}
-
-
-/* =========================================================
-   STATUS
-========================================================= */
-
-function setStatus(message) {
-
-  if (el("status")) {
-
-    el("status").textContent =
-      message;
 
   }
 
@@ -395,11 +586,18 @@ function setStatus(message) {
 
 function resetOptimization() {
 
+
   lastOptimization =
     null;
 
 
-  if (el("resultWidth")) {
+  /* -------------------------------------------------------
+     RESULT WIDTH
+  ------------------------------------------------------- */
+
+  if (
+    el("resultWidth")
+  ) {
 
     el("resultWidth").textContent =
       "-";
@@ -407,7 +605,13 @@ function resetOptimization() {
   }
 
 
-  if (el("resultLength")) {
+  /* -------------------------------------------------------
+     RESULT LENGTH
+  ------------------------------------------------------- */
+
+  if (
+    el("resultLength")
+  ) {
 
     el("resultLength").textContent =
       "-";
@@ -415,7 +619,13 @@ function resetOptimization() {
   }
 
 
-  if (el("resultMaterial")) {
+  /* -------------------------------------------------------
+     RESULT MATERIAL
+  ------------------------------------------------------- */
+
+  if (
+    el("resultMaterial")
+  ) {
 
     el("resultMaterial").textContent =
       "-";
@@ -423,7 +633,13 @@ function resetOptimization() {
   }
 
 
-  if (el("resultQuantity")) {
+  /* -------------------------------------------------------
+     RESULT QUANTITY
+  ------------------------------------------------------- */
+
+  if (
+    el("resultQuantity")
+  ) {
 
     el("resultQuantity").textContent =
       "-";
@@ -431,15 +647,18 @@ function resetOptimization() {
   }
 
 
-  if (el("resultStatus")) {
+  /* -------------------------------------------------------
+     RESULT STATUS
+  ------------------------------------------------------- */
+
+  if (
+    el("resultStatus")
+  ) {
 
     el("resultStatus").textContent =
       "Belum dioptimasi";
 
   }
-
-
-  removeNestingPreview();
 
 }
 
@@ -448,7 +667,10 @@ function resetOptimization() {
    GET BOUNDS
 ========================================================= */
 
-function getBounds(points) {
+function getBounds(
+  points
+) {
+
 
   if (
     !points ||
@@ -458,6 +680,7 @@ function getBounds(points) {
     return {
 
       width: 0,
+
       height: 0
 
     };
@@ -467,38 +690,43 @@ function getBounds(points) {
 
   const xs =
     points.map(
-      point => point[0]
+      point =>
+        point[0]
     );
 
 
   const ys =
     points.map(
-      point => point[1]
+      point =>
+        point[1]
     );
 
 
   const minX =
-    Math.min(...xs);
+    Math.min(
+      ...xs
+    );
 
 
   const maxX =
-    Math.max(...xs);
+    Math.max(
+      ...xs
+    );
 
 
   const minY =
-    Math.min(...ys);
+    Math.min(
+      ...ys
+    );
 
 
   const maxY =
-    Math.max(...ys);
+    Math.max(
+      ...ys
+    );
 
 
   return {
-
-    minX,
-    maxX,
-    minY,
-    maxY,
 
     width:
       maxX - minX,
@@ -517,9 +745,13 @@ function getBounds(points) {
 
 function getPatternPieces() {
 
+
   if (
+
     !lastBodice ||
+
     !lastSleeve
+
   ) {
 
     return [];
@@ -530,17 +762,22 @@ function getPatternPieces() {
   const pieces = [];
 
 
-  /* -----------------------------------------
+  /* =======================================================
      FRONT
-  ----------------------------------------- */
+  ======================================================= */
 
   const frontPoints = [
 
     lastBodice.front.A,
+
     lastBodice.front.B,
+
     lastBodice.front.C,
+
     lastBodice.front.D,
+
     lastBodice.front.E,
+
     lastBodice.front.F
 
   ];
@@ -572,17 +809,22 @@ function getPatternPieces() {
   });
 
 
-  /* -----------------------------------------
+  /* =======================================================
      BACK
-  ----------------------------------------- */
+  ======================================================= */
 
   const backPoints = [
 
     lastBodice.back.A,
+
     lastBodice.back.B,
+
     lastBodice.back.C,
+
     lastBodice.back.D,
+
     lastBodice.back.E,
+
     lastBodice.back.F
 
   ];
@@ -614,18 +856,24 @@ function getPatternPieces() {
   });
 
 
-  /* -----------------------------------------
+  /* =======================================================
      SLEEVE
-  ----------------------------------------- */
+  ======================================================= */
 
   const sleevePoints = [
 
     lastSleeve.left,
+
     lastSleeve.leftCap,
+
     lastSleeve.top,
+
     lastSleeve.rightCap,
+
     lastSleeve.right,
+
     lastSleeve.bottomLeft,
+
     lastSleeve.bottomRight
 
   ];
@@ -663,326 +911,36 @@ function getPatternPieces() {
 
 
 /* =========================================================
-   ROTATION CHECK
-========================================================= */
-
-function canRotate(
-  fabric,
-  rotation
-) {
-
-  if (!fabric) {
-    return false;
-  }
-
-
-  return (
-    fabric.allowedRotation &&
-    fabric.allowedRotation.includes(
-      rotation
-    )
-  );
-
-}
-
-
-/* =========================================================
-   CREATE PIECE INSTANCE
-========================================================= */
-
-function createPieceInstances(
-  pieces,
-  quantity
-) {
-
-  const instances = [];
-
-
-  for (
-    let garment = 1;
-    garment <= quantity;
-    garment++
-  ) {
-
-    for (
-      const piece of pieces
-    ) {
-
-      for (
-        let i = 0;
-        i < piece.quantity;
-        i++
-      ) {
-
-        instances.push({
-
-          name:
-            piece.name,
-
-          width:
-            piece.width,
-
-          height:
-            piece.height,
-
-          garment,
-
-          pieceIndex:
-            i + 1,
-
-          rotation:
-            0
-
-        });
-
-      }
-
-    }
-
-  }
-
-
-  return instances;
-
-}
-
-
-/* =========================================================
-   TEST PLACEMENT
-========================================================= */
-
-function placementFits(
-  x,
-  y,
-  width,
-  height,
-  placements,
-  fabricWidth
-) {
-
-  /* ---------------------------------------
-     FABRIC WIDTH
-  --------------------------------------- */
-
-  if (
-    x + width >
-    fabricWidth
-  ) {
-
-    return false;
-
-  }
-
-
-  /* ---------------------------------------
-     COLLISION
-  --------------------------------------- */
-
-  for (
-    const item of placements
-  ) {
-
-    const overlapX =
-      x < item.x + item.width &&
-      x + width > item.x;
-
-
-    const overlapY =
-      y < item.y + item.height &&
-      y + height > item.y;
-
-
-    if (
-      overlapX &&
-      overlapY
-    ) {
-
-      return false;
-
-    }
-
-  }
-
-
-  return true;
-
-}
-
-
-/* =========================================================
-   FIND BEST POSITION
-========================================================= */
-
-function findPosition(
-  piece,
-  placements,
-  fabric,
-  rotations
-) {
-
-  const candidates = [];
-
-
-  /* ---------------------------------------
-     START POSITION
-  --------------------------------------- */
-
-  candidates.push({
-
-    x: 0,
-    y: 0
-
-  });
-
-
-  /* ---------------------------------------
-     EDGE POSITIONS
-  --------------------------------------- */
-
-  for (
-    const item of placements
-  ) {
-
-    candidates.push({
-
-      x:
-        item.x +
-        item.width,
-
-      y:
-        item.y
-
-    });
-
-
-    candidates.push({
-
-      x:
-        item.x,
-
-      y:
-        item.y +
-        item.height
-
-    });
-
-  }
-
-
-  let best = null;
-
-
-  for (
-    const rotation of rotations
-  ) {
-
-    let width =
-      piece.width;
-
-    let height =
-      piece.height;
-
-
-    if (
-      rotation === 90 ||
-      rotation === 270
-    ) {
-
-      const temp =
-        width;
-
-      width =
-        height;
-
-      height =
-        temp;
-
-    }
-
-
-    for (
-      const candidate of candidates
-    ) {
-
-      const x =
-        candidate.x;
-
-      const y =
-        candidate.y;
-
-
-      if (
-        !placementFits(
-          x,
-          y,
-          width,
-          height,
-          placements,
-          fabric.effectiveWidth
-        )
-      ) {
-
-        continue;
-
-      }
-
-
-      const endY =
-        y + height;
-
-
-      const score =
-        endY * 10000 +
-        y * 100 +
-        x;
-
-
-      if (
-        !best ||
-        score < best.score
-      ) {
-
-        best = {
-
-          x,
-          y,
-
-          width,
-          height,
-
-          rotation,
-
-          score
-
-        };
-
-      }
-
-    }
-
-  }
-
-
-  return best;
-
-}
-
-
-/* =========================================================
    FABRIC OPTIMIZER
+   ---------------------------------------------------------
+   Prototype V1.5
+
+   Menggunakan:
+
+   - ukuran kain
+   - lebar efektif
+   - kampuh
+   - jumlah pakaian
+   - batas rotasi material
+
 ========================================================= */
 
 function optimizeFabric() {
 
+
   try {
 
-    /* ---------------------------------------
-       MAKE PATTERN IF NEEDED
-    --------------------------------------- */
+
+    /* =====================================================
+       PASTIKAN POLA ADA
+    ===================================================== */
 
     if (
+
       !lastBodice ||
+
       !lastSleeve
+
     ) {
 
       generatePattern();
@@ -991,101 +949,223 @@ function optimizeFabric() {
 
 
     if (
+
       !lastFabric ||
+
       !lastBodice ||
+
       !lastSleeve
+
     ) {
 
       setStatus(
+
         "Buat pola terlebih dahulu."
+
       );
+
 
       return;
 
     }
 
+
+    /* =====================================================
+       MEASUREMENTS
+    ===================================================== */
 
     const measurements =
       lastMeasurements ||
       getMeasurements();
 
 
+    /* =====================================================
+       FABRIC
+    ===================================================== */
+
     const fabric =
       lastFabric;
 
 
+    /* =====================================================
+       SEAM
+    ===================================================== */
+
     const seam =
-      Math.max(
-        0,
+      lastSeam ||
+      createUniformSeam(
         measurements.seam || 1
       );
 
 
+    /* =====================================================
+       QUANTITY
+    ===================================================== */
+
     const quantity =
       Math.max(
+
         1,
-        measurements.garmentQuantity || 1
+
+        measurements.garmentQuantity ||
+        1
+
       );
 
 
-    /* ---------------------------------------
+    /* =====================================================
        PIECES
-    --------------------------------------- */
+    ===================================================== */
 
     let pieces =
       getPatternPieces();
 
 
-    if (!pieces.length) {
+    if (
+      !pieces.length
+    ) {
 
       setStatus(
         "Pola belum tersedia."
       );
+
 
       return;
 
     }
 
 
-    /* ---------------------------------------
-       ADD SEAM
-    --------------------------------------- */
+    /* =====================================================
+       SEAM ALLOWANCE
+    ===================================================== */
+
+    /*
+      Pada optimizer kita menggunakan
+      kampuh terbesar sebagai buffer.
+
+      Tahap berikutnya akan menggunakan
+      kampuh berdasarkan sisi pola.
+    */
+
+    const seamAmount =
+      Math.max(
+
+        seam.top,
+
+        seam.bottom,
+
+        seam.side,
+
+        seam.armhole,
+
+        seam.shoulder,
+
+        seam.neckline,
+
+        seam.sleeve
+
+      );
+
 
     pieces =
       pieces.map(
+
         piece => ({
 
           ...piece,
 
+          originalWidth:
+            piece.width,
+
+          originalHeight:
+            piece.height,
+
           width:
             piece.width +
-            seam * 2,
+            seamAmount * 2,
 
           height:
             piece.height +
-            seam * 2
+            seamAmount * 2,
+
+          seam:
+            seamAmount
 
         })
+
       );
 
 
-    /* ---------------------------------------
+    /* =====================================================
        CREATE INSTANCES
-    --------------------------------------- */
+    ===================================================== */
 
-    const instances =
-      createPieceInstances(
-        pieces,
-        quantity
-      );
+    const instances = [];
 
 
-    /* ---------------------------------------
-       SORT BIGGEST FIRST
-    --------------------------------------- */
+    for (
+
+      let garment = 0;
+
+      garment < quantity;
+
+      garment++
+
+    ) {
+
+
+      for (
+
+        const piece of pieces
+
+      ) {
+
+
+        for (
+
+          let i = 0;
+
+          i < piece.quantity;
+
+          i++
+
+        ) {
+
+
+          instances.push({
+
+            name:
+              piece.name,
+
+            width:
+              piece.width,
+
+            height:
+              piece.height,
+
+            garment:
+              garment + 1,
+
+            rotation:
+              0
+
+          });
+
+        }
+
+      }
+
+    }
+
+
+    /* =====================================================
+       SORT BY AREA
+    ===================================================== */
 
     instances.sort(
+
       (a, b) => {
+
 
         const areaA =
           a.width *
@@ -1097,167 +1177,308 @@ function optimizeFabric() {
           b.height;
 
 
-        return areaB - areaA;
+        return (
+          areaB -
+          areaA
+        );
 
       }
+
     );
 
 
-    /* ---------------------------------------
-       ROTATION RULES
-    --------------------------------------- */
+    /* =====================================================
+       EFFECTIVE WIDTH
+    ===================================================== */
 
-    const allowed =
-      fabric.allowedRotation ||
-      [0];
+    const usableWidth =
+      fabric.effectiveWidth;
 
 
-    const rotations =
-      allowed.filter(
-        rotation =>
-          [0, 90, 180, 270]
-            .includes(rotation)
+    if (
+      usableWidth <= 0
+    ) {
+
+      setStatus(
+
+        "Lebar efektif kain tidak valid."
+
       );
 
 
-    /* ---------------------------------------
-       PLACEMENTS
-    --------------------------------------- */
+      return;
+
+    }
+
+
+    /* =====================================================
+       CURSOR
+    ===================================================== */
+
+    let cursorX =
+      0;
+
+
+    let cursorY =
+      0;
+
+
+    let rowHeight =
+      0;
+
+
+    let usedLength =
+      0;
+
 
     const placements = [];
 
 
+    /* =====================================================
+       PLACE PIECES
+    ===================================================== */
+
     for (
+
       const piece of instances
+
     ) {
 
-      const position =
-        findPosition(
-          piece,
-          placements,
-          fabric,
-          rotations
-        );
+
+      let width =
+        piece.width;
 
 
-      if (!position) {
+      let height =
+        piece.height;
+
+
+      let rotation =
+        0;
+
+
+      const allowed =
+        fabric.allowedRotation ||
+        [0];
+
+
+      /* ===================================================
+         CHECK ROTATION
+
+         Untuk Jersey:
+
+         0°
+         180°
+
+         sehingga arah serat tetap aman.
+      =================================================== */
+
+      if (
+
+        width >
+        usableWidth
+
+      ) {
+
+
+        if (
+
+          allowed.includes(90) ||
+
+          allowed.includes(270)
+
+        ) {
+
+
+          const temp =
+            width;
+
+
+          width =
+            height;
+
+
+          height =
+            temp;
+
+
+          rotation =
+            90;
+
+        }
+
+      }
+
+
+      /* ===================================================
+         TOO WIDE
+      =================================================== */
+
+      if (
+
+        width >
+        usableWidth
+
+      ) {
+
 
         throw new Error(
 
-          `${piece.name} tidak dapat ` +
-          `ditempatkan pada lebar kain ` +
-          `${fabric.effectiveWidth} cm.`
+          `${piece.name} terlalu lebar ` +
+
+          `untuk kain ${usableWidth} cm`
 
         );
 
       }
 
+
+      /* ===================================================
+         NEW ROW
+      =================================================== */
+
+      if (
+
+        cursorX > 0 &&
+
+        cursorX + width >
+        usableWidth
+
+      ) {
+
+
+        cursorX =
+          0;
+
+
+        cursorY +=
+          rowHeight;
+
+
+        rowHeight =
+          0;
+
+      }
+
+
+      /* ===================================================
+         PLACE
+      =================================================== */
 
       placements.push({
 
         ...piece,
 
         x:
-          position.x,
+          cursorX,
 
         y:
-          position.y,
+          cursorY,
 
-        width:
-          position.width,
+        width,
 
-        height:
-          position.height,
+        height,
 
-        rotation:
-          position.rotation
+        rotation
 
       });
 
-    }
+
+      /* ===================================================
+         MOVE CURSOR
+      =================================================== */
+
+      cursorX +=
+        width;
 
 
-    /* ---------------------------------------
-       USED LENGTH
-    --------------------------------------- */
+      rowHeight =
+        Math.max(
 
-    let usedLength = 0;
+          rowHeight,
 
+          height
 
-    for (
-      const placement of placements
-    ) {
+        );
+
 
       usedLength =
         Math.max(
 
           usedLength,
 
-          placement.y +
-          placement.height
+          cursorY +
+          rowHeight
 
         );
 
     }
 
 
-    usedLength =
-      Math.ceil(
-        usedLength * 10
-      ) / 10;
-
-
-    /* ---------------------------------------
+    /* =====================================================
        AVAILABLE LENGTH
-    --------------------------------------- */
+    ===================================================== */
 
     const availableLength =
       fabric.length;
 
 
     const fits =
-      availableLength > 0 &&
       usedLength <=
       availableLength;
 
 
-    /* ---------------------------------------
-       AREA
-    --------------------------------------- */
+    /* =====================================================
+       USED AREA
+    ===================================================== */
 
     const usedArea =
       placements.reduce(
 
-        (sum, piece) => {
+        (
+          sum,
+          piece
+        ) =>
 
-          return (
-            sum +
-            piece.width *
-            piece.height
-          );
+          sum +
 
-        },
+          piece.width *
+          piece.height,
 
         0
 
       );
 
 
-    const layoutArea =
+    /* =====================================================
+       TOTAL AREA
+    ===================================================== */
+
+    const totalArea =
       fabric.effectiveWidth *
       usedLength;
 
 
+    /* =====================================================
+       EFFICIENCY
+    ===================================================== */
+
     const efficiency =
-      layoutArea > 0
+      totalArea > 0
 
         ? (
+
             usedArea /
-            layoutArea
+            totalArea
+
           ) * 100
 
         : 0;
 
+
+    /* =====================================================
+       REMAINING LENGTH
+    ===================================================== */
 
     const remainingLength =
       Math.max(
@@ -1270,62 +1491,91 @@ function optimizeFabric() {
       );
 
 
-    /* ---------------------------------------
-       SAVE RESULT
-    --------------------------------------- */
+    /* =====================================================
+       RESULT
+    ===================================================== */
 
     lastOptimization = {
 
       width:
         fabric.effectiveWidth,
 
-      availableWidth:
-        fabric.effectiveWidth,
+      usedLength:
+        usedLength,
 
-      usedLength,
+      availableLength:
+        availableLength,
 
-      availableLength,
+      remainingLength:
+        remainingLength,
 
-      remainingLength,
+      quantity:
+        quantity,
 
-      quantity,
+      efficiency:
+        efficiency,
 
-      efficiency,
+      fits:
+        fits,
 
-      fits,
+      seam:
+        seamAmount,
 
-      placements
+      placements:
+        placements
 
     };
 
 
-    /* ---------------------------------------
-       UI
-    --------------------------------------- */
+    /* =====================================================
+       UI WIDTH
+    ===================================================== */
 
-    if (el("resultWidth")) {
+    if (
+      el("resultWidth")
+    ) {
 
       el("resultWidth").textContent =
+
         round(
+
           fabric.effectiveWidth,
+
           1
+
         );
 
     }
 
 
-    if (el("resultLength")) {
+    /* =====================================================
+       UI LENGTH
+    ===================================================== */
+
+    if (
+      el("resultLength")
+    ) {
 
       el("resultLength").textContent =
+
         round(
+
           usedLength,
+
           1
+
         );
 
     }
 
 
-    if (el("resultMaterial")) {
+    /* =====================================================
+       UI MATERIAL
+    ===================================================== */
+
+    if (
+      el("resultMaterial")
+    ) {
 
       el("resultMaterial").textContent =
         fabric.materialName;
@@ -1333,7 +1583,13 @@ function optimizeFabric() {
     }
 
 
-    if (el("resultQuantity")) {
+    /* =====================================================
+       UI QUANTITY
+    ===================================================== */
+
+    if (
+      el("resultQuantity")
+    ) {
 
       el("resultQuantity").textContent =
         quantity;
@@ -1341,72 +1597,47 @@ function optimizeFabric() {
     }
 
 
-    if (el("resultStatus")) {
+    /* =====================================================
+       UI STATUS
+    ===================================================== */
 
-      if (fits) {
+    if (
+      el("resultStatus")
+    ) {
 
-        el("resultStatus").textContent =
 
-          `Optimal • Efisiensi ` +
-          `${round(
-            efficiency,
-            1
-          )}%`;
+      el("resultStatus").textContent =
 
-      }
+        fits
 
-      else {
+          ? `Optimal • Hemat ${round(
+              efficiency,
+              1
+            )}% area`
 
-        el("resultStatus").textContent =
-
-          `Kain tidak cukup • ` +
-          `butuh ${round(
-            usedLength,
-            1
-          )} cm`;
-
-      }
+          : `Tidak cukup panjang kain`;
 
     }
 
 
-    /* ---------------------------------------
+    /* =====================================================
        STATUS
-    --------------------------------------- */
+    ===================================================== */
 
     setStatus(
 
-      fits
+      `Optimasi selesai • ` +
 
-        ? `Optimasi selesai • ` +
-          `Kebutuhan kain ± ${round(
-            usedLength,
-            1
-          )} cm • ` +
-          `Sisa ± ${round(
-            remainingLength,
-            1
-          )} cm`
+      `Kebutuhan kain ± ${round(
+        usedLength,
+        1
+      )} cm • ` +
 
-        : `Kain tidak cukup • ` +
-          `Butuh ± ${round(
-            usedLength,
-            1
-          )} cm, tersedia ${round(
-            availableLength,
-            1
-          )} cm`
+      `Sisa ± ${round(
+        remainingLength,
+        1
+      )} cm`
 
-    );
-
-
-    /* ---------------------------------------
-       RENDER NESTING
-    --------------------------------------- */
-
-    renderNestingLayout(
-      lastOptimization,
-      fabric
     );
 
 
@@ -1414,379 +1645,23 @@ function optimizeFabric() {
 
   catch (error) {
 
+
     console.error(
+
       "Fabric optimizer error:",
+
       error
+
     );
-
-
-    if (el("resultStatus")) {
-
-      el("resultStatus").textContent =
-        "Optimasi gagal";
-
-    }
 
 
     setStatus(
+
       error.message ||
+
       "Optimasi kain gagal."
+
     );
-
-  }
-
-}
-
-
-/* =========================================================
-   NESTING SVG
-========================================================= */
-
-function createNestingSVG(
-  optimization,
-  fabric
-) {
-
-  const width =
-    fabric.effectiveWidth;
-
-
-  const height =
-    Math.max(
-      optimization.usedLength,
-      1
-    );
-
-
-  const scale =
-    Math.min(
-      3,
-      900 / width
-    );
-
-
-  const svgWidth =
-    width * scale;
-
-
-  const svgHeight =
-    height * scale;
-
-
-  let piecesSVG = "";
-
-
-  optimization.placements.forEach(
-
-    (piece, index) => {
-
-      const x =
-        piece.x * scale;
-
-
-      const y =
-        piece.y * scale;
-
-
-      const w =
-        piece.width * scale;
-
-
-      const h =
-        piece.height * scale;
-
-
-      piecesSVG += `
-
-        <rect
-          x="${x}"
-          y="${y}"
-          width="${w}"
-          height="${h}"
-          fill="none"
-          stroke="#222"
-          stroke-width="1"
-        />
-
-        <text
-          x="${x + w / 2}"
-          y="${y + h / 2}"
-          text-anchor="middle"
-          dominant-baseline="middle"
-          font-size="${Math.max(
-            8,
-            Math.min(16, w / 8)
-          )}"
-          fill="#222"
-        >
-          ${piece.name}
-        </text>
-
-        <text
-          x="${x + 3}"
-          y="${y + 12}"
-          font-size="7"
-          fill="#555"
-        >
-          ${piece.garment}
-        </text>
-
-      `;
-
-    }
-
-  );
-
-
-  return `
-
-    <svg
-
-      xmlns="http://www.w3.org/2000/svg"
-
-      viewBox="
-        0
-        0
-        ${svgWidth}
-        ${svgHeight}
-      "
-
-      width="100%"
-
-      style="
-        display:block;
-        background:#fff;
-      "
-
-    >
-
-      <!-- FABRIC -->
-
-      <rect
-        x="0"
-        y="0"
-        width="${svgWidth}"
-        height="${svgHeight}"
-        fill="none"
-        stroke="#777"
-        stroke-width="2"
-      />
-
-
-      <!-- PIECES -->
-
-      ${piecesSVG}
-
-
-      <!-- GRAIN DIRECTION -->
-
-      <line
-        x1="8"
-        y1="10"
-        x2="8"
-        y2="${Math.min(
-          80,
-          svgHeight - 10
-        )}"
-        stroke="#333"
-        stroke-width="1"
-      />
-
-
-      <text
-        x="12"
-        y="25"
-        font-size="8"
-        fill="#333"
-      >
-        GRAIN
-      </text>
-
-
-      <!-- LABEL -->
-
-      <text
-        x="${svgWidth - 5}"
-        y="12"
-        text-anchor="end"
-        font-size="9"
-        fill="#222"
-      >
-        FABRIC ${round(
-          width,
-          1
-        )} cm
-      </text>
-
-
-      <text
-        x="${svgWidth - 5}"
-        y="24"
-        text-anchor="end"
-        font-size="9"
-        fill="#222"
-      >
-        USED ${round(
-          height,
-          1
-        )} cm
-      </text>
-
-    </svg>
-
-  `;
-
-}
-
-
-/* =========================================================
-   RENDER NESTING PREVIEW
-========================================================= */
-
-function renderNestingLayout(
-  optimization,
-  fabric
-) {
-
-  removeNestingPreview();
-
-
-  const canvas =
-    el("canvasWrap");
-
-
-  if (!canvas) {
-    return;
-  }
-
-
-  const wrapper =
-    document.createElement(
-      "div"
-    );
-
-
-  wrapper.id =
-    "nestingPreview";
-
-
-  wrapper.style.marginTop =
-    "20px";
-
-
-  wrapper.style.padding =
-    "15px";
-
-
-  wrapper.style.border =
-    "1px solid #ddd";
-
-
-  wrapper.style.borderRadius =
-    "12px";
-
-
-  wrapper.style.background =
-    "#fff";
-
-
-  const title =
-    document.createElement(
-      "h3"
-    );
-
-
-  title.textContent =
-    "Fabric Nesting Layout";
-
-
-  title.style.margin =
-    "0 0 12px 0";
-
-
-  wrapper.appendChild(
-    title
-  );
-
-
-  const info =
-    document.createElement(
-      "div"
-    );
-
-
-  info.style.fontSize =
-    "14px";
-
-
-  info.style.marginBottom =
-    "12px";
-
-
-  info.innerHTML =
-
-    `Lebar efektif: <b>${round(
-      fabric.effectiveWidth,
-      1
-    )} cm</b><br>` +
-
-    `Kebutuhan panjang: <b>${round(
-      optimization.usedLength,
-      1
-    )} cm</b><br>` +
-
-    `Efisiensi: <b>${round(
-      optimization.efficiency,
-      1
-    )}%</b>`;
-
-
-  wrapper.appendChild(
-    info
-  );
-
-
-  const layout =
-    document.createElement(
-      "div"
-    );
-
-
-  layout.innerHTML =
-    createNestingSVG(
-      optimization,
-      fabric
-    );
-
-
-  wrapper.appendChild(
-    layout
-  );
-
-
-  canvas.parentNode.insertBefore(
-    wrapper,
-    canvas.nextSibling
-  );
-
-}
-
-
-/* =========================================================
-   REMOVE NESTING PREVIEW
-========================================================= */
-
-function removeNestingPreview() {
-
-  const old =
-    document.getElementById(
-      "nestingPreview"
-    );
-
-
-  if (old) {
-
-    old.remove();
 
   }
 
@@ -1799,7 +1674,9 @@ function removeNestingPreview() {
 
 function downloadSVG() {
 
+
   try {
+
 
     if (!lastSvg) {
 
@@ -1809,7 +1686,9 @@ function downloadSVG() {
 
 
     if (!lastSvg) {
+
       return;
+
     }
 
 
@@ -1819,8 +1698,10 @@ function downloadSVG() {
         [lastSvg],
 
         {
+
           type:
             "image/svg+xml"
+
         }
 
       );
@@ -1843,7 +1724,7 @@ function downloadSVG() {
 
 
     link.download =
-      "PatternMaker-V1-pattern.svg";
+      "PatternMaker-V1.5-pattern.svg";
 
 
     document.body.appendChild(
@@ -1877,9 +1758,13 @@ function downloadSVG() {
 
   catch (error) {
 
+
     console.error(
+
       "Download error:",
+
       error
+
     );
 
   }
@@ -1893,12 +1778,17 @@ function downloadSVG() {
 
 function bindFabricInputs() {
 
+
   const ids = [
 
     "fabricMaterial",
+
     "fabricWidth",
+
     "fabricLength",
+
     "selvedgeLeft",
+
     "selvedgeRight"
 
   ];
@@ -1908,24 +1798,93 @@ function bindFabricInputs() {
 
     id => {
 
+
       const node =
         el(id);
 
 
       if (!node) {
+
         return;
+
       }
 
 
       node.addEventListener(
+
         "input",
+
         updateFabricInformation
+
       );
 
 
       node.addEventListener(
+
         "change",
+
         updateFabricInformation
+
+      );
+
+    }
+
+  );
+
+}
+
+
+/* =========================================================
+   SEAM INPUT UPDATE
+========================================================= */
+
+function bindSeamInputs() {
+
+
+  const ids = [
+
+    "seam"
+
+  ];
+
+
+  ids.forEach(
+
+    id => {
+
+
+      const node =
+        el(id);
+
+
+      if (!node) {
+
+        return;
+
+      }
+
+
+      node.addEventListener(
+
+        "input",
+
+        () => {
+
+
+          lastSeam =
+            null;
+
+
+          lastSvg =
+            "";
+
+
+          lastOptimization =
+            null;
+
+
+        }
+
       );
 
     }
@@ -1943,11 +1902,17 @@ const generateButton =
   el("generateBtn");
 
 
-if (generateButton) {
+if (
+  generateButton
+) {
+
 
   generateButton.addEventListener(
+
     "click",
+
     generatePattern
+
   );
 
 }
@@ -1961,11 +1926,17 @@ const optimizeButton =
   el("optimizeBtn");
 
 
-if (optimizeButton) {
+if (
+  optimizeButton
+) {
+
 
   optimizeButton.addEventListener(
+
     "click",
+
     optimizeFabric
+
   );
 
 }
@@ -1979,11 +1950,17 @@ const downloadButton =
   el("downloadBtn");
 
 
-if (downloadButton) {
+if (
+  downloadButton
+) {
+
 
   downloadButton.addEventListener(
+
     "click",
+
     downloadSVG
+
   );
 
 }
@@ -1996,17 +1973,25 @@ if (downloadButton) {
 const measurementIds = [
 
   "age",
+
   "bust",
+
   "waist",
+
   "shoulder",
+
   "bodyLength",
+
   "neck",
 
   "upperArm",
+
   "sleeveLength",
+
   "wrist",
 
   "negativeEase",
+
   "seam",
 
   "garmentQuantity"
@@ -2018,12 +2003,15 @@ measurementIds.forEach(
 
   id => {
 
+
     const node =
       el(id);
 
 
     if (!node) {
+
       return;
+
     }
 
 
@@ -2033,13 +2021,14 @@ measurementIds.forEach(
 
       () => {
 
+
         lastSvg =
           "";
+
 
         lastOptimization =
           null;
 
-        removeNestingPreview();
 
       }
 
@@ -2051,14 +2040,18 @@ measurementIds.forEach(
 
 
 /* =========================================================
-   START APPLICATION
+   START
 ========================================================= */
 
 bindFabricInputs();
+
+bindSeamInputs();
 
 updateFabricInformation();
 
 
 setStatus(
+
   "Masukkan ukuran kemudian tekan GENERATE PATTERN."
+
 );
