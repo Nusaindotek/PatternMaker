@@ -1,24 +1,26 @@
-/* =========================================
+/* =========================================================
    PatternMaker
-   FABRIC ENGINE V1.3
-
+   FABRIC ENGINE V1.5
+   ---------------------------------------------------------
    Fungsi:
    - membaca ukuran kain
    - mengenali material
    - menentukan stretch
    - menentukan arah motif
-   - menentukan batas rotasi pola
-   - menghitung lebar efektif kain
-========================================= */
+   - menentukan batas rotasi
+   - menghitung lebar efektif
+   - MENCEGAH NaN
+========================================================= */
 
 
-/* =========================================
+/* =========================================================
    MATERIAL DATABASE
-========================================= */
+========================================================= */
 
 const MATERIALS = {
 
   sublime_jersey: {
+
     name: "Sublime Jersey",
 
     stretch: "high",
@@ -32,10 +34,12 @@ const MATERIALS = {
     allowedRotation: [0, 180],
 
     defaultSeam: 1.0
+
   },
 
 
   rib_knit: {
+
     name: "Rib Knit",
 
     stretch: "very-high",
@@ -49,10 +53,12 @@ const MATERIALS = {
     allowedRotation: [0, 180],
 
     defaultSeam: 1.0
+
   },
 
 
   cotton: {
+
     name: "Cotton",
 
     stretch: "none",
@@ -66,10 +72,12 @@ const MATERIALS = {
     allowedRotation: [0, 90, 180, 270],
 
     defaultSeam: 1.0
+
   },
 
 
   woven: {
+
     name: "Woven / Non Stretch",
 
     stretch: "none",
@@ -83,32 +91,59 @@ const MATERIALS = {
     allowedRotation: [0, 90, 180, 270],
 
     defaultSeam: 1.0
+
   }
 
 };
 
 
-/* =========================================
+/* =========================================================
+   SAFE NUMBER
+========================================================= */
+
+function safeNumber(value, fallback = 0) {
+
+  const number =
+    Number(value);
+
+  if (!Number.isFinite(number)) {
+
+    return fallback;
+
+  }
+
+  return number;
+
+}
+
+
+/* =========================================================
    NORMALIZE MATERIAL
-========================================= */
+========================================================= */
 
 function normalizeMaterial(material) {
 
   if (!material) {
+
     return "sublime_jersey";
+
   }
 
 
-  return material
+  return String(material)
+
+    .trim()
+
     .toLowerCase()
+
     .replace(/\s+/g, "_");
 
 }
 
 
-/* =========================================
-   GET MATERIAL DATA
-========================================= */
+/* =========================================================
+   GET MATERIAL
+========================================================= */
 
 export function getMaterial(material) {
 
@@ -117,60 +152,147 @@ export function getMaterial(material) {
 
 
   return (
+
     MATERIALS[key] ||
+
     MATERIALS.sublime_jersey
+
   );
 
 }
 
 
-/* =========================================
+/* =========================================================
    CREATE FABRIC
-========================================= */
+========================================================= */
 
 export function createFabric(options = {}) {
 
+
+  /* -----------------------------------------
+     MATERIAL
+  ----------------------------------------- */
+
   const materialKey =
+
     normalizeMaterial(
+
       options.material ||
+
       "sublime_jersey"
+
     );
 
 
   const material =
-    getMaterial(materialKey);
 
+    getMaterial(
 
-  const width =
-    Number(options.width) || 150;
+      materialKey
 
-
-  const length =
-    Number(options.length) || 0;
-
-
-  const selvedgeLeft =
-    Number(options.selvedgeLeft) || 0;
-
-
-  const selvedgeRight =
-    Number(options.selvedgeRight) || 0;
-
-
-  const effectiveWidth =
-    Math.max(
-      0,
-      width -
-      selvedgeLeft -
-      selvedgeRight
     );
 
 
-  return {
+  /* -----------------------------------------
+     FABRIC DIMENSIONS
+  ----------------------------------------- */
 
-    /* ===============================
-       BASIC FABRIC
-    =============================== */
+  const width =
+
+    Math.max(
+
+      0,
+
+      safeNumber(
+
+        options.width,
+
+        0
+
+      )
+
+    );
+
+
+  const length =
+
+    Math.max(
+
+      0,
+
+      safeNumber(
+
+        options.length,
+
+        0
+
+      )
+
+    );
+
+
+  /* -----------------------------------------
+     SELVEDGE
+  ----------------------------------------- */
+
+  const selvedgeLeft =
+
+    Math.max(
+
+      0,
+
+      safeNumber(
+
+        options.selvedgeLeft,
+
+        0
+
+      )
+
+    );
+
+
+  const selvedgeRight =
+
+    Math.max(
+
+      0,
+
+      safeNumber(
+
+        options.selvedgeRight,
+
+        0
+
+      )
+
+    );
+
+
+  /* -----------------------------------------
+     EFFECTIVE WIDTH
+  ----------------------------------------- */
+
+  const effectiveWidth =
+
+    Math.max(
+
+      0,
+
+      width -
+
+      selvedgeLeft -
+
+      selvedgeRight
+
+    );
+
+
+  /* -----------------------------------------
+     RETURN
+  ----------------------------------------- */
+
+  return {
 
     material:
       materialKey,
@@ -182,21 +304,11 @@ export function createFabric(options = {}) {
 
     length,
 
-
-    /* ===============================
-       EFFECTIVE WIDTH
-    =============================== */
-
     selvedgeLeft,
 
     selvedgeRight,
 
     effectiveWidth,
-
-
-    /* ===============================
-       MATERIAL PROPERTIES
-    =============================== */
 
     stretch:
       material.stretch,
@@ -210,58 +322,86 @@ export function createFabric(options = {}) {
     directionalPrint:
       material.directionalPrint,
 
-
-    /* ===============================
-       NESTING RULES
-    =============================== */
-
     allowedRotation:
-      material.allowedRotation,
+      Array.isArray(
+        material.allowedRotation
+      )
 
+        ? material.allowedRotation
 
-    /* ===============================
-       SEAM
-    =============================== */
+        : [0],
 
     defaultSeam:
-      material.defaultSeam
+      safeNumber(
+
+        material.defaultSeam,
+
+        1
+
+      )
 
   };
 
 }
 
 
-/* =========================================
+/* =========================================================
    CHECK ROTATION
-========================================= */
+========================================================= */
 
 export function isRotationAllowed(
+
   fabric,
+
   rotation
+
 ) {
 
   if (!fabric) {
+
     return false;
+
+  }
+
+
+  if (
+
+    !Array.isArray(
+
+      fabric.allowedRotation
+
+    )
+
+  ) {
+
+    return false;
+
   }
 
 
   return fabric.allowedRotation.includes(
+
     rotation
+
   );
 
 }
 
 
-/* =========================================
-   GET FABRIC SUMMARY
-========================================= */
+/* =========================================================
+   FABRIC SUMMARY
+========================================================= */
 
 export function getFabricSummary(
+
   fabric
+
 ) {
 
   if (!fabric) {
+
     return null;
+
   }
 
 
@@ -271,13 +411,13 @@ export function getFabricSummary(
       fabric.materialName,
 
     width:
-      fabric.width,
+      safeNumber(fabric.width),
 
     length:
-      fabric.length,
+      safeNumber(fabric.length),
 
     effectiveWidth:
-      fabric.effectiveWidth,
+      safeNumber(fabric.effectiveWidth),
 
     stretch:
       fabric.stretch,
@@ -296,67 +436,128 @@ export function getFabricSummary(
 }
 
 
-/* =========================================
-   CALCULATE AREA
-========================================= */
+/* =========================================================
+   FABRIC AREA
+========================================================= */
 
 export function calculateFabricArea(
+
   fabric
+
 ) {
 
   if (!fabric) {
+
     return 0;
+
   }
 
 
+  const width =
+
+    safeNumber(
+
+      fabric.width,
+
+      0
+
+    );
+
+
+  const length =
+
+    safeNumber(
+
+      fabric.length,
+
+      0
+
+    );
+
+
   return (
-    fabric.width *
-    fabric.length
+
+    width *
+
+    length
+
   );
 
 }
 
 
-/* =========================================
-   CALCULATE EFFECTIVE AREA
-========================================= */
+/* =========================================================
+   EFFECTIVE AREA
+========================================================= */
 
 export function calculateEffectiveArea(
+
   fabric
+
 ) {
 
   if (!fabric) {
+
     return 0;
+
   }
 
 
+  const width =
+
+    safeNumber(
+
+      fabric.effectiveWidth,
+
+      0
+
+    );
+
+
+  const length =
+
+    safeNumber(
+
+      fabric.length,
+
+      0
+
+    );
+
+
   return (
-    fabric.effectiveWidth *
-    fabric.length
+
+    width *
+
+    length
+
   );
 
 }
 
 
-/* =========================================
+/* =========================================================
    MATERIAL LIST
-========================================= */
+========================================================= */
 
 export function getMaterialList() {
 
   return Object.keys(
-    MATERIALS
-  ).map(key => {
 
-    return {
+    MATERIALS
+
+  ).map(
+
+    key => ({
 
       key,
 
       name:
+
         MATERIALS[key].name
 
-    };
+    })
 
-  });
+  );
 
 }
