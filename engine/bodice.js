@@ -1,612 +1,1022 @@
-/* =========================================
-   PatternMaker V1.6
-   BODICE ENGINE
+/* =========================================================
+   PatternMaker
+   BODICE ENGINE V1.5
    ---------------------------------------------------------
-   Drafting dasar bodice anak
+   UNIVERSAL BASIC BODICE
 
    Input:
-   - Lingkar dada
-   - Lingkar pinggang
-   - Lebar bahu
-   - Panjang badan
-   - Lingkar leher
-   - Negative ease
+   - bust          = Lingkar dada
+   - waist         = Lingkar pinggang
+   - shoulder      = Lebar bahu
+   - bodyLength    = Panjang badan
+   - neck          = Lingkar leher
+   - negativeEase  = Pengurangan ukuran (%)
 
    Output:
-   - Bodice depan
-   - Bodice belakang
-   - Kerung lengan
-   - Garis leher
-   - Garis bahu
-   - Garis pinggang
-   - Panjang kerung lengan
-========================================= */
+   - FRONT
+   - BACK
+   - armDepth
+   - armholeLength
+
+   Sistem:
+   - Pola seperempat badan
+   - Garis tengah = FOLD
+   - Semua ukuran dalam cm
+   - Bisa digunakan untuk berbagai ukuran tubuh
+========================================================= */
 
 
-/* =========================================
-   HITUNG JARAK 2 TITIK
-========================================= */
+/* =========================================================
+   HELPER
+========================================================= */
 
-function distance(pointA, pointB) {
+function positive(value, fallback = 0) {
 
-  return Math.hypot(
-    pointB[0] - pointA[0],
-    pointB[1] - pointA[1]
+  const number =
+    Number(value);
+
+  if (
+    !Number.isFinite(number) ||
+    number <= 0
+  ) {
+
+    return fallback;
+
+  }
+
+  return number;
+
+}
+
+
+/* =========================================================
+   ROUND
+========================================================= */
+
+function round(
+  value,
+  digits = 2
+) {
+
+  const factor =
+    Math.pow(
+      10,
+      digits
+    );
+
+  return (
+    Math.round(
+      value * factor
+    ) / factor
   );
 
 }
 
 
-/* =========================================
-   HITUNG PANJANG BEZIER
-   ---------------------------------------------------------
-   Perkiraan panjang kurva cubic Bezier
-========================================= */
-
-function bezierLength(
-  p0,
-  p1,
-  p2,
-  p3,
-  steps = 20
-) {
-
-  let length = 0;
-
-  let previous = p0;
-
-  for (
-    let i = 1;
-    i <= steps;
-    i++
-  ) {
-
-    const t =
-      i / steps;
-
-    const mt =
-      1 - t;
-
-    const point = [
-
-      mt * mt * mt * p0[0] +
-      3 * mt * mt * t * p1[0] +
-      3 * mt * t * t * p2[0] +
-      t * t * t * p3[0],
-
-      mt * mt * mt * p0[1] +
-      3 * mt * mt * t * p1[1] +
-      3 * mt * t * t * p2[1] +
-      t * t * t * p3[1]
-
-    ];
-
-    length +=
-      distance(
-        previous,
-        point
-      );
-
-    previous =
-      point;
-
-  }
-
-  return length;
-
-}
-
-
-/* =========================================
+/* =========================================================
    NEGATIVE EASE
-========================================= */
+========================================================= */
 
 function applyNegativeEase(
-  value,
+  measurement,
   negativeEase
 ) {
 
   const ease =
-    Number(negativeEase) || 0;
+    Math.max(
+      0,
+      Number(negativeEase) || 0
+    );
+
 
   return (
-    value *
-    (1 - ease / 100)
+    measurement *
+    (
+      1 -
+      ease / 100
+    )
   );
 
 }
 
 
-/* =========================================
-   BODICE ENGINE
-========================================= */
+/* =========================================================
+   NECK WIDTH
+   ---------------------------------------------------------
+   Dasar drafting:
+   Lingkar leher / 6
+========================================================= */
 
-export function makeBodice(m) {
+function getNeckWidth(
+  neck
+) {
+
+  return (
+    neck / 6
+  );
+
+}
 
 
-  /* =======================================
-     UKURAN DASAR
-  ======================================= */
+/* =========================================================
+   ARM DEPTH
+   ---------------------------------------------------------
+   Basic universal drafting formula.
+
+   Lingkar dada / 6 + 7
+
+   Nilai minimum menjaga pola tetap
+   memiliki bentuk yang masuk akal
+   untuk ukuran sangat kecil.
+========================================================= */
+
+function getArmDepth(
+  bust
+) {
+
+  const depth =
+    (
+      bust / 6
+    ) + 7;
+
+
+  return Math.max(
+    10,
+    depth
+  );
+
+}
+
+
+/* =========================================================
+   SHOULDER SLOPE
+========================================================= */
+
+function getShoulderSlope(
+  bust
+) {
+
+  /*
+    Sedikit lebih kecil untuk
+    ukuran kecil dan meningkat
+    secara bertahap.
+
+    Dibatasi agar universal.
+  */
+
+  const slope =
+    bust < 70
+      ? 1.5
+      : 2;
+
+
+  return slope;
+
+}
+
+
+/* =========================================================
+   ARMHOLE WIDTH
+   ---------------------------------------------------------
+   Karena pola adalah seperempat badan,
+   lebar dada dibagi 4.
+
+   Shoulder menentukan posisi
+   ujung bahu.
+
+   Armhole tidak boleh lebih kecil
+   dari kebutuhan lebar dada.
+========================================================= */
+
+function getArmholeWidth(
+  bustQuarter,
+  shoulderHalf
+) {
+
+  /*
+    Untuk pola seperempat badan,
+    posisi underarm mengikuti
+    seperempat lingkar dada.
+
+    Bahu menjadi batas atas.
+  */
+
+  return Math.max(
+    bustQuarter,
+    shoulderHalf
+  );
+
+}
+
+
+/* =========================================================
+   CREATE FRONT
+========================================================= */
+
+function createFront(
+  data
+) {
+
+  const {
+
+    bustQuarter,
+
+    waistQuarter,
+
+    shoulderHalf,
+
+    neckWidth,
+
+    neckDepth,
+
+    armDepth,
+
+    bodyLength,
+
+    shoulderSlope
+
+  } = data;
+
+
+  /* -----------------------------------------
+     A
+     Tengah leher
+  ----------------------------------------- */
+
+  const A = [
+
+    0,
+
+    0
+
+  ];
+
+
+  /* -----------------------------------------
+     B
+     Ujung bahu
+  ----------------------------------------- */
+
+  const B = [
+
+    shoulderHalf,
+
+    shoulderSlope
+
+  ];
+
+
+  /* -----------------------------------------
+     C
+     Titik atas armhole
+  ----------------------------------------- */
+
+  const C = [
+
+    bustQuarter,
+
+    armDepth * 0.48
+
+  ];
+
+
+  /* -----------------------------------------
+     D
+     Titik underarm
+  ----------------------------------------- */
+
+  const D = [
+
+    bustQuarter,
+
+    armDepth
+
+  ];
+
+
+  /* -----------------------------------------
+     E
+     Titik pinggang samping
+  ----------------------------------------- */
+
+  const E = [
+
+    waistQuarter,
+
+    bodyLength
+
+  ];
+
+
+  /* -----------------------------------------
+     F
+     Tengah bawah
+  ----------------------------------------- */
+
+  const F = [
+
+    0,
+
+    bodyLength
+
+  ];
+
+
+  return {
+
+    A,
+
+    B,
+
+    C,
+
+    D,
+
+    E,
+
+    F,
+
+    neckWidth,
+
+    neckDepth
+
+  };
+
+}
+
+
+/* =========================================================
+   CREATE BACK
+========================================================= */
+
+function createBack(
+  data
+) {
+
+  const {
+
+    bustQuarter,
+
+    waistQuarter,
+
+    shoulderHalf,
+
+    neckWidth,
+
+    neckDepth,
+
+    armDepth,
+
+    bodyLength,
+
+    shoulderSlope
+
+  } = data;
+
+
+  /* -----------------------------------------
+     A
+     Tengah leher belakang
+  ----------------------------------------- */
+
+  const A = [
+
+    48,
+
+    0
+
+  ];
+
+
+  /* -----------------------------------------
+     B
+     Ujung bahu
+  ----------------------------------------- */
+
+  const B = [
+
+    48 + shoulderHalf,
+
+    shoulderSlope
+
+  ];
+
+
+  /* -----------------------------------------
+     C
+     Titik atas armhole
+  ----------------------------------------- */
+
+  const C = [
+
+    48 + bustQuarter,
+
+    armDepth * 0.48
+
+  ];
+
+
+  /* -----------------------------------------
+     D
+     Titik underarm
+  ----------------------------------------- */
+
+  const D = [
+
+    48 + bustQuarter,
+
+    armDepth
+
+  ];
+
+
+  /* -----------------------------------------
+     E
+     Titik pinggang samping
+  ----------------------------------------- */
+
+  const E = [
+
+    48 + waistQuarter,
+
+    bodyLength
+
+  ];
+
+
+  /* -----------------------------------------
+     F
+     Tengah bawah
+  ----------------------------------------- */
+
+  const F = [
+
+    48,
+
+    bodyLength
+
+  ];
+
+
+  return {
+
+    A,
+
+    B,
+
+    C,
+
+    D,
+
+    E,
+
+    F,
+
+    neckWidth,
+
+    neckDepth
+
+  };
+
+}
+
+
+/* =========================================================
+   APPROXIMATE ARMHOLE LENGTH
+   ---------------------------------------------------------
+   Menggunakan polyline untuk mendapatkan
+   estimasi panjang armhole.
+
+   Dipakai oleh Sleeve Engine.
+========================================================= */
+
+function calculateArmholeLength(
+  points
+) {
+
+  const {
+
+    B,
+
+    C,
+
+    D
+
+  } = points;
+
+
+  const distance =
+    (
+      p1,
+      p2
+    ) => {
+
+      const dx =
+        p2[0] - p1[0];
+
+      const dy =
+        p2[1] - p1[1];
+
+      return Math.sqrt(
+        dx * dx +
+        dy * dy
+      );
+
+    };
+
+
+  /*
+    Bahu -> C
+  */
+
+  const shoulderToC =
+    distance(
+      B,
+      C
+    );
+
+
+  /*
+    C -> D
+  */
+
+  const CtoD =
+    distance(
+      C,
+      D
+    );
+
+
+  /*
+    Kurva armhole sebenarnya
+    sedikit lebih panjang dari
+    garis lurus.
+
+    Faktor 1.08 memberi
+    pendekatan yang lebih realistis.
+  */
+
+  return round(
+
+    (
+      shoulderToC +
+      CtoD
+    ) * 1.08,
+
+    2
+
+  );
+
+}
+
+
+/* =========================================================
+   CREATE BODICE
+========================================================= */
+
+export function makeBodice(
+  measurements
+) {
+
+  if (!measurements) {
+
+    throw new Error(
+      "Data ukuran tidak tersedia."
+    );
+
+  }
+
+
+  /* =======================================================
+     BACA UKURAN
+  ======================================================= */
 
   const bust =
-    applyNegativeEase(
-      m.bust,
-      m.negativeEase
+    positive(
+      measurements.bust
     );
 
 
   const waist =
-    applyNegativeEase(
-      m.waist,
-      m.negativeEase
+    positive(
+      measurements.waist
     );
 
 
   const shoulder =
-    Number(m.shoulder) || 0;
+    positive(
+      measurements.shoulder
+    );
 
 
   const bodyLength =
-    Number(m.bodyLength) || 0;
+    positive(
+      measurements.bodyLength
+    );
 
 
   const neck =
-    Number(m.neck) || 0;
+    positive(
+      measurements.neck
+    );
 
 
-  /* =======================================
+  const negativeEase =
+    Math.max(
+      0,
+      Number(
+        measurements.negativeEase
+      ) || 0
+    );
+
+
+  /* =======================================================
+     VALIDASI DASAR
+  ======================================================= */
+
+  if (bust <= 0) {
+
+    throw new Error(
+      "Lingkar dada harus lebih dari 0 cm."
+    );
+
+  }
+
+
+  if (waist <= 0) {
+
+    throw new Error(
+      "Lingkar pinggang harus lebih dari 0 cm."
+    );
+
+  }
+
+
+  if (shoulder <= 0) {
+
+    throw new Error(
+      "Lebar bahu harus lebih dari 0 cm."
+    );
+
+  }
+
+
+  if (bodyLength <= 0) {
+
+    throw new Error(
+      "Panjang badan harus lebih dari 0 cm."
+    );
+
+  }
+
+
+  if (neck <= 0) {
+
+    throw new Error(
+      "Lingkar leher harus lebih dari 0 cm."
+    );
+
+  }
+
+
+  /* =======================================================
+     UKURAN SETELAH NEGATIVE EASE
+  ======================================================= */
+
+  const adjustedBust =
+    applyNegativeEase(
+      bust,
+      negativeEase
+    );
+
+
+  const adjustedWaist =
+    applyNegativeEase(
+      waist,
+      negativeEase
+    );
+
+
+  /* =======================================================
      SEPEREMPAT LINGKAR BADAN
-  ======================================= */
+  ======================================================= */
 
   const bustQuarter =
-    bust / 4;
+    adjustedBust / 4;
 
 
   const waistQuarter =
-    waist / 4;
+    adjustedWaist / 4;
 
 
-  /* =======================================
-     GARIS LEHER
-     
-     Lingkar leher dibagi 6
-     
-     Ini digunakan sebagai dasar
-     lebar garis leher.
-  ======================================= */
-
-  const neckWidth =
-    neck / 6;
-
-
-  /* =======================================
-     KEDALAMAN LEHER
-     
-     DEPAN
-     lebih dalam.
-     
-     BELAKANG
-     lebih dangkal.
-  ======================================= */
-
-  const frontNeckDepth =
-    neck / 6;
-
-
-  const backNeckDepth =
-    neck / 18;
-
-
-  /* =======================================
-     KEDALAMAN KERUNG LENGAN
-     
-     Untuk anak digunakan pendekatan
-     proporsional terhadap lingkar dada.
-     
-     Negative ease sudah diterapkan
-     pada lingkar dada.
-  ======================================= */
-
-  const armDepth =
-    (bust / 6) + 4;
-
-
-  /* =======================================
-     POSISI
-     
-     Bodice depan dimulai pada X = 10.
-     
-     Bodice belakang dimulai pada X = 60.
-  ======================================= */
-
-  const frontX =
-    10;
-
-
-  const backX =
-    60;
-
-
-  const topY =
-    10;
-
-
-  const waistY =
-    topY +
-    bodyLength;
-
-
-  const armholeY =
-    topY +
-    armDepth;
-
-
-  /* =======================================
+  /* =======================================================
      LEBAR BAHU
-     
-     Lebar bahu dibagi dua karena
-     pola menggunakan setengah badan.
-  ======================================= */
+     -------------------------------------------------------
+     Input Lebar bahu adalah ukuran
+     bahu penuh kiri ke kanan.
+
+     Karena pola hanya setengah badan
+     dari garis fold:
+
+       Lebar bahu / 2
+  ======================================================= */
 
   const shoulderHalf =
     shoulder / 2;
 
 
-  /* =======================================
-     TITIK BODICE DEPAN
-     
-     A = tengah depan / leher
-     B = lebar leher
-     C = ujung bahu
-     D = titik kerung lengan
-     E = pinggang samping
-     F = tengah depan bawah
-  ======================================= */
+  /* =======================================================
+     LEHER
+  ======================================================= */
 
-  const front = {
+  const neckWidth =
+    getNeckWidth(
+      neck
+    );
 
-    A: [
-      frontX,
-      topY
-    ],
 
-    B: [
-      frontX + neckWidth,
-      topY
-    ],
+  /* =======================================================
+     KEDALAMAN LEHER
+  ======================================================= */
 
-    C: [
-      frontX + shoulderHalf,
-      topY + 2
-    ],
+  const frontNeckDepth =
+    neckWidth;
 
-    D: [
-      frontX + bustQuarter,
-      armholeY
-    ],
 
-    E: [
-      frontX + waistQuarter,
-      waistY
-    ],
+  const backNeckDepth =
+    neckWidth * 0.40;
 
-    F: [
-      frontX,
-      waistY
-    ]
+
+  /* =======================================================
+     ARM DEPTH
+  ======================================================= */
+
+  const armDepth =
+    getArmDepth(
+      adjustedBust
+    );
+
+
+  /* =======================================================
+     SHOULDER SLOPE
+  ======================================================= */
+
+  const shoulderSlope =
+    getShoulderSlope(
+      adjustedBust
+    );
+
+
+  /* =======================================================
+     ARMHOLE WIDTH
+  ======================================================= */
+
+  const armholeWidth =
+    getArmholeWidth(
+      bustQuarter,
+      shoulderHalf
+    );
+
+
+  /* =======================================================
+     DATA DRAFTING
+  ======================================================= */
+
+  const draftingData = {
+
+    bustQuarter,
+
+    waistQuarter,
+
+    shoulderHalf,
+
+    neckWidth,
+
+    neckDepth:
+      frontNeckDepth,
+
+    armDepth,
+
+    bodyLength,
+
+    shoulderSlope,
+
+    armholeWidth
 
   };
 
 
-  /* =======================================
-     TITIK BODICE BELAKANG
-  ======================================= */
+  /* =======================================================
+     FRONT
+  ======================================================= */
 
-  const back = {
-
-    A: [
-      backX,
-      topY
-    ],
-
-    B: [
-      backX + neckWidth,
-      topY
-    ],
-
-    C: [
-      backX + shoulderHalf,
-      topY + 2
-    ],
-
-    D: [
-      backX + bustQuarter,
-      armholeY
-    ],
-
-    E: [
-      backX + waistQuarter,
-      waistY
-    ],
-
-    F: [
-      backX,
-      waistY
-    ]
-
-  };
-
-
-  /* =======================================
-     GARIS LEHER DEPAN
-     
-     Dibuat sebagai cubic Bezier.
-  ======================================= */
-
-  const frontNeck = [
-
-    front.A,
-
-    [
-      front.A[0] + 0.5,
-      front.A[1] + frontNeckDepth * 0.55
-    ],
-
-    [
-      front.B[0] - 0.5,
-      front.A[1] + frontNeckDepth
-    ],
-
-    [
-      front.B[0],
-      front.A[1]
-    ]
-
-  ];
-
-
-  /* =======================================
-     GARIS LEHER BELAKANG
-  ======================================= */
-
-  const backNeck = [
-
-    back.A,
-
-    [
-      back.A[0] + 0.5,
-      back.A[1] + backNeckDepth * 0.45
-    ],
-
-    [
-      back.B[0] - 0.5,
-      back.A[1] + backNeckDepth
-    ],
-
-    [
-      back.B[0],
-      back.A[1]
-    ]
-
-  ];
-
-
-  /* =======================================
-     KERUNG LENGAN DEPAN
-     
-     P0 = bahu
-     P3 = titik samping dada
-  ======================================= */
-
-  const frontArmhole = [
-
-    front.C,
-
-    [
-      front.C[0] + 1.5,
-      front.C[1] + armDepth * 0.15
-    ],
-
-    [
-      front.D[0] - 2,
-      front.D[1] - armDepth * 0.15
-    ],
-
-    front.D
-
-  ];
-
-
-  /* =======================================
-     KERUNG LENGAN BELAKANG
-  ======================================= */
-
-  const backArmhole = [
-
-    back.C,
-
-    [
-      back.C[0] + 1.5,
-      back.C[1] + armDepth * 0.15
-    ],
-
-    [
-      back.D[0] - 1.5,
-      back.D[1] - armDepth * 0.18
-    ],
-
-    back.D
-
-  ];
-
-
-  /* =======================================
-     PANJANG GARIS LEHER DEPAN
-  ======================================= */
-
-  const frontNeckLength =
-    bezierLength(
-      frontNeck[0],
-      frontNeck[1],
-      frontNeck[2],
-      frontNeck[3]
+  const front =
+    createFront(
+      draftingData
     );
 
 
-  /* =======================================
-     PANJANG GARIS LEHER BELAKANG
-  ======================================= */
+  /*
+    Front menggunakan neckline
+    lebih dalam.
+  */
 
-  const backNeckLength =
-    bezierLength(
-      backNeck[0],
-      backNeck[1],
-      backNeck[2],
-      backNeck[3]
+  front.neckDepth =
+    frontNeckDepth;
+
+
+  /* =======================================================
+     BACK
+  ======================================================= */
+
+  const back =
+    createBack(
+      draftingData
     );
 
 
-  /* =======================================
-     PANJANG KERUNG LENGAN DEPAN
-  ======================================= */
+  /*
+    Back menggunakan neckline
+    lebih dangkal.
+  */
+
+  back.neckDepth =
+    backNeckDepth;
+
+
+  /* =======================================================
+     ARMHOLE LENGTH
+  ======================================================= */
 
   const frontArmholeLength =
-    bezierLength(
-      frontArmhole[0],
-      frontArmhole[1],
-      frontArmhole[2],
-      frontArmhole[3]
+    calculateArmholeLength(
+      front
     );
 
-
-  /* =======================================
-     PANJANG KERUNG LENGAN BELAKANG
-  ======================================= */
 
   const backArmholeLength =
-    bezierLength(
-      backArmhole[0],
-      backArmhole[1],
-      backArmhole[2],
-      backArmhole[3]
+    calculateArmholeLength(
+      back
     );
 
 
-  /* =======================================
-     TOTAL KERUNG LENGAN
-  ======================================= */
-
   const armholeLength =
-    frontArmholeLength +
-    backArmholeLength;
+    (
+      frontArmholeLength +
+      backArmholeLength
+    ) / 2;
 
 
-  /* =======================================
-     INFORMASI BADAN
-  ======================================= */
-
-  const bustEaseRemoved =
-    Number(m.bust || 0) -
-    bust;
-
-
-  const waistEaseRemoved =
-    Number(m.waist || 0) -
-    waist;
-
-
-  /* =======================================
+  /* =======================================================
      RETURN
-  ======================================= */
+  ======================================================= */
 
   return {
 
-    /* ===============================
-       POLA
-    =============================== */
+    /* -----------------------------------
+       FRONT
+    ----------------------------------- */
 
     front,
+
+
+    /* -----------------------------------
+       BACK
+    ----------------------------------- */
 
     back,
 
 
-    /* ===============================
-       GARIS LEHER
-    =============================== */
+    /* -----------------------------------
+       DRAFTING DATA
+    ----------------------------------- */
 
-    frontNeck,
+    armDepth:
 
-    backNeck,
-
-
-    /* ===============================
-       KERUNG LENGAN
-    =============================== */
-
-    frontArmhole,
-
-    backArmhole,
+      round(
+        armDepth,
+        2
+      ),
 
 
-    /* ===============================
-       UKURAN
-    =============================== */
+    armholeWidth:
 
-    bustQ:
-      bustQuarter,
-
-    waistQ:
-      waistQuarter,
-
-    armDepth,
-
-    neckW:
-      neckWidth,
-
-    frontNeckD:
-      frontNeckDepth,
-
-    backNeckD:
-      backNeckDepth,
+      round(
+        armholeWidth,
+        2
+      ),
 
 
-    /* ===============================
-       PANJANG KURVA
-    =============================== */
+    armholeLength:
 
-    frontNeckLength,
-
-    backNeckLength,
-
-    frontArmholeLength,
-
-    backArmholeLength,
-
-    armholeLength,
+      round(
+        armholeLength,
+        2
+      ),
 
 
-    /* ===============================
-       INFORMASI EASE
-    =============================== */
+    frontArmholeLength:
 
-    bust,
-
-    waist,
-
-    bustEaseRemoved,
-
-    waistEaseRemoved,
+      round(
+        frontArmholeLength,
+        2
+      ),
 
 
-    /* ===============================
-       POSISI
-    =============================== */
+    backArmholeLength:
 
-    waistY,
+      round(
+        backArmholeLength,
+        2
+      ),
 
-    armholeY,
 
-    bodyLength
+    /* -----------------------------------
+       NECK
+    ----------------------------------- */
+
+    neckWidth:
+
+      round(
+        neckWidth,
+        2
+      ),
+
+
+    frontNeckDepth:
+
+      round(
+        frontNeckDepth,
+        2
+      ),
+
+
+    backNeckDepth:
+
+      round(
+        backNeckDepth,
+        2
+      ),
+
+
+    /* -----------------------------------
+       MEASUREMENTS
+    ----------------------------------- */
+
+    bust:
+
+      round(
+        bust,
+        2
+      ),
+
+
+    waist:
+
+      round(
+        waist,
+        2
+      ),
+
+
+    adjustedBust:
+
+      round(
+        adjustedBust,
+        2
+      ),
+
+
+    adjustedWaist:
+
+      round(
+        adjustedWaist,
+        2
+      ),
+
+
+    shoulder:
+
+      round(
+        shoulder,
+        2
+      ),
+
+
+    bodyLength:
+
+      round(
+        bodyLength,
+        2
+      ),
+
+
+    negativeEase:
+
+      round(
+        negativeEase,
+        2
+      )
 
   };
 
