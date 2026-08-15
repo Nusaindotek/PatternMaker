@@ -1,32 +1,54 @@
-/* =========================================
-   PatternMaker V1.6
+/* =========================================================
+   PatternMaker
    SVG GEOMETRY ENGINE
    ---------------------------------------------------------
-   Tugas:
-   - menggambar bodice depan
-   - menggambar bodice belakang
-   - menggambar garis leher
-   - menggambar kerung lengan
-   - menggambar lengan
-   - menampilkan grainline
-   - menampilkan ukuran pola
-
-   Semua ukuran menggunakan cm.
-========================================= */
+   Fungsi:
+   - Menggambar pola depan
+   - Menggambar pola belakang
+   - Menggambar pola lengan
+   - Menampilkan ukuran pola
+   - Menampilkan grainline
+   - Menampilkan informasi drafting
+   - Menjaga teks agar tidak menutupi pola
+========================================================= */
 
 
-/* =========================================
+/* =========================================================
+   FORMAT ANGKA
+========================================================= */
+
+function formatNumber(value, digits = 1) {
+
+  const number =
+    Number(value);
+
+  if (!Number.isFinite(number)) {
+    return "0";
+  }
+
+  return number.toFixed(digits);
+
+}
+
+
+/* =========================================================
    GRID
-========================================= */
+========================================================= */
 
-function createGrid(width, height) {
+function createGrid(
+  width,
+  height
+) {
 
   let output = "";
+
+  const gridSize = 5;
+
 
   for (
     let x = 0;
     x <= width;
-    x += 5
+    x += gridSize
   ) {
 
     output += `
@@ -45,7 +67,7 @@ function createGrid(width, height) {
   for (
     let y = 0;
     y <= height;
-    y += 5
+    y += gridSize
   ) {
 
     output += `
@@ -66,450 +88,514 @@ function createGrid(width, height) {
 }
 
 
-/* =========================================
-   SAFE POINT
-========================================= */
-
-function point(value) {
-
-  if (
-    !Array.isArray(value) ||
-    value.length < 2
-  ) {
-
-    return [0, 0];
-
-  }
-
-  return value;
-
-}
-
-
-/* =========================================
-   LINE
-========================================= */
-
-function line(
-  p1,
-  p2
-) {
-
-  p1 = point(p1);
-  p2 = point(p2);
-
-  return `
-    L
-    ${p2[0]}
-    ${p2[1]}
-  `;
-
-}
-
-
-/* =========================================
-   CUBIC BEZIER
-========================================= */
-
-function cubic(
-  p0,
-  p1,
-  p2,
-  p3
-) {
-
-  p0 = point(p0);
-  p1 = point(p1);
-  p2 = point(p2);
-  p3 = point(p3);
-
-  return `
-    M
-    ${p0[0]}
-    ${p0[1]}
-
-    C
-    ${p1[0]}
-    ${p1[1]},
-
-    ${p2[0]}
-    ${p2[1]},
-
-    ${p3[0]}
-    ${p3[1]}
-  `;
-
-}
-
-
-/* =========================================
+/* =========================================================
    BODICE PATH
-========================================= */
+========================================================= */
 
 function createBodicePath(
   points,
-  armhole,
-  neckCurve,
   front = true
 ) {
 
-  const A =
-    point(points.A);
-
-  const B =
-    point(points.B);
-
-  const C =
-    point(points.C);
-
-  const D =
-    point(points.D);
-
-  const E =
-    point(points.E);
-
-  const F =
-    point(points.F);
+  if (!points) {
+    return "";
+  }
 
 
-  let path = `
+  const {
+    A,
+    B,
+    C,
+    D,
+    E,
+    F
+  } = points;
 
+
+  if (
+    !A ||
+    !B ||
+    !C ||
+    !D ||
+    !E ||
+    !F
+  ) {
+
+    return "";
+
+  }
+
+
+  /*
+    Kedalaman neckline.
+
+    Nilai mengikuti sistem drafting
+    bodice yang sedang digunakan.
+  */
+
+  const neckDepth =
+    front
+      ? 4.5
+      : 2.5;
+
+
+  /*
+    Bentuk pola:
+
+    A
+    ↓ neckline
+    F → E → D
+             ↗
+            C
+            ↓
+            B
+    ↖ A
+  */
+
+  return `
     M
     ${A[0]}
-    ${A[1]}
-
-  `;
-
-
-  /* =======================================
-     GARIS TENGAH DEPAN / BELAKANG
-  ======================================= */
-
-  path += `
+    ${A[1] + neckDepth}
 
     L
-    ${F[0]}
+    ${A[0]}
     ${F[1]}
 
     L
     ${E[0]}
     ${E[1]}
 
-  `;
-
-
-  /* =======================================
-     GARIS SAMPING
-     
-     Dari pinggang menuju kerung lengan.
-  ======================================= */
-
-  path += `
-
     L
     ${D[0]}
     ${D[1]}
 
-  `;
+    C
+    ${D[0]}
+    ${D[1] - 2.4},
 
+    ${C[0] + 1.1}
+    ${C[1] + 0.5},
 
-  /* =======================================
-     KERUNG LENGAN
-     
-     Sekarang menggunakan data
-     dari BODICE ENGINE.
-  ======================================= */
-
-  if (
-    armhole &&
-    armhole.length === 4
-  ) {
-
-    path += `
-
-      C
-      ${armhole[1][0]}
-      ${armhole[1][1]},
-
-      ${armhole[2][0]}
-      ${armhole[2][1]},
-
-      ${armhole[3][0]}
-      ${armhole[3][1]}
-
-    `;
-
-  }
-
-  else {
-
-    path += `
-
-      C
-      ${D[0]}
-      ${D[1] - 3},
-
-      ${C[0] + 1}
-      ${C[1] + 1},
-
-      ${C[0]}
-      ${C[1]}
-
-    `;
-
-  }
-
-
-  /* =======================================
-     BAHU
-  ======================================= */
-
-  path += `
+    ${C[0]}
+    ${C[1]}
 
     L
     ${B[0]}
     ${B[1]}
 
+    Q
+    ${A[0] + neckDepth * 0.85}
+    ${A[1]},
+
+    ${A[0]}
+    ${A[1] + neckDepth}
   `;
-
-
-  /* =======================================
-     LEHER
-  ======================================= */
-
-  if (
-    neckCurve &&
-    neckCurve.length === 4
-  ) {
-
-    /*
-      Kurva leher bergerak
-      dari B kembali ke A.
-
-      Karena neckCurve dibuat
-      dari A menuju B,
-      kita gambar dengan urutan
-      terbalik.
-    */
-
-    path += `
-
-      C
-      ${neckCurve[2][0]}
-      ${neckCurve[2][1]},
-
-      ${neckCurve[1][0]}
-      ${neckCurve[1][1]},
-
-      ${neckCurve[0][0]}
-      ${neckCurve[0][1]}
-
-    `;
-
-  }
-
-  else {
-
-    path += `
-
-      L
-      ${A[0]}
-      ${A[1]}
-
-    `;
-
-  }
-
-
-  path += `
-
-    Z
-
-  `;
-
-
-  return path;
 
 }
 
 
-/* =========================================
+/* =========================================================
    SLEEVE PATH
-========================================= */
+   ---------------------------------------------------------
+   Mendukung:
+   1. sleeve.js lama
+   2. sleeve.js dengan control points
+========================================================= */
 
 function createSleevePath(s) {
 
-  const left =
-    point(s.left);
+  if (!s) {
+    return "";
+  }
 
-  const leftCap =
-    point(s.leftCap);
 
-  const top =
-    point(s.top);
+  const hasControls =
+    s.leftControl1 &&
+    s.leftControl2 &&
+    s.rightControl1 &&
+    s.rightControl2;
 
-  const rightCap =
-    point(s.rightCap);
 
-  const right =
-    point(s.right);
+  if (hasControls) {
 
-  const bottomLeft =
-    point(s.bottomLeft);
+    return `
+      M
+      ${s.left[0]}
+      ${s.left[1]}
 
-  const bottomRight =
-    point(s.bottomRight);
+      L
+      ${s.leftCap[0]}
+      ${s.leftCap[1]}
 
+      C
+      ${s.leftControl1[0]}
+      ${s.leftControl1[1]},
+
+      ${s.leftControl2[0]}
+      ${s.leftControl2[1]},
+
+      ${s.top[0]}
+      ${s.top[1]}
+
+      C
+      ${s.rightControl1[0]}
+      ${s.rightControl1[1]},
+
+      ${s.rightControl2[0]}
+      ${s.rightControl2[1]},
+
+      ${s.rightCap[0]}
+      ${s.rightCap[1]}
+
+      L
+      ${s.right[0]}
+      ${s.right[1]}
+
+      L
+      ${s.bottomRight[0]}
+      ${s.bottomRight[1]}
+
+      L
+      ${s.bottomLeft[0]}
+      ${s.bottomLeft[1]}
+
+      L
+      ${s.left[0]}
+      ${s.left[1]}
+
+      Z
+    `;
+
+  }
+
+
+  /*
+    Fallback untuk sleeve engine lama.
+  */
 
   return `
-
     M
-    ${left[0]}
-    ${left[1]}
+    ${s.left[0]}
+    ${s.left[1]}
 
     L
-    ${leftCap[0]}
-    ${leftCap[1]}
+    ${s.leftCap[0]}
+    ${s.leftCap[1]}
 
     C
-    ${leftCap[0] + 3}
-    ${leftCap[1] - 3},
+    ${s.leftCap[0] + 3}
+    ${s.leftCap[1] - 3},
 
-    ${top[0] - 2}
-    ${top[1] + 1},
+    ${s.top[0] - 2}
+    ${s.top[1] + 1},
 
-    ${top[0]}
-    ${top[1]}
+    ${s.top[0]}
+    ${s.top[1]}
 
     C
-    ${top[0] + 2}
-    ${top[1] + 1},
+    ${s.top[0] + 2}
+    ${s.top[1] + 1},
 
-    ${rightCap[0] - 3}
-    ${rightCap[1] - 3},
+    ${s.rightCap[0] - 3}
+    ${s.rightCap[1] - 3},
 
-    ${rightCap[0]}
-    ${rightCap[1]}
-
-    L
-    ${right[0]}
-    ${right[1]}
+    ${s.rightCap[0]}
+    ${s.rightCap[1]}
 
     L
-    ${bottomRight[0]}
-    ${bottomRight[1]}
+    ${s.right[0]}
+    ${s.right[1]}
 
     L
-    ${bottomLeft[0]}
-    ${bottomLeft[1]}
+    ${s.bottomRight[0]}
+    ${s.bottomRight[1]}
 
     L
-    ${left[0]}
-    ${left[1]}
+    ${s.bottomLeft[0]}
+    ${s.bottomLeft[1]}
+
+    L
+    ${s.left[0]}
+    ${s.left[1]}
 
     Z
-
   `;
 
 }
 
 
-/* =========================================
+/* =========================================================
    GRAINLINE
-========================================= */
+========================================================= */
 
 function createGrainline(
   x,
   y1,
-  y2
+  y2,
+  label = "GRAIN"
 ) {
 
   return `
-
     <line
       class="grain"
       x1="${x}"
       y1="${y1}"
       x2="${x}"
       y2="${y2}"
+      marker-start="url(#grainArrow)"
+      marker-end="url(#grainArrow)"
     />
 
     <text
-      class="small"
-      x="${x + 1}"
+      class="grainText"
+      x="${x + 1.8}"
       y="${(y1 + y2) / 2}"
     >
-      GRAIN
+      ${label}
     </text>
-
   `;
 
 }
 
 
-/* =========================================
-   LABEL
-========================================= */
+/* =========================================================
+   HORIZONTAL DIMENSION
+========================================================= */
 
-function createLabel(
-  text,
-  x,
-  y
-) {
-
-  return `
-
-    <text
-      class="label"
-      x="${x}"
-      y="${y}"
-    >
-      ${text}
-    </text>
-
-  `;
-
-}
-
-
-/* =========================================
-   DIMENSION LINE
-========================================= */
-
-function createDimension(
+function createHorizontalDimension(
   x1,
-  y1,
   x2,
-  y2,
+  y,
   text
 ) {
 
-  return `
+  if (
+    !Number.isFinite(x1) ||
+    !Number.isFinite(x2) ||
+    !Number.isFinite(y)
+  ) {
 
+    return "";
+
+  }
+
+
+  return `
     <line
       class="dimension"
       x1="${x1}"
-      y1="${y1}"
+      y1="${y}"
       x2="${x2}"
-      y2="${y2}"
+      y2="${y}"
+      marker-start="url(#dimensionArrow)"
+      marker-end="url(#dimensionArrow)"
     />
 
     <text
       class="dimensionText"
       x="${(x1 + x2) / 2}"
-      y="${(y1 + y2) / 2 - 1}"
+      y="${y - 1.5}"
+      text-anchor="middle"
     >
       ${text}
     </text>
-
   `;
 
 }
 
 
-/* =========================================
+/* =========================================================
+   VERTICAL DIMENSION
+========================================================= */
+
+function createVerticalDimension(
+  x,
+  y1,
+  y2,
+  text
+) {
+
+  if (
+    !Number.isFinite(x) ||
+    !Number.isFinite(y1) ||
+    !Number.isFinite(y2)
+  ) {
+
+    return "";
+
+  }
+
+
+  return `
+    <line
+      class="dimension"
+      x1="${x}"
+      y1="${y1}"
+      x2="${x}"
+      y2="${y2}"
+      marker-start="url(#dimensionArrow)"
+      marker-end="url(#dimensionArrow)"
+    />
+
+    <text
+      class="dimensionText"
+      x="${x + 1.5}"
+      y="${(y1 + y2) / 2}"
+    >
+      ${text}
+    </text>
+  `;
+
+}
+
+
+/* =========================================================
+   LABEL
+========================================================= */
+
+function createLabel(
+  text,
+  x,
+  y,
+  anchor = "start"
+) {
+
+  return `
+    <text
+      class="label"
+      x="${x}"
+      y="${y}"
+      text-anchor="${anchor}"
+    >
+      ${text}
+    </text>
+  `;
+
+}
+
+
+/* =========================================================
+   SMALL INFORMATION TEXT
+========================================================= */
+
+function createSmallText(
+  text,
+  x,
+  y,
+  anchor = "start"
+) {
+
+  return `
+    <text
+      class="small"
+      x="${x}"
+      y="${y}"
+      text-anchor="${anchor}"
+    >
+      ${text}
+    </text>
+  `;
+
+}
+
+
+/* =========================================================
+   BODICE INFORMATION
+========================================================= */
+
+function createBodiceInformation(
+  bodice,
+  measurements
+) {
+
+  if (!bodice) {
+    return "";
+  }
+
+
+  let output = "";
+
+
+  /* -----------------------------------------
+     1/4 LINGKAR DADA
+  ----------------------------------------- */
+
+  if (
+    Number.isFinite(
+      Number(bodice.bustQ)
+    )
+  ) {
+
+    const front =
+      bodice.front;
+
+
+    const bustY =
+      front.D
+        ? front.D[1]
+        : 20;
+
+
+    output +=
+      createHorizontalDimension(
+
+        front.A[0],
+
+        front.A[0] +
+        bodice.bustQ,
+
+        bustY + 3,
+
+        `1/4 dada ${formatNumber(
+          bodice.bustQ
+        )} cm`
+
+      );
+
+  }
+
+
+  /* -----------------------------------------
+     1/4 LINGKAR PINGGANG
+  ----------------------------------------- */
+
+  if (
+    Number.isFinite(
+      Number(bodice.waistQ)
+    )
+  ) {
+
+    const front =
+      bodice.front;
+
+
+    output +=
+      createHorizontalDimension(
+
+        front.F[0],
+
+        front.F[0] +
+        bodice.waistQ,
+
+        front.F[1] + 3,
+
+        `1/4 pinggang ${formatNumber(
+          bodice.waistQ
+        )} cm`
+
+      );
+
+  }
+
+
+  return output;
+
+}
+
+
+/* =========================================================
    MAIN SVG RENDERER
-========================================= */
+========================================================= */
 
 export function renderPattern(
   bodice,
@@ -518,23 +604,20 @@ export function renderPattern(
 ) {
 
 
-  /* =======================================
+  /* =======================================================
      UKURAN CANVAS
-  ======================================= */
+  ======================================================= */
 
   const width =
-    155;
+    140;
 
   const height =
-    Math.max(
-      65,
-      (measurements.bodyLength || 40) + 25
-    );
+    72;
 
 
-  /* =======================================
+  /* =======================================================
      GRID
-  ======================================= */
+  ======================================================= */
 
   const grid =
     createGrid(
@@ -543,45 +626,27 @@ export function renderPattern(
     );
 
 
-  /* =======================================
-     BODICE DEPAN
-  ======================================= */
+  /* =======================================================
+     BODICE
+  ======================================================= */
 
   const frontPath =
     createBodicePath(
-
       bodice.front,
-
-      bodice.frontArmhole,
-
-      bodice.frontNeck,
-
       true
-
     );
 
-
-  /* =======================================
-     BODICE BELAKANG
-  ======================================= */
 
   const backPath =
     createBodicePath(
-
       bodice.back,
-
-      bodice.backArmhole,
-
-      bodice.backNeck,
-
       false
-
     );
 
 
-  /* =======================================
-     LENGAN
-  ======================================= */
+  /* =======================================================
+     SLEEVE
+  ======================================================= */
 
   const sleevePath =
     createSleevePath(
@@ -589,67 +654,206 @@ export function renderPattern(
     );
 
 
-  /* =======================================
-     POSISI LABEL
-  ======================================= */
+  /* =======================================================
+     UKURAN KERUNG LENGAN
+  ======================================================= */
 
-  const frontLabelX =
-    bodice.front.F[0] + 2;
-
-
-  const backLabelX =
-    bodice.back.F[0] + 2;
+  const armholeLength =
+    Number(
+      bodice.armholeLength
+    ) || 0;
 
 
-  const sleeveLabelX =
-    sleeve.left[0] + 2;
+  /* =======================================================
+     NEGATIVE EASE
+  ======================================================= */
+
+  const negativeEase =
+    Number(
+      measurements?.negativeEase
+    ) || 0;
 
 
-  /* =======================================
-     DIMENSI DADA
-  ======================================= */
+  /* =======================================================
+     MATERIAL
+  ======================================================= */
 
-  const bustDimension =
-
-    createDimension(
-
-      bodice.front.F[0],
-
-      bodice.front.D[1] - 2,
-
-      bodice.front.D[0],
-
-      bodice.front.D[1] - 2,
-
-      `1/4 dada ${bodice.bustQ.toFixed(1)} cm`
-
-    );
+  const fabricName =
+    measurements?.fabric ||
+    "";
 
 
-  /* =======================================
-     DIMENSI PINGGANG
-  ======================================= */
+  /* =======================================================
+     GRAINLINE
+  ======================================================= */
 
-  const waistDimension =
+  const frontGrain =
+    createGrainline(
 
-    createDimension(
+      14,
 
-      bodice.front.F[0],
+      18,
 
-      bodice.front.E[1] + 3,
-
-      bodice.front.E[0],
-
-      bodice.front.E[1] + 3,
-
-      `1/4 pinggang ${bodice.waistQ.toFixed(1)} cm`
+      Math.min(
+        38,
+        10 +
+        Number(
+          measurements?.bodyLength || 25
+        )
+      )
 
     );
 
 
-  /* =======================================
+  const backGrain =
+    createGrainline(
+
+      59,
+
+      18,
+
+      Math.min(
+        38,
+        10 +
+        Number(
+          measurements?.bodyLength || 25
+        )
+      )
+
+    );
+
+
+  const sleeveGrain =
+    createGrainline(
+
+      108,
+
+      19,
+
+      45
+
+    );
+
+
+  /* =======================================================
+     INFORMASI BODICE
+  ======================================================= */
+
+  const bodiceInfo =
+    createBodiceInformation(
+      bodice,
+      measurements
+    );
+
+
+  /* =======================================================
+     LABEL
+  ======================================================= */
+
+  const labels = `
+
+    ${createLabel(
+      "DEPAN — POTONG 1x LIPATAN",
+      10,
+      57
+    )}
+
+    ${createLabel(
+      "BELAKANG — POTONG 1x LIPATAN",
+      55,
+      57
+    )}
+
+    ${createLabel(
+      "LENGAN — POTONG 2",
+      95,
+      60
+    )}
+
+  `;
+
+
+  /* =======================================================
+     INFORMASI TEKNIS
+  ======================================================= */
+
+  const technicalInfo = `
+
+    ${createSmallText(
+      "PatternMaker • Pola Anak • Satuan cm",
+      5,
+      5
+    )}
+
+    ${createSmallText(
+      `Lingkar dada: ${formatNumber(
+        measurements?.bust
+      )} cm`,
+      5,
+      8
+    )}
+
+    ${createSmallText(
+      `Lingkar pinggang: ${formatNumber(
+        measurements?.waist
+      )} cm`,
+      5,
+      11
+    )}
+
+    ${createSmallText(
+      `Panjang badan: ${formatNumber(
+        measurements?.bodyLength
+      )} cm`,
+      48,
+      8
+    )}
+
+    ${createSmallText(
+      `Lebar bahu: ${formatNumber(
+        measurements?.shoulder
+      )} cm`,
+      48,
+      11
+    )}
+
+  `;
+
+
+  /* =======================================================
+     INFORMASI BAWAH
+  ======================================================= */
+
+  const bottomInfo = `
+
+    ${createSmallText(
+      `Kerung lengan: ${formatNumber(
+        armholeLength
+      )} cm`,
+      5,
+      66
+    )}
+
+    ${createSmallText(
+      `Pengurangan ukuran: ${formatNumber(
+        negativeEase
+      )}%`,
+      45,
+      66
+    )}
+
+    ${createSmallText(
+      fabricName,
+      95,
+      66
+    )}
+
+  `;
+
+
+  /* =======================================================
      SVG
-  ======================================= */
+  ======================================================= */
 
   return `
 
@@ -666,244 +870,314 @@ export function renderPattern(
 
       width="100%"
 
-      height="auto"
-
       preserveAspectRatio="xMidYMid meet"
 
     >
 
-      <!-- =================================
+
+      <!-- =================================================
+           DEFINITIONS
+      ================================================= -->
+
+      <defs>
+
+        <!-- ---------------------------------------------
+             GRID STYLE
+        ---------------------------------------------- -->
+
+        <style>
+
+          .grid {
+
+            stroke:
+              #e8e8e8;
+
+            stroke-width:
+              0.18;
+
+          }
+
+
+          .pattern {
+
+            fill:
+              rgba(210, 225, 235, 0.16);
+
+            stroke:
+              #222;
+
+            stroke-width:
+              0.28;
+
+            stroke-linejoin:
+              round;
+
+            stroke-linecap:
+              round;
+
+          }
+
+
+          .grain {
+
+            stroke:
+              #333;
+
+            stroke-width:
+              0.25;
+
+          }
+
+
+          .grainText {
+
+            font-family:
+              Arial,
+              sans-serif;
+
+            font-size:
+              1.7px;
+
+            fill:
+              #333;
+
+          }
+
+
+          .dimension {
+
+            stroke:
+              #777;
+
+            stroke-width:
+              0.18;
+
+          }
+
+
+          .dimensionText {
+
+            font-family:
+              Arial,
+              sans-serif;
+
+            font-size:
+              1.7px;
+
+            fill:
+              #555;
+
+          }
+
+
+          .label {
+
+            font-family:
+              Arial,
+              sans-serif;
+
+            font-size:
+              2.0px;
+
+            font-weight:
+              600;
+
+            fill:
+              #111;
+
+          }
+
+
+          .small {
+
+            font-family:
+              Arial,
+              sans-serif;
+
+            font-size:
+              1.55px;
+
+            fill:
+              #555;
+
+          }
+
+        </style>
+
+
+        <!-- =================================================
+             GRAIN ARROW
+        ================================================= -->
+
+        <marker
+
+          id="grainArrow"
+
+          viewBox="
+            0
+            0
+            10
+            10
+          "
+
+          refX="5"
+
+          refY="5"
+
+          markerWidth="3"
+
+          markerHeight="3"
+
+          orient="auto"
+
+        >
+
+          <path
+            d="M 0 10 L 5 0 L 10 10 Z"
+            fill="#333"
+          />
+
+        </marker>
+
+
+        <!-- =================================================
+             DIMENSION ARROW
+        ================================================= -->
+
+        <marker
+
+          id="dimensionArrow"
+
+          viewBox="
+            0
+            0
+            10
+            10
+          "
+
+          refX="5"
+
+          refY="5"
+
+          markerWidth="2.2"
+
+          markerHeight="2.2"
+
+          orient="auto"
+
+        >
+
+          <path
+            d="M 0 5 L 10 0 L 10 10 Z"
+            fill="#777"
+          />
+
+        </marker>
+
+      </defs>
+
+
+      <!-- =================================================
            GRID
-      ================================= -->
+      ================================================= -->
 
       ${grid}
 
 
-      <!-- =================================
-           BODICE DEPAN
-      ================================= -->
+      <!-- =================================================
+           FRONT
+      ================================================= -->
 
       <path
-
         class="pattern"
-
         d="${frontPath}"
-
       />
 
 
-      <!-- =================================
-           BODICE BELAKANG
-      ================================= -->
+      <!-- =================================================
+           BACK
+      ================================================= -->
 
       <path
-
         class="pattern"
-
         d="${backPath}"
-
       />
 
 
-      <!-- =================================
-           LENGAN
-      ================================= -->
+      <!-- =================================================
+           SLEEVE
+      ================================================= -->
 
       <path
-
         class="pattern"
-
         d="${sleevePath}"
-
       />
 
 
-      <!-- =================================
-           GRAINLINE
-      ================================= -->
+      <!-- =================================================
+           GRAINLINES
+      ================================================= -->
 
-      ${createGrainline(
+      ${frontGrain}
 
-        bodice.front.F[0] + 3,
+      ${backGrain}
 
-        bodice.front.A[1] + 8,
-
-        bodice.front.F[1] - 5
-
-      )}
+      ${sleeveGrain}
 
 
-      ${createGrainline(
+      <!-- =================================================
+           DIMENSIONS
+      ================================================= -->
 
-        bodice.back.F[0] + 3,
-
-        bodice.back.A[1] + 8,
-
-        bodice.back.F[1] - 5
-
-      )}
+      ${bodiceInfo}
 
 
-      ${createGrainline(
+      <!-- =================================================
+           LABELS
+      ================================================= -->
 
-        sleeve.top[0],
-
-        sleeve.top[1] + 5,
-
-        sleeve.right[1] - 5
-
-      )}
+      ${labels}
 
 
-      <!-- =================================
-           LABEL DEPAN
-      ================================= -->
+      <!-- =================================================
+           TECHNICAL INFORMATION
+      ================================================= -->
 
-      ${createLabel(
-
-        "DEPAN — POTONG 1x LIPATAN",
-
-        frontLabelX,
-
-        bodice.front.F[1] + 6
-
-      )}
+      ${technicalInfo}
 
 
-      <!-- =================================
-           LABEL BELAKANG
-      ================================= -->
+      <!-- =================================================
+           BOTTOM INFORMATION
+      ================================================= -->
 
-      ${createLabel(
-
-        "BELAKANG — POTONG 1x LIPATAN",
-
-        backLabelX,
-
-        bodice.back.F[1] + 6
-
-      )}
+      ${bottomInfo}
 
 
-      <!-- =================================
-           LABEL LENGAN
-      ================================= -->
+      <!-- =================================================
+           SLEEVE CAP INFORMATION
+      ================================================= -->
 
-      ${createLabel(
+      ${
+        sleeve &&
+        Number.isFinite(
+          Number(sleeve.capEase)
+        )
 
-        "LENGAN — POTONG 2",
+        ?
 
-        sleeveLabelX,
+        createSmallText(
+          `Cap ease: ${formatNumber(
+            sleeve.capEase
+          )} cm`,
+          95,
+          63
+        )
 
-        sleeve.right[1] + 6
+        :
 
-      )}
+        ""
+      }
 
-
-      <!-- =================================
-           DIMENSI
-      ================================= -->
-
-      ${bustDimension}
-
-      ${waistDimension}
-
-
-      <!-- =================================
-           INFORMASI
-      ================================= -->
-
-      <text
-        class="small"
-        x="5"
-        y="5"
-      >
-        PatternMaker
-        • Pola Anak
-        • Satuan cm
-      </text>
-
-
-      <!-- =================================
-           INFORMASI UKURAN
-      ================================= -->
-
-      <text
-        class="small"
-        x="5"
-        y="8"
-      >
-        Lingkar dada:
-        ${Number(measurements.bust || 0).toFixed(1)}
-        cm
-      </text>
-
-
-      <text
-        class="small"
-        x="45"
-        y="8"
-      >
-        Lingkar pinggang:
-        ${Number(measurements.waist || 0).toFixed(1)}
-        cm
-      </text>
-
-
-      <text
-        class="small"
-        x="90"
-        y="8"
-      >
-        Panjang badan:
-        ${Number(measurements.bodyLength || 0).toFixed(1)}
-        cm
-      </text>
-
-
-      <!-- =================================
-           ARMHOLE INFORMATION
-      ================================= -->
-
-      <text
-        class="note"
-        x="5"
-        y="${height - 4}"
-      >
-        Kerung lengan:
-        ${Number(bodice.armholeLength || 0).toFixed(1)}
-        cm
-      </text>
-
-
-      <!-- =================================
-           NEGATIVE EASE
-      ================================= -->
-
-      <text
-        class="note"
-        x="50"
-        y="${height - 4}"
-      >
-        Pengurangan ukuran:
-        ${Number(measurements.negativeEase || 0).toFixed(1)}
-        %
-      </text>
-
-
-      <!-- =================================
-           BAHAN
-      ================================= -->
-
-      <text
-        class="note"
-        x="105"
-        y="${height - 4}"
-      >
-        ${measurements.fabric === "sublime_jersey"
-          ? "Sublime Jersey"
-          : measurements.fabric}
-      </text>
 
     </svg>
 
