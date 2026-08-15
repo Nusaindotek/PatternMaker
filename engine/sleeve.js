@@ -1,369 +1,605 @@
-/* =========================================
+/* =========================================================
    PatternMaker
-   SLEEVE ENGINE
+   SLEEVE ENGINE V1.5
    ---------------------------------------------------------
-   Pola lengan mengikuti:
+   UNIVERSAL BASIC SLEEVE
+
+   Input:
    - Lingkar lengan atas
    - Panjang lengan
    - Lingkar pergelangan tangan
-   - Kerung lengan bodice
-   - Negative ease
-   - Jenis bahan
-========================================= */
+   - Pengurangan ukuran
+   - Bahan
+
+   Dari Bodice:
+   - armDepth
+   - armholeLength
+   - frontArmholeLength
+   - backArmholeLength
+
+   Output:
+   - titik pola lengan
+   - tinggi kepala lengan
+   - panjang kepala lengan
+   - kelonggaran kepala lengan
+   - lebar lengan atas
+   - lebar ujung lengan
+
+   Semua ukuran dalam cm.
+========================================================= */
 
 
-/* =========================================
-   JARAK 2 TITIK
-========================================= */
+/* =========================================================
+   HELPER
+========================================================= */
 
-function distance(pointA, pointB) {
-
-  return Math.hypot(
-    pointB[0] - pointA[0],
-    pointB[1] - pointA[1]
-  );
-
-}
-
-
-/* =========================================
-   PANJANG KURVA BEZIER
-========================================= */
-
-function bezierLength(
-  p0,
-  p1,
-  p2,
-  p3,
-  steps = 30
+function positive(
+  value,
+  fallback = 0
 ) {
 
-  let length = 0;
+  const number =
+    Number(value);
 
-  let previous = p0;
 
-  for (
-    let i = 1;
-    i <= steps;
-    i++
+  if (
+    !Number.isFinite(number) ||
+    number <= 0
   ) {
 
-    const t =
-      i / steps;
-
-    const mt =
-      1 - t;
-
-    const current = [
-
-      mt * mt * mt * p0[0] +
-      3 * mt * mt * t * p1[0] +
-      3 * mt * t * t * p2[0] +
-      t * t * t * p3[0],
-
-      mt * mt * mt * p0[1] +
-      3 * mt * mt * t * p1[1] +
-      3 * mt * t * t * p2[1] +
-      t * t * t * p3[1]
-
-    ];
-
-    length +=
-      distance(
-        previous,
-        current
-      );
-
-    previous =
-      current;
+    return fallback;
 
   }
 
-  return length;
+
+  return number;
 
 }
 
 
-/* =========================================
-   PANJANG KERUNG DARI BODICE
-========================================= */
+/* =========================================================
+   ROUND
+========================================================= */
 
-function getArmholeLength(bodice) {
+function round(
+  value,
+  digits = 2
+) {
 
-  if (
-    !bodice ||
-    !bodice.frontArmhole ||
-    !bodice.backArmhole
-  ) {
-
-    return 0;
-
-  }
-
-
-  const front =
-    bodice.frontArmhole;
-
-  const back =
-    bodice.backArmhole;
-
-
-  const frontLength =
-    bezierLength(
-      front[0],
-      front[1],
-      front[2],
-      front[3]
-    );
-
-
-  const backLength =
-    bezierLength(
-      back[0],
-      back[1],
-      back[2],
-      back[3]
+  const factor =
+    Math.pow(
+      10,
+      digits
     );
 
 
   return (
-    frontLength +
-    backLength
+    Math.round(
+      value * factor
+    ) / factor
   );
 
 }
 
 
-/* =========================================
-   EASE KEPALA LENGAN
-========================================= */
+/* =========================================================
+   NEGATIVE EASE
+========================================================= */
 
-function getSleeveCapEase(
-  fabric
+function applyNegativeEase(
+  measurement,
+  negativeEase
 ) {
 
-  /*
-    Sublime Jersey dan Rib Knit
-    membutuhkan ease yang sangat kecil.
-
-    Woven memiliki sedikit ease.
-  */
-
-  if (
-    fabric === "rib_knit"
-  ) {
-
-    return 0;
-
-  }
+  const ease =
+    Math.max(
+      0,
+      Number(
+        negativeEase
+      ) || 0
+    );
 
 
-  if (
-    fabric === "sublime_jersey"
-  ) {
-
-    return 0.3;
-
-  }
-
-
-  return 1.0;
+  return (
+    measurement *
+    (
+      1 -
+      ease / 100
+    )
+  );
 
 }
 
 
-/* =========================================
-   SLEEVE ENGINE
-========================================= */
+/* =========================================================
+   FABRIC EASE
+   ---------------------------------------------------------
+   Rib Knit / stretch:
+   sedikit lebih kecil.
+
+   Woven:
+   sedikit lebih longgar.
+
+   Nilai ini hanya digunakan sebagai
+   tambahan kenyamanan konstruksi,
+   bukan menggantikan negative ease.
+========================================================= */
+
+function getSleeveEase(
+  fabric
+) {
+
+  const material =
+    String(
+      fabric || ""
+    )
+    .toLowerCase()
+    .replace(/\s+/g, "_");
+
+
+  if (
+    material === "rib_knit"
+  ) {
+
+    return 0.5;
+
+  }
+
+
+  if (
+    material === "sublime_jersey"
+  ) {
+
+    return 0.5;
+
+  }
+
+
+  return 1.5;
+
+}
+
+
+/* =========================================================
+   SLEEVE CAP HEIGHT
+   ---------------------------------------------------------
+   Kepala lengan tidak lagi dibuat sebagai
+   setengah lingkaran.
+
+   Tingginya mengikuti armhole bodice.
+
+   Rumus dasar:
+   armhole length / 6
+
+   Kemudian dibatasi terhadap armDepth
+   agar tetap proporsional.
+========================================================= */
+
+function calculateCapHeight(
+  armholeLength,
+  armDepth
+) {
+
+  const base =
+    armholeLength / 6;
+
+
+  const maximum =
+    armDepth * 0.75;
+
+
+  const minimum =
+    5;
+
+
+  return Math.max(
+
+    minimum,
+
+    Math.min(
+      base,
+      maximum
+    )
+
+  );
+
+}
+
+
+/* =========================================================
+   SLEEVE WIDTH
+========================================================= */
+
+function calculateUpperWidth(
+  upperArm,
+  negativeEase,
+  sleeveEase
+) {
+
+  const adjusted =
+    applyNegativeEase(
+      upperArm,
+      negativeEase
+    );
+
+
+  /*
+    Sleeve ease ditambahkan
+    setelah negative ease.
+  */
+
+  return (
+    adjusted +
+    sleeveEase
+  );
+
+}
+
+
+/* =========================================================
+   WRIST WIDTH
+========================================================= */
+
+function calculateWristWidth(
+  wrist,
+  negativeEase,
+  sleeveEase
+) {
+
+  const adjusted =
+    applyNegativeEase(
+      wrist,
+      negativeEase
+    );
+
+
+  /*
+    Sedikit ruang agar ujung lengan
+    tidak terlalu ketat.
+  */
+
+  return (
+    adjusted +
+    sleeveEase
+  );
+
+}
+
+
+/* =========================================================
+   CAP CONTROL POINT
+========================================================= */
+
+function calculateCapPoint(
+  left,
+  top,
+  right,
+  capHeight
+) {
+
+  const width =
+    right[0] -
+    left[0];
+
+
+  /*
+    Titik puncak sedikit digeser
+    mengikuti bentuk natural sleeve cap.
+  */
+
+  const topX =
+    left[0] +
+    width / 2;
+
+
+  return [
+
+    topX,
+
+    top[1]
+
+  ];
+
+}
+
+
+/* =========================================================
+   CREATE SLEEVE
+========================================================= */
 
 export function makeSleeve(
-  m,
+  measurements,
   bodice
 ) {
 
+  if (!measurements) {
 
-  /* =======================================
-     UKURAN DASAR
-  ======================================= */
+    throw new Error(
+      "Data ukuran lengan tidak tersedia."
+    );
 
-  const negativeEase =
-    Number(m.negativeEase) || 0;
-
-
-  const easeFactor =
-    1 -
-    negativeEase / 100;
+  }
 
 
-  /* =======================================
-     LINGKAR LENGAN ATAS
-  ======================================= */
+  if (!bodice) {
+
+    throw new Error(
+      "Data badan tidak tersedia untuk membuat lengan."
+    );
+
+  }
+
+
+  /* =======================================================
+     INPUT UKURAN
+  ======================================================= */
 
   const upperArm =
-    Number(m.upperArm) *
-    easeFactor;
+    positive(
+      measurements.upperArm
+    );
 
-
-  /* =======================================
-     SETENGAH LINGKAR LENGAN ATAS
-  ======================================= */
-
-  const upperArmHalf =
-    upperArm / 2;
-
-
-  /* =======================================
-     LINGKAR PERGELANGAN
-  ======================================= */
-
-  const wrist =
-    Number(m.wrist) *
-    easeFactor;
-
-
-  /* =======================================
-     SETENGAH LINGKAR PERGELANGAN
-  ======================================= */
-
-  const wristHalf =
-    wrist / 2;
-
-
-  /* =======================================
-     PANJANG LENGAN
-  ======================================= */
 
   const sleeveLength =
-    Number(m.sleeveLength) || 0;
+    positive(
+      measurements.sleeveLength
+    );
 
 
-  /* =======================================
-     PANJANG KERUNG BODICE
-  ======================================= */
+  const wrist =
+    positive(
+      measurements.wrist
+    );
+
+
+  const negativeEase =
+    Math.max(
+
+      0,
+
+      Number(
+        measurements.negativeEase
+      ) || 0
+
+    );
+
+
+  /* =======================================================
+     VALIDASI
+  ======================================================= */
+
+  if (
+    upperArm <= 0
+  ) {
+
+    throw new Error(
+      "Lingkar lengan atas harus lebih dari 0 cm."
+    );
+
+  }
+
+
+  if (
+    sleeveLength <= 0
+  ) {
+
+    throw new Error(
+      "Panjang lengan harus lebih dari 0 cm."
+    );
+
+  }
+
+
+  if (
+    wrist <= 0
+  ) {
+
+    throw new Error(
+      "Lingkar pergelangan tangan harus lebih dari 0 cm."
+    );
+
+  }
+
+
+  /* =======================================================
+     ARMHOLE BODICE
+  ======================================================= */
 
   const armholeLength =
-    getArmholeLength(
-      bodice
+    positive(
+      bodice.armholeLength
     );
 
 
-  /* =======================================
-     EASE KEPALA LENGAN
-  ======================================= */
-
-  const capEase =
-    getSleeveCapEase(
-      m.fabric
+  const frontArmholeLength =
+    positive(
+      bodice.frontArmholeLength
     );
 
 
-  /* =======================================
-     TARGET PANJANG KEPALA LENGAN
-  ======================================= */
-
-  const targetCapLength =
-    armholeLength +
-    capEase;
-
-
-  /* =======================================
-     TINGGI KEPALA LENGAN
-     
-     Berdasarkan ukuran lingkar lengan
-     dan kerung bodice.
-
-     Nilai minimum mencegah bentuk
-     kepala lengan terlalu datar.
-  ======================================= */
-
-  const capHeight =
-    Math.max(
-      7,
-      Math.min(
-        14,
-        armholeLength * 0.35
-      )
+  const backArmholeLength =
+    positive(
+      bodice.backArmholeLength
     );
 
 
-  /* =======================================
-     POSISI POLA LENGAN
-  ======================================= */
+  const armDepth =
+    positive(
+      bodice.armDepth
+    );
+
+
+  if (
+    armholeLength <= 0
+  ) {
+
+    throw new Error(
+      "Panjang kerung lengan badan tidak tersedia."
+    );
+
+  }
+
+
+  /* =======================================================
+     MATERIAL
+  ======================================================= */
+
+  const sleeveEase =
+    getSleeveEase(
+      measurements.fabric
+    );
+
+
+  /* =======================================================
+     LEBAR LENGAN ATAS
+  ======================================================= */
+
+  const upperWidth =
+    calculateUpperWidth(
+
+      upperArm,
+
+      negativeEase,
+
+      sleeveEase
+
+    );
+
+
+  /* =======================================================
+     LEBAR UJUNG LENGAN
+  ======================================================= */
+
+  const wristWidth =
+    calculateWristWidth(
+
+      wrist,
+
+      negativeEase,
+
+      sleeveEase
+
+    );
+
+
+  /* =======================================================
+     SETENGAH LEBAR
+  ======================================================= */
+
+  const upperHalf =
+    upperWidth / 2;
+
+
+  const wristHalf =
+    wristWidth / 2;
+
+
+  /* =======================================================
+     POSISI POLA
+     -------------------------------------------------------
+     Diletakkan di sebelah kanan
+     bodice pada preview.
+  ======================================================= */
 
   const x =
-    105;
+    95;
+
 
   const y =
-    12;
+    8;
 
 
-  /* =======================================
-     TITIK ATAS
-  ======================================= */
+  /* =======================================================
+     KEPALA LENGAN
+  ======================================================= */
 
-  const centerX =
-    x +
-    upperArmHalf +
-    2;
+  const capHeight =
+    calculateCapHeight(
 
+      armholeLength,
 
-  const top = [
-    centerX,
-    y
-  ];
+      armDepth
+
+    );
 
 
-  /* =======================================
-     TITIK KIRI
-  ======================================= */
+  /* =======================================================
+     TITIK UTAMA
+  ======================================================= */
+
+  /*
+    Titik kiri bawah.
+  */
 
   const left = [
+
     x,
+
     y + sleeveLength
+
   ];
 
 
-  /* =======================================
-     TITIK KANAN
-  ======================================= */
-
-  const right = [
-    x +
-    upperArm +
-    4,
-    y + sleeveLength
-  ];
-
-
-  /* =======================================
-     TITIK KEPALA KIRI
-  ======================================= */
+  /*
+    Titik kiri atas kerung.
+  */
 
   const leftCap = [
+
     x,
+
     y + capHeight
+
   ];
 
 
-  /* =======================================
-     TITIK KEPALA KANAN
-  ======================================= */
+  /*
+    Titik tengah atas kepala lengan.
+  */
+
+  const top = [
+
+    x + upperHalf,
+
+    y
+
+  ];
+
+
+  /*
+    Titik kanan atas kerung.
+  */
 
   const rightCap = [
-    x +
-    upperArm +
-    4,
+
+    x + upperWidth,
+
     y + capHeight
+
   ];
 
 
-  /* =======================================
+  /*
+    Titik kanan bawah.
+  */
+
+  const right = [
+
+    x + upperWidth,
+
+    y + sleeveLength
+
+  ];
+
+
+  /* =======================================================
      UJUNG LENGAN
-  ======================================= */
+  ======================================================= */
 
   const bottomLeft = [
 
-    centerX -
+    x +
+    upperHalf -
     wristHalf,
 
     y +
@@ -374,7 +610,8 @@ export function makeSleeve(
 
   const bottomRight = [
 
-    centerX +
+    x +
+    upperHalf +
     wristHalf,
 
     y +
@@ -383,119 +620,85 @@ export function makeSleeve(
   ];
 
 
-  /* =======================================
-     KURVA KEPALA LENGAN KIRI
-  ======================================= */
+  /* =======================================================
+     CONTROL POINT KEPALA LENGAN
+  ======================================================= */
 
-  const leftControl1 = [
+  const capTop =
 
-    leftCap[0] + 3,
-
-    leftCap[1] - capHeight * 0.55
-
-  ];
-
-
-  const leftControl2 = [
-
-    top[0] - upperArmHalf * 0.55,
-
-    top[1]
-
-  ];
-
-
-  /* =======================================
-     KURVA KEPALA LENGAN KANAN
-  ======================================= */
-
-  const rightControl1 = [
-
-    top[0] + upperArmHalf * 0.55,
-
-    top[1]
-
-  ];
-
-
-  const rightControl2 = [
-
-    rightCap[0] - 3,
-
-    rightCap[1] - capHeight * 0.55
-
-  ];
-
-
-  /* =======================================
-     PANJANG KURVA KIRI
-  ======================================= */
-
-  const leftCapLength =
-    bezierLength(
+    calculateCapPoint(
 
       leftCap,
 
-      leftControl1,
-
-      leftControl2,
-
-      top
-
-    );
-
-
-  /* =======================================
-     PANJANG KURVA KANAN
-  ======================================= */
-
-  const rightCapLength =
-    bezierLength(
-
       top,
 
-      rightControl1,
+      rightCap,
 
-      rightControl2,
-
-      rightCap
+      capHeight
 
     );
 
 
-  /* =======================================
-     TOTAL PANJANG KEPALA LENGAN
-  ======================================= */
+  /* =======================================================
+     PANJANG KEPALA LENGAN
+     -------------------------------------------------------
+     Perkiraan kurva kiri + kanan.
 
-  const capLength =
-    leftCapLength +
-    rightCapLength;
+     Menggunakan faktor kurva agar
+     lebih dekat dengan panjang aktual.
+  ======================================================= */
+
+  const capHalfLength =
+
+    Math.sqrt(
+
+      Math.pow(
+        upperHalf,
+        2
+      ) +
+
+      Math.pow(
+        capHeight,
+        2
+      )
+
+    );
 
 
-  /* =======================================
-     SELISIH CAP
-     
-     Positif:
-     cap lebih panjang dari kerung.
+  const estimatedCapLength =
 
-     Negatif:
-     cap lebih pendek.
-  ======================================= */
+    capHalfLength *
+    2 *
+    1.08;
 
-  const actualCapEase =
-    capLength -
+
+  /* =======================================================
+     TARGET ARMHOLE
+  ======================================================= */
+
+  const targetArmholeLength =
     armholeLength;
 
 
-  /* =======================================
+  /* =======================================================
+     CAP EASE
+  ======================================================= */
+
+  const capEase =
+
+    estimatedCapLength -
+    targetArmholeLength;
+
+
+  /* =======================================================
      RETURN
-  ======================================= */
+  ======================================================= */
 
   return {
 
-    /* ===============================
-       TITIK POLA
-    =============================== */
+    /* -----------------------------------
+       POINTS
+    ----------------------------------- */
 
     left,
 
@@ -511,59 +714,131 @@ export function makeSleeve(
 
     bottomRight,
 
-
-    /* ===============================
-       KURVA
-    =============================== */
-
-    leftControl1,
-
-    leftControl2,
-
-    rightControl1,
-
-    rightControl2,
+    capTop,
 
 
-    /* ===============================
-       UKURAN
-    =============================== */
+    /* -----------------------------------
+       LENGTH
+    ----------------------------------- */
 
-    upperArm,
+    sleeveLength:
 
-    upperArmHalf,
-
-    wrist,
-
-    wristHalf,
-
-    sleeveLength,
-
-    capHeight,
+      round(
+        sleeveLength,
+        2
+      ),
 
 
-    /* ===============================
-       KERUNG
-    =============================== */
+    /* -----------------------------------
+       WIDTH
+    ----------------------------------- */
 
-    armholeLength,
+    upperWidth:
 
-    targetCapLength,
+      round(
+        upperWidth,
+        2
+      ),
 
-    capLength,
+
+    upperHalf:
+
+      round(
+        upperHalf,
+        2
+      ),
+
+
+    wristWidth:
+
+      round(
+        wristWidth,
+        2
+      ),
+
+
+    wristHalf:
+
+      round(
+        wristHalf,
+        2
+      ),
+
+
+    /* -----------------------------------
+       CAP
+    ----------------------------------- */
+
+    capHeight:
+
+      round(
+        capHeight,
+        2
+      ),
+
+
+    capLength:
+
+      round(
+        estimatedCapLength,
+        2
+      ),
+
+
+    /* -----------------------------------
+       ARMHOLE
+    ----------------------------------- */
+
+    armholeLength:
+
+      round(
+        targetArmholeLength,
+        2
+      ),
+
+
+    frontArmholeLength:
+
+      round(
+        frontArmholeLength,
+        2
+      ),
+
+
+    backArmholeLength:
+
+      round(
+        backArmholeLength,
+        2
+      ),
+
+
+    /* -----------------------------------
+       EASE
+    ----------------------------------- */
 
     capEase:
-      actualCapEase,
 
+      round(
+        capEase,
+        2
+      ),
 
-    /* ===============================
-       EASE
-    =============================== */
 
     ease:
-      capEase,
 
-    negativeEase
+      round(
+        sleeveEase,
+        2
+      ),
+
+
+    negativeEase:
+
+      round(
+        negativeEase,
+        2
+      )
 
   };
 
