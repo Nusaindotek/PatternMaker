@@ -10,12 +10,460 @@
     content="width=device-width, initial-scale=1.0"
   >
 
-  <title>PatternMaker V1</title>
+  <title>PatternMaker</title>
 
-  <link
-    rel="stylesheet"
-    href="style.css"
-  >
+
+  <style>
+
+    /* =====================================================
+       GLOBAL
+    ====================================================== */
+
+    * {
+      box-sizing: border-box;
+    }
+
+
+    body {
+
+      margin: 0;
+
+      padding: 0;
+
+      background: #f3f4f6;
+
+      color: #111827;
+
+      font-family:
+        Arial,
+        Helvetica,
+        sans-serif;
+
+    }
+
+
+    /* =====================================================
+       LAYOUT
+    ====================================================== */
+
+    .app {
+
+      display: grid;
+
+      grid-template-columns:
+        330px
+        minmax(0, 1fr);
+
+      min-height: 100vh;
+
+      gap: 18px;
+
+      padding: 18px;
+
+    }
+
+
+    .panel {
+
+      background: #ffffff;
+
+      border: 1px solid #d7d7d7;
+
+      border-radius: 12px;
+
+      padding: 18px;
+
+    }
+
+
+    .left-panel {
+
+      height: fit-content;
+
+      position: sticky;
+
+      top: 18px;
+
+    }
+
+
+    .right-panel {
+
+      min-width: 0;
+
+    }
+
+
+    /* =====================================================
+       HEADINGS
+    ====================================================== */
+
+    h1 {
+
+      margin-top: 0;
+
+      margin-bottom: 8px;
+
+      font-size: 26px;
+
+    }
+
+
+    h2 {
+
+      margin-top: 26px;
+
+      margin-bottom: 14px;
+
+      font-size: 20px;
+
+    }
+
+
+    h3 {
+
+      margin-top: 20px;
+
+      margin-bottom: 12px;
+
+      font-size: 16px;
+
+    }
+
+
+    h2:first-child {
+
+      margin-top: 0;
+
+    }
+
+
+    /* =====================================================
+       FORM
+    ====================================================== */
+
+    .form-group {
+
+      margin-bottom: 14px;
+
+    }
+
+
+    .form-group label {
+
+      display: block;
+
+      margin-bottom: 6px;
+
+      font-size: 14px;
+
+      color: #111827;
+
+    }
+
+
+    input,
+    select {
+
+      width: 100%;
+
+      min-height: 44px;
+
+      padding: 9px 11px;
+
+      border: 1px solid #b8b8b8;
+
+      border-radius: 7px;
+
+      background: #ffffff;
+
+      color: #111827;
+
+      font-size: 16px;
+
+      outline: none;
+
+    }
+
+
+    input:focus,
+    select:focus {
+
+      border-color: #555;
+
+    }
+
+
+    .unit {
+
+      display: block;
+
+      margin-top: 4px;
+
+      font-size: 13px;
+
+      color: #374151;
+
+    }
+
+
+    .form-help {
+
+      margin-top: -5px;
+
+      margin-bottom: 14px;
+
+      font-size: 12px;
+
+      line-height: 1.5;
+
+      color: #6b7280;
+
+    }
+
+
+    /* =====================================================
+       BUTTON
+    ====================================================== */
+
+    .button-group {
+
+      display: flex;
+
+      flex-direction: column;
+
+      gap: 10px;
+
+      margin-top: 26px;
+
+    }
+
+
+    button {
+
+      width: 100%;
+
+      min-height: 46px;
+
+      border: 0;
+
+      border-radius: 8px;
+
+      background: #e5e7eb;
+
+      color: #111827;
+
+      font-size: 15px;
+
+      font-weight: 700;
+
+      cursor: pointer;
+
+    }
+
+
+    button:hover {
+
+      background: #d1d5db;
+
+    }
+
+
+    button:active {
+
+      transform: translateY(1px);
+
+    }
+
+
+    /* =====================================================
+       HASIL
+    ====================================================== */
+
+    .result-title {
+
+      margin-top: 0;
+
+      font-size: 26px;
+
+    }
+
+
+    #status {
+
+      min-height: 24px;
+
+      margin-bottom: 18px;
+
+      color: #374151;
+
+      line-height: 1.5;
+
+    }
+
+
+    /* =====================================================
+       FABRIC OPTIMIZER
+    ====================================================== */
+
+    .optimizer {
+
+      margin-top: 10px;
+
+    }
+
+
+    .optimizer h2 {
+
+      margin-top: 0;
+
+    }
+
+
+    .result-row {
+
+      margin-bottom: 12px;
+
+      font-size: 16px;
+
+      line-height: 1.45;
+
+    }
+
+
+    .result-row strong {
+
+      font-weight: 700;
+
+    }
+
+
+    /* =====================================================
+       PATTERN PREVIEW
+    ====================================================== */
+
+    .preview-title {
+
+      margin-top: 22px;
+
+      margin-bottom: 12px;
+
+    }
+
+
+    #canvasWrap {
+
+      width: 100%;
+
+      min-height: 300px;
+
+      overflow: auto;
+
+      border: 1px dashed #b8b8b8;
+
+      border-radius: 8px;
+
+      background: #ffffff;
+
+      padding: 8px;
+
+    }
+
+
+    #canvasWrap svg {
+
+      display: block;
+
+      width: 100%;
+
+      height: auto;
+
+      min-width: 760px;
+
+    }
+
+
+    /* =====================================================
+       RESPONSIVE
+    ====================================================== */
+
+    @media (max-width: 900px) {
+
+      .app {
+
+        grid-template-columns: 1fr;
+
+        padding: 12px;
+
+      }
+
+
+      .left-panel {
+
+        position: static;
+
+      }
+
+
+      #canvasWrap {
+
+        min-height: 400px;
+
+      }
+
+    }
+
+
+    @media (max-width: 600px) {
+
+      body {
+
+        font-size: 15px;
+
+      }
+
+
+      .app {
+
+        padding: 8px;
+
+        gap: 10px;
+
+      }
+
+
+      .panel {
+
+        padding: 14px;
+
+        border-radius: 10px;
+
+      }
+
+
+      h1 {
+
+        font-size: 23px;
+
+      }
+
+
+      h2 {
+
+        font-size: 19px;
+
+      }
+
+
+      #canvasWrap svg {
+
+        min-width: 700px;
+
+      }
+
+    }
+
+  </style>
 
 </head>
 
@@ -23,38 +471,30 @@
 <body>
 
 
-  <!-- =====================================
-       HEADER
-  ====================================== -->
-
-  <header>
-
-    <h1>
-      PatternMaker V1
-    </h1>
-
-    <p>
-      Pattern engine pakaian anak — prototype
-      dengan Fabric Optimizer
-    </p>
-
-  </header>
+  <main class="app">
 
 
+    <!-- ===================================================
+         PANEL KIRI
+    ==================================================== -->
 
-  <!-- =====================================
-       MAIN
-  ====================================== -->
-
-  <main>
+    <aside class="panel left-panel">
 
 
-    <!-- ===================================
-         MEASUREMENT FORM
-    ==================================== -->
+      <h1>
+        PatternMaker
+      </h1>
 
-    <section class="panel">
 
+      <p>
+        Pola pakaian anak berdasarkan ukuran badan,
+        bahan kain, dan kebutuhan produksi.
+      </p>
+
+
+      <!-- ===============================================
+           UKURAN ANAK
+      ================================================ -->
 
       <h2>
         Ukuran Anak
@@ -63,524 +503,592 @@
 
       <!-- UMUR -->
 
-      <label>
+      <div class="form-group">
 
-        Umur
+        <label for="age">
+          Umur
+        </label>
 
         <input
-          id="age"
           type="number"
+          id="age"
+          name="age"
           value="6"
           min="1"
           max="18"
           step="1"
         >
 
-        <span>tahun</span>
+        <span class="unit">
+          tahun
+        </span>
 
-      </label>
+      </div>
 
 
-      <!-- DADA -->
+      <!-- LINGKAR DADA -->
 
-      <label>
+      <div class="form-group">
 
-        Lingkar dada
+        <label for="bust">
+          Lingkar dada
+        </label>
 
         <input
-          id="bust"
           type="number"
+          id="bust"
+          name="bust"
           value="64"
           min="1"
           step="0.1"
         >
 
-        <span>cm</span>
+        <span class="unit">
+          cm
+        </span>
 
-      </label>
+      </div>
 
 
-      <!-- PINGGANG -->
+      <!-- LINGKAR PINGGANG -->
 
-      <label>
+      <div class="form-group">
 
-        Lingkar pinggang
+        <label for="waist">
+          Lingkar pinggang
+        </label>
 
         <input
-          id="waist"
           type="number"
+          id="waist"
+          name="waist"
           value="58"
           min="1"
           step="0.1"
         >
 
-        <span>cm</span>
+        <span class="unit">
+          cm
+        </span>
 
-      </label>
+      </div>
 
 
-      <!-- BAHU -->
+      <!-- LEBAR BAHU -->
 
-      <label>
+      <div class="form-group">
 
-        Lebar bahu
+        <label for="shoulder">
+          Lebar bahu
+        </label>
 
         <input
-          id="shoulder"
           type="number"
+          id="shoulder"
+          name="shoulder"
           value="27"
           min="1"
           step="0.1"
         >
 
-        <span>cm</span>
+        <span class="unit">
+          cm
+        </span>
 
-      </label>
+      </div>
 
 
       <!-- PANJANG BADAN -->
 
-      <label>
+      <div class="form-group">
 
-        Panjang badan
+        <label for="bodyLength">
+          Panjang badan
+        </label>
 
         <input
-          id="bodyLength"
           type="number"
+          id="bodyLength"
+          name="bodyLength"
           value="30"
           min="1"
           step="0.1"
         >
 
-        <span>cm</span>
+        <span class="unit">
+          cm
+        </span>
 
-      </label>
+      </div>
 
 
-      <!-- LEHER -->
+      <!-- LINGKAR LEHER -->
 
-      <label>
+      <div class="form-group">
 
-        Lingkar leher
+        <label for="neck">
+          Lingkar leher
+        </label>
 
         <input
-          id="neck"
           type="number"
+          id="neck"
+          name="neck"
           value="27"
           min="1"
           step="0.1"
         >
 
-        <span>cm</span>
+        <span class="unit">
+          cm
+        </span>
 
-      </label>
+      </div>
 
 
-      <!-- LENGAN ATAS -->
+      <!-- ===============================================
+           LENGAN
+      ================================================ -->
 
-      <label>
+      <h2>
+        Lengan
+      </h2>
 
-        Lingkar lengan atas
+
+      <!-- LINGKAR LENGAN ATAS -->
+
+      <div class="form-group">
+
+        <label for="upperArm">
+          Lingkar lengan atas
+        </label>
 
         <input
-          id="upperArm"
           type="number"
+          id="upperArm"
+          name="upperArm"
           value="20"
           min="1"
           step="0.1"
         >
 
-        <span>cm</span>
+        <span class="unit">
+          cm
+        </span>
 
-      </label>
+      </div>
 
 
       <!-- PANJANG LENGAN -->
 
-      <label>
+      <div class="form-group">
 
-        Panjang lengan
+        <label for="sleeveLength">
+          Panjang lengan
+        </label>
 
         <input
-          id="sleeveLength"
           type="number"
+          id="sleeveLength"
+          name="sleeveLength"
           value="38"
           min="1"
           step="0.1"
         >
 
-        <span>cm</span>
+        <span class="unit">
+          cm
+        </span>
 
-      </label>
+      </div>
 
 
-      <!-- PERGELANGAN -->
+      <!-- LINGKAR UJUNG LENGAN -->
 
-      <label>
+      <div class="form-group">
 
-        Lingkar ujung lengan
+        <label for="wrist">
+          Lingkar ujung lengan
+        </label>
 
         <input
-          id="wrist"
           type="number"
+          id="wrist"
+          name="wrist"
           value="16"
           min="1"
           step="0.1"
         >
 
-        <span>cm</span>
+        <span class="unit">
+          cm
+        </span>
 
-      </label>
+      </div>
 
 
-
-      <!-- =================================
+      <!-- ===============================================
            FIT
-      ================================== -->
+      ================================================ -->
 
       <h2>
         Fit
       </h2>
 
 
-      <label>
+      <!-- PENGURANGAN UKURAN -->
 
-        Negative ease (%)
+      <div class="form-group">
+
+        <label for="negativeEase">
+          Pengurangan ukuran (%)
+        </label>
 
         <input
-          id="negativeEase"
           type="number"
-          value="8"
+          id="negativeEase"
+          name="negativeEase"
+          value="5"
           min="0"
-          max="50"
-          step="0.1"
+          max="30"
+          step="0.5"
         >
 
-      </label>
+        <span class="unit">
+          persen
+        </span>
+
+      </div>
 
 
-      <label>
+      <div class="form-help">
 
-        Seam allowance (cm)
+        Digunakan untuk mengurangi ukuran pola
+        sesuai tingkat fit yang diinginkan.
+
+      </div>
+
+
+      <!-- KAMPUH -->
+
+      <div class="form-group">
+
+        <label for="seam">
+          Kampuh
+        </label>
 
         <input
-          id="seam"
           type="number"
+          id="seam"
+          name="seam"
           value="1"
           min="0"
           step="0.1"
         >
 
-      </label>
+        <span class="unit">
+          cm
+        </span>
+
+      </div>
 
 
-
-      <!-- =================================
-           MATERIAL
-      ================================== -->
+      <!-- ===============================================
+           BAHAN & KAIN
+      ================================================ -->
 
       <h2>
-        Material & Kain
+        Bahan &amp; Kain
       </h2>
 
 
-      <label>
+      <!-- BAHAN -->
 
-        Bahan
+      <div class="form-group">
 
-        <select id="fabricMaterial">
+        <label for="fabricMaterial">
+          Bahan
+        </label>
 
-          <option value="sublime_jersey">
+        <select
+          id="fabricMaterial"
+          name="fabricMaterial"
+        >
+
+          <option
+            value="sublime_jersey"
+            selected
+          >
             Sublime Jersey
           </option>
 
-          <option value="rib_knit">
+          <option
+            value="rib_knit"
+          >
             Rib Knit
           </option>
 
-          <option value="cotton">
+          <option
+            value="cotton"
+          >
             Cotton
           </option>
 
-          <option value="woven">
+          <option
+            value="woven"
+          >
             Woven / Non Stretch
           </option>
 
         </select>
 
-      </label>
+      </div>
 
 
-      <label>
+      <!-- LEBAR KAIN -->
 
-        Lebar kain (cm)
+      <div class="form-group">
+
+        <label for="fabricWidth">
+          Lebar kain
+        </label>
 
         <input
-          id="fabricWidth"
           type="number"
+          id="fabricWidth"
+          name="fabricWidth"
           value="150"
           min="1"
           step="0.1"
         >
 
-      </label>
+        <span class="unit">
+          cm
+        </span>
+
+      </div>
 
 
-      <label>
+      <!-- PANJANG KAIN -->
 
-        Panjang kain tersedia (cm)
+      <div class="form-group">
+
+        <label for="fabricLength">
+          Panjang kain
+        </label>
 
         <input
-          id="fabricLength"
           type="number"
-          value="500"
+          id="fabricLength"
+          name="fabricLength"
+          value="200"
           min="1"
           step="0.1"
         >
 
-      </label>
+        <span class="unit">
+          cm
+        </span>
+
+      </div>
 
 
-      <label>
+      <!-- ===============================================
+           TEPI KAIN
+      ================================================ -->
 
-        Selvedge kiri (cm)
+      <h3>
+        Tepi Kain
+      </h3>
+
+
+      <div class="form-group">
+
+        <label for="selvedgeLeft">
+          Tepi kiri
+        </label>
 
         <input
+          type="number"
           id="selvedgeLeft"
-          type="number"
+          name="selvedgeLeft"
           value="0"
           min="0"
           step="0.1"
         >
 
-      </label>
+        <span class="unit">
+          cm
+        </span>
+
+      </div>
 
 
-      <label>
+      <div class="form-group">
 
-        Selvedge kanan (cm)
+        <label for="selvedgeRight">
+          Tepi kanan
+        </label>
 
         <input
-          id="selvedgeRight"
           type="number"
+          id="selvedgeRight"
+          name="selvedgeRight"
           value="0"
           min="0"
           step="0.1"
         >
 
-      </label>
+        <span class="unit">
+          cm
+        </span>
+
+      </div>
 
 
+      <!-- ===============================================
+           ARAH MOTIF
+      ================================================ -->
 
-      <!-- =================================
-           PRINT DIRECTION
-      ================================== -->
+      <div class="form-group">
 
-      <label>
+        <label for="printDirection">
+          Arah motif
+        </label>
 
-        Arah motif
+        <select
+          id="printDirection"
+          name="printDirection"
+        >
 
-        <select id="printDirection">
-
-          <option value="directional">
-            Searah
+          <option
+            value="none"
+            selected
+          >
+            Tidak ada
           </option>
 
-          <option value="free">
-            Bebas
+          <option
+            value="up"
+          >
+            Satu arah
+          </option>
+
+          <option
+            value="vertical"
+          >
+            Vertikal
+          </option>
+
+          <option
+            value="horizontal"
+          >
+            Horizontal
           </option>
 
         </select>
 
-      </label>
+      </div>
 
 
+      <!-- ===============================================
+           PRODUKSI
+      ================================================ -->
 
-      <!-- =================================
-           QUANTITY
-      ================================== -->
+      <h2>
+        Produksi
+      </h2>
 
-      <label>
 
-        Jumlah pakaian
+      <div class="form-group">
+
+        <label for="garmentQuantity">
+          Jumlah pakaian
+        </label>
 
         <input
-          id="garmentQuantity"
           type="number"
+          id="garmentQuantity"
+          name="garmentQuantity"
           value="1"
           min="1"
           step="1"
         >
 
-      </label>
-
-
-
-      <!-- =================================
-           FABRIC INFORMATION
-      ================================== -->
-
-      <div id="fabricInfo">
-
-
-        <h3>
-          Informasi Kain
-        </h3>
-
-
-        <p>
-
-          Material:
-
-          <strong id="materialName">
-            Sublime Jersey
-          </strong>
-
-        </p>
-
-
-        <p>
-
-          Lebar kain:
-
-          <strong id="displayFabricWidth">
-            150
-          </strong>
-
-          cm
-
-        </p>
-
-
-        <p>
-
-          Lebar efektif:
-
-          <strong id="effectiveWidth">
-            150
-          </strong>
-
-          cm
-
-        </p>
-
-
-        <p>
-
-          Panjang kain:
-
-          <strong id="displayFabricLength">
-            500
-          </strong>
-
-          cm
-
-        </p>
-
-
-        <p>
-
-          Stretch:
-
-          <strong id="fabricStretch">
-            High
-          </strong>
-
-        </p>
-
-
-        <p>
-
-          Arah stretch:
-
-          <strong id="stretchDirection">
-            Crosswise
-          </strong>
-
-        </p>
-
-
-        <p>
-
-          Rotasi pola:
-
-          <strong id="allowedRotation">
-            0°, 180°
-          </strong>
-
-        </p>
-
+        <span class="unit">
+          pcs
+        </span>
 
       </div>
 
 
+      <!-- ===============================================
+           BUTTON
+      ================================================ -->
 
-      <!-- =================================
-           ACTION BUTTONS
-      ================================== -->
+      <div class="button-group">
 
-      <button
-        id="generateBtn"
-        type="button"
-      >
-        GENERATE PATTERN
-      </button>
-
-
-      <button
-        id="optimizeBtn"
-        type="button"
-        class="secondary"
-      >
-        OPTIMIZE FABRIC
-      </button>
+        <button
+          type="button"
+          id="generateBtn"
+        >
+          BUAT POLA
+        </button>
 
 
-      <button
-        id="downloadBtn"
-        type="button"
-        class="secondary"
-      >
-        DOWNLOAD SVG
-      </button>
+        <button
+          type="button"
+          id="optimizeBtn"
+        >
+          OPTIMASI KAIN
+        </button>
 
 
-    </section>
+        <button
+          type="button"
+          id="downloadBtn"
+        >
+          DOWNLOAD SVG
+        </button>
+
+      </div>
 
 
-
-    <!-- ===================================
-         RESULT
-    ==================================== -->
-
-    <section class="preview">
+    </aside>
 
 
-      <h2>
+    <!-- ===================================================
+         PANEL KANAN
+    ==================================================== -->
+
+    <section class="panel right-panel">
+
+
+      <h1 class="result-title">
         Hasil
-      </h2>
+      </h1>
 
+
+      <!-- STATUS -->
 
       <div id="status">
-
-        Pola belum dibuat.
-
+        Masukkan ukuran kemudian tekan
+        BUAT POLA.
       </div>
 
 
-      <!-- FABRIC RESULT -->
+      <!-- ===============================================
+           FABRIC OPTIMIZER
+      ================================================ -->
 
-      <div
-        id="optimizationResult"
-        class="result-box"
-      >
+      <div class="optimizer">
 
-        <h3>
+        <h2>
           Fabric Optimizer
-        </h3>
+        </h2>
 
 
-        <p>
+        <div class="result-row">
 
           Lebar kain:
 
@@ -590,10 +1098,10 @@
 
           cm
 
-        </p>
+        </div>
 
 
-        <p>
+        <div class="result-row">
 
           Panjang kain:
 
@@ -603,10 +1111,10 @@
 
           cm
 
-        </p>
+        </div>
 
 
-        <p>
+        <div class="result-row">
 
           Material:
 
@@ -614,10 +1122,10 @@
             -
           </strong>
 
-        </p>
+        </div>
 
 
-        <p>
+        <div class="result-row">
 
           Jumlah pakaian:
 
@@ -625,10 +1133,10 @@
             -
           </strong>
 
-        </p>
+        </div>
 
 
-        <p>
+        <div class="result-row">
 
           Status:
 
@@ -636,32 +1144,121 @@
             Belum dioptimasi
           </strong>
 
-        </p>
-
+        </div>
 
       </div>
 
 
+      <!-- ===============================================
+           INFORMASI KAIN
+      ================================================ -->
 
-      <!-- PATTERN PREVIEW -->
+      <div class="optimizer">
 
-      <div class="pattern-card">
-
-
-        <h3>
-          Pattern Preview
-        </h3>
+        <h2>
+          Informasi Kain
+        </h2>
 
 
-        <div id="canvasWrap">
+        <div class="result-row">
 
-          <!--
-            SVG pola akan dimasukkan
-            oleh app.js
-          -->
+          Bahan:
+
+          <strong id="materialName">
+            -
+          </strong>
 
         </div>
 
+
+        <div class="result-row">
+
+          Lebar kain:
+
+          <strong id="displayFabricWidth">
+            -
+          </strong>
+
+          cm
+
+        </div>
+
+
+        <div class="result-row">
+
+          Lebar efektif:
+
+          <strong id="effectiveWidth">
+            -
+          </strong>
+
+          cm
+
+        </div>
+
+
+        <div class="result-row">
+
+          Panjang kain:
+
+          <strong id="displayFabricLength">
+            -
+          </strong>
+
+          cm
+
+        </div>
+
+
+        <div class="result-row">
+
+          Tingkat stretch:
+
+          <strong id="fabricStretch">
+            -
+          </strong>
+
+        </div>
+
+
+        <div class="result-row">
+
+          Arah stretch:
+
+          <strong id="stretchDirection">
+            -
+          </strong>
+
+        </div>
+
+
+        <div class="result-row">
+
+          Rotasi pola:
+
+          <strong id="allowedRotation">
+            -
+          </strong>
+
+        </div>
+
+      </div>
+
+
+      <!-- ===============================================
+           PATTERN PREVIEW
+      ================================================ -->
+
+      <h2 class="preview-title">
+        Pattern Preview
+      </h2>
+
+
+      <div id="canvasWrap">
+
+        <!--
+          SVG pola akan dimasukkan oleh main.js
+        -->
 
       </div>
 
@@ -672,14 +1269,13 @@
   </main>
 
 
-
-  <!-- =====================================
-       JAVASCRIPT
-  ====================================== -->
+  <!-- =====================================================
+       MAIN APPLICATION
+  ====================================================== -->
 
   <script
     type="module"
-    src="app.js"
+    src="./main.js"
   ></script>
 
 
