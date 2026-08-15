@@ -1,32 +1,37 @@
-/* =========================================================
-   PatternMaker V1.5
+/* =========================================
+   PatternMaker
    BODICE ENGINE
-   ---------------------------------------------------------
-   Basic bodice untuk anak
-   Cocok untuk knit / jersey / rib knit
-   Unit: centimeter
-========================================================= */
+
+   Bahasa ukuran:
+   bust       = Lingkar dada
+   waist      = Lingkar pinggang
+   shoulder   = Lebar bahu
+   bodyLength = Panjang badan
+   neck       = Lingkar leher
+
+   Untuk bahan stretch:
+   negativeEase diterapkan pada
+   lingkar dada dan lingkar pinggang.
+========================================= */
 
 
-/* =========================================================
-   DISTANCE
-========================================================= */
+/* =========================================
+   HITUNG JARAK 2 TITIK
+========================================= */
 
-function distance(a, b) {
+function distance(pointA, pointB) {
 
   return Math.hypot(
-    b[0] - a[0],
-    b[1] - a[1]
+    pointB[0] - pointA[0],
+    pointB[1] - pointA[1]
   );
 
 }
 
 
-/* =========================================================
-   CUBIC BEZIER APPROXIMATION
-   ---------------------------------------------------------
-   Digunakan untuk memperkirakan panjang kurva armhole.
-========================================================= */
+/* =========================================
+   HITUNG PANJANG KURVA BEZIER
+========================================= */
 
 function bezierLength(
   p0,
@@ -40,17 +45,11 @@ function bezierLength(
 
   let previous = p0;
 
-  for (
-    let i = 1;
-    i <= steps;
-    i++
-  ) {
+  for (let i = 1; i <= steps; i++) {
 
-    const t =
-      i / steps;
+    const t = i / steps;
 
-    const mt =
-      1 - t;
+    const mt = 1 - t;
 
     const x =
       mt * mt * mt * p0[0] +
@@ -64,10 +63,7 @@ function bezierLength(
       3 * mt * t * t * p2[1] +
       t * t * t * p3[1];
 
-    const current = [
-      x,
-      y
-    ];
+    const current = [x, y];
 
     length +=
       distance(
@@ -75,8 +71,7 @@ function bezierLength(
         current
       );
 
-    previous =
-      current;
+    previous = current;
 
   }
 
@@ -85,328 +80,344 @@ function bezierLength(
 }
 
 
-/* =========================================================
-   SAFE NEGATIVE EASE
-========================================================= */
-
-function getEaseFactor(m) {
-
-  const negativeEase =
-    Number(m.negativeEase) || 0;
-
-  return Math.max(
-    0.5,
-    1 - negativeEase / 100
-  );
-
-}
-
-
-/* =========================================================
+/* =========================================
    BODICE ENGINE
-========================================================= */
+========================================= */
 
 export function makeBodice(m) {
 
-  /* =======================================================
-     BASIC MEASUREMENTS
-  ======================================================= */
+
+  /* =======================================
+     PENGURANGAN UKURAN
+  ======================================= */
+
+  const negativeEase =
+    Math.max(
+      0,
+      Number(m.negativeEase) || 0
+    );
+
 
   const easeFactor =
-    getEaseFactor(m);
+    1 -
+    negativeEase / 100;
 
+
+  /* =======================================
+     LINGKAR DADA
+  ======================================= */
 
   const bust =
     Number(m.bust) *
     easeFactor;
 
 
+  /* =======================================
+     LINGKAR PINGGANG
+  ======================================= */
+
   const waist =
     Number(m.waist) *
     easeFactor;
 
 
-  const shoulder =
-    Number(m.shoulder);
-
-
-  const bodyLength =
-    Number(m.bodyLength);
-
-
-  const neck =
-    Number(m.neck);
-
-
-  /* =======================================================
-     QUARTER BODY
-  ======================================================= */
+  /* =======================================
+     SEPEREMPAT LINGKAR DADA
+  ======================================= */
 
   const bustQuarter =
     bust / 4;
 
 
+  /* =======================================
+     SEPEREMPAT LINGKAR PINGGANG
+  ======================================= */
+
   const waistQuarter =
     waist / 4;
 
 
-  /* =======================================================
-     SHOULDER
-     -------------------------------------------------------
-     Input shoulder diasumsikan lebar bahu total.
-  ======================================================= */
+  /* =======================================
+     LEBAR BAHU PER SISI
+  ======================================= */
 
   const shoulderHalf =
-    shoulder / 2;
+    Number(m.shoulder) / 2;
 
 
-  /* =======================================================
-     NECKLINE
-  ======================================================= */
+  /* =======================================
+     LEBAR LEHER
+
+     Rumus dasar:
+     Lingkar leher / 6
+  ======================================= */
 
   const neckWidth =
-    Math.max(
-      3.5,
-      neck / 6
-    );
+    Number(m.neck) / 6;
 
+
+  /* =======================================
+     KEDALAMAN LEHER DEPAN
+  ======================================= */
 
   const frontNeckDepth =
-    Math.max(
-      4,
-      neck / 6
-    );
+    Number(m.neck) / 6;
 
+
+  /* =======================================
+     KEDALAMAN LEHER BELAKANG
+  ======================================= */
 
   const backNeckDepth =
-    Math.max(
-      1.5,
-      neck / 18
-    );
+    Number(m.neck) / 18;
 
 
-  /* =======================================================
-     ARMHOLE DEPTH
-     -------------------------------------------------------
-     Formula dasar anak + penyesuaian bust.
-  ======================================================= */
+  /* =======================================
+     KEDALAMAN KERUNG LENGAN
+
+     Rumus dasar untuk prototype
+     bodice anak/stretch.
+
+     Contoh LD 60:
+     60 / 6 + 5 = 15 cm
+  ======================================= */
 
   const armDepth =
-    Math.max(
-      11,
-      (Number(m.bust) / 6) + 4
-    );
+    (Number(m.bust) / 6) + 5;
 
 
-  /* =======================================================
-     BODY HEIGHT
-  ======================================================= */
+  /* =======================================
+     PANJANG BADAN
+  ======================================= */
+
+  const bodyLength =
+    Number(m.bodyLength);
+
+
+  /* =======================================
+     POSISI POLA
+  ======================================= */
+
+  const frontX = 10;
+
+  const backX = 55;
+
+  const topY = 10;
+
+
+  /* =======================================
+     POSISI GARIS PINGGANG
+  ======================================= */
 
   const waistY =
+    topY +
     bodyLength;
 
 
-  /* =======================================================
-     FRONT
-     -------------------------------------------------------
-     Front diletakkan mulai x = 10.
-     Center front = A/F.
-  ======================================================= */
+  /* =======================================
+     POSISI GARIS DADA / KETIAK
+  ======================================= */
 
-  const frontX =
-    10;
+  const armholeY =
+    topY +
+    armDepth;
 
+
+  /* =======================================
+     FRONT BODICE
+  =======================================
+
+     A = tengah depan / leher
+     B = lebar leher
+     C = ujung bahu
+     D = sisi dada / kerung lengan
+     E = sisi pinggang
+     F = tengah depan bawah
+  ======================================= */
 
   const front = {
 
     A: [
       frontX,
-      10
+      topY
     ],
 
     B: [
       frontX + neckWidth,
-      10
+      topY
     ],
 
     C: [
       frontX + shoulderHalf,
-      10 + 2
+      topY + 2
     ],
 
     D: [
       frontX + bustQuarter,
-      10 + armDepth
+      armholeY
     ],
 
     E: [
       frontX + waistQuarter,
-      10 + waistY
+      waistY
     ],
 
     F: [
       frontX,
-      10 + waistY
+      waistY
     ]
 
   };
 
 
-  /* =======================================================
-     BACK
-  ======================================================= */
-
-  const backX =
-    55;
-
+  /* =======================================
+     BACK BODICE
+  ======================================= */
 
   const back = {
 
     A: [
       backX,
-      10
+      topY
     ],
 
     B: [
       backX + neckWidth,
-      10
+      topY
     ],
 
     C: [
       backX + shoulderHalf,
-      10 + 2
+      topY + 2
     ],
 
     D: [
       backX + bustQuarter,
-      10 + armDepth
+      armholeY
     ],
 
     E: [
       backX + waistQuarter,
-      10 + waistY
+      waistY
     ],
 
     F: [
       backX,
-      10 + waistY
+      waistY
     ]
 
   };
 
 
-  /* =======================================================
+  /* =======================================
      FRONT ARMHOLE
-     -------------------------------------------------------
-     Lebih dalam daripada back.
-  ======================================================= */
 
-  const frontArm = [
+     Kurva dari bahu menuju sisi dada.
+  ======================================= */
 
-    front.C,
+  const frontArmhole = {
 
-    [
-      front.C[0] +
-      (front.D[0] - front.C[0]) * 0.25,
+    start:
+      front.C,
 
-      front.C[1] +
-      (front.D[1] - front.C[1]) * 0.20
+    control1: [
+      front.C[0] + 0.8,
+      front.C[1] + 2
     ],
 
-    [
-      front.D[0] -
-      1.5,
-
-      front.D[1] -
-      2.5
+    control2: [
+      front.D[0] + 1.2,
+      front.D[1] - 4
     ],
 
-    front.D
+    end:
+      front.D
 
-  ];
+  };
 
 
-  /* =======================================================
+  /* =======================================
      BACK ARMHOLE
-  ======================================================= */
+  ======================================= */
 
-  const backArm = [
+  const backArmhole = {
 
-    back.C,
+    start:
+      back.C,
 
-    [
-      back.C[0] +
-      (back.D[0] - back.C[0]) * 0.30,
-
-      back.C[1] +
-      (back.D[1] - back.C[1]) * 0.20
+    control1: [
+      back.C[0] + 1,
+      back.C[1] + 1.5
     ],
 
-    [
-      back.D[0] -
-      1.2,
-
-      back.D[1] -
-      2.8
+    control2: [
+      back.D[0] + 1.2,
+      back.D[1] - 4
     ],
 
-    back.D
+    end:
+      back.D
 
-  ];
+  };
 
 
-  /* =======================================================
-     ARMHOLE LENGTH
-  ======================================================= */
+  /* =======================================
+     PANJANG ARMHOLE DEPAN
+  ======================================= */
 
   const frontArmholeLength =
     bezierLength(
-      frontArm[0],
-      frontArm[1],
-      frontArm[2],
-      frontArm[3]
+      frontArmhole.start,
+      frontArmhole.control1,
+      frontArmhole.control2,
+      frontArmhole.end
     );
 
+
+  /* =======================================
+     PANJANG ARMHOLE BELAKANG
+  ======================================= */
 
   const backArmholeLength =
     bezierLength(
-      backArm[0],
-      backArm[1],
-      backArm[2],
-      backArm[3]
+      backArmhole.start,
+      backArmhole.control1,
+      backArmhole.control2,
+      backArmhole.end
     );
 
+
+  /* =======================================
+     TOTAL ARMHOLE
+  ======================================= */
 
   const armholeLength =
     frontArmholeLength +
     backArmholeLength;
 
 
-  /* =======================================================
-     WAIST SHAPE
-     -------------------------------------------------------
-     Untuk knit, jangan terlalu tajam.
-  ======================================================= */
-
-  const frontWaistReduction =
-    Math.max(
-      0,
-      bustQuarter - waistQuarter
-    );
-
-
-  const backWaistReduction =
-    frontWaistReduction;
-
-
-  /* =======================================================
-     RETURN
-  ======================================================= */
+  /* =======================================
+     RETURN DATA
+  ======================================= */
 
   return {
 
+    /* -------------------------------------
+       POLA
+    ------------------------------------- */
+
     front,
+
     back,
+
+
+    /* -------------------------------------
+       UKURAN HASIL
+    ------------------------------------- */
+
+    bust,
+
+    waist,
 
     bustQ:
       bustQuarter,
@@ -414,7 +425,23 @@ export function makeBodice(m) {
     waistQ:
       waistQuarter,
 
-    armDepth,
+
+    /* -------------------------------------
+       BAHU
+    ------------------------------------- */
+
+    shoulder:
+      Number(m.shoulder),
+
+    shoulderHalf,
+
+
+    /* -------------------------------------
+       LEHER
+    ------------------------------------- */
+
+    neck:
+      Number(m.neck),
 
     neckW:
       neckWidth,
@@ -425,9 +452,49 @@ export function makeBodice(m) {
     backNeckD:
       backNeckDepth,
 
-    frontArm,
 
-    backArm,
+    /* -------------------------------------
+       BADAN
+    ------------------------------------- */
+
+    bodyLength,
+
+    waistY,
+
+    armDepth,
+
+    armholeY,
+
+
+    /* -------------------------------------
+       ARMHOLE DEPAN
+    ------------------------------------- */
+
+    frontArm:
+      [
+        frontArmhole.start,
+        frontArmhole.control1,
+        frontArmhole.control2,
+        frontArmhole.end
+      ],
+
+
+    /* -------------------------------------
+       ARMHOLE BELAKANG
+    ------------------------------------- */
+
+    backArm:
+      [
+        backArmhole.start,
+        backArmhole.control1,
+        backArmhole.control2,
+        backArmhole.end
+      ],
+
+
+    /* -------------------------------------
+       PANJANG ARMHOLE
+    ------------------------------------- */
 
     frontArmholeLength,
 
@@ -435,9 +502,12 @@ export function makeBodice(m) {
 
     armholeLength,
 
-    frontWaistReduction,
 
-    backWaistReduction
+    /* -------------------------------------
+       NEGATIVE EASE
+    ------------------------------------- */
+
+    negativeEase
 
   };
 
