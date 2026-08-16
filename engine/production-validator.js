@@ -1,21 +1,42 @@
 /**
  * ============================================================
- * PATTERNMAKER UNIVERSAL
- * KODE 26 — engine/production-validator.js
+ * PATTERMAKER UNIVERSAL
+ * BASELINE FINAL v1
+ * KODE 59
+ *
+ * FILE:
+ *   engine/production-validator.js
  * ============================================================
  *
- * PRODUCTION GEOMETRY VALIDATOR
+ * QUALITY GATE FOR PRODUCTION GEOMETRY
  *
- * Tujuan:
- * - Memastikan cutting geometry valid.
- * - Menolak polygon rusak sebelum export.
- * - Menjadi quality gate untuk:
+ * Flow:
  *
- *     DXF
- *     PLT / HPGL
- *     SVG
+ * BASE PATTERN
+ *      ↓
+ * SEAM PRODUCTION
+ *      ↓
+ * CUTTING GEOMETRY
+ *      ↓
+ * THIS VALIDATOR
+ *      ↓
+ * NESTING / EXPORT
+ *
+ * ============================================================
  *
  * Validator TIDAK memperbaiki geometry.
+ *
+ * Validator hanya:
+ *
+ * - memeriksa piece
+ * - memeriksa points
+ * - memeriksa cutPoints
+ * - memeriksa seam
+ * - memeriksa bounds
+ * - memeriksa duplicate points
+ * - memeriksa zero-length edge
+ * - memeriksa self-intersection
+ * - memeriksa finite numbers
  *
  * ============================================================
  */
@@ -25,16 +46,37 @@
     "use strict";
 
 
-    /* ========================================================
-       DEPENDENCY
-       ======================================================== */
-
     const Geometry =
         window.PatternMakerProductionGeometry;
 
-
     const SeamProduction =
         window.PatternMakerSeamProduction;
+
+
+    if (
+        !Geometry
+    ) {
+
+        throw new Error(
+            "production-geometry.js harus dimuat sebelum production-validator.js."
+        );
+
+    }
+
+
+    if (
+        !SeamProduction
+    ) {
+
+        throw new Error(
+            "seam-production.js harus dimuat sebelum production-validator.js."
+        );
+
+    }
+
+
+    const VERSION =
+        "FINAL-v1";
 
 
     /* ========================================================
@@ -42,106 +84,116 @@
        ======================================================== */
 
     const EPSILON =
-        0.000001;
+        1e-7;
+
+
+    const DEFAULT_OPTIONS = {
+
+        requireCutPoints:
+            true,
+
+        requireClosed:
+            true,
+
+        requireSeam:
+            false,
+
+        requireGrainline:
+            false,
+
+        requireNotches:
+            false,
+
+        allowLegacyRadial:
+            true,
+
+        checkSelfIntersection:
+            true,
+
+        checkDuplicatePoints:
+            true,
+
+        checkZeroLengthEdges:
+            true,
+
+        minimumArea:
+            0.001
+
+    };
 
 
     /* ========================================================
-       RESULT
+       HELPERS
        ======================================================== */
 
-    function createResult() {
+    function num(
+        value
+    ) {
+
+        const n =
+            Number(value);
+
+
+        return Number.isFinite(
+            n
+        )
+            ? n
+            : null;
+
+    }
+
+
+    function clone(
+        value
+    ) {
+
+        if (
+            value === null ||
+            value === undefined
+        ) {
+
+            return value;
+
+        }
+
+
+        if (
+            typeof structuredClone ===
+            "function"
+        ) {
+
+            return structuredClone(
+                value
+            );
+
+        }
+
+
+        return JSON.parse(
+            JSON.stringify(
+                value
+            )
+        );
+
+    }
+
+
+    function normalizeOptions(
+        options = {}
+    ) {
 
         return {
 
-            valid: true,
+            ...DEFAULT_OPTIONS,
 
-            errors: [],
-
-            warnings: [],
-
-            checks: []
+            ...options
 
         };
 
     }
 
 
-    function addCheck(
-        result,
-        name,
-        passed,
-        message = ""
-    ) {
-
-        result.checks.push({
-
-            name,
-
-            passed,
-
-            message
-
-        });
-
-
-        if (!passed) {
-
-            result.valid =
-                false;
-
-
-            result.errors.push({
-
-                check:
-                    name,
-
-                message
-
-            });
-
-        }
-
-    }
-
-
-    function addWarning(
-        result,
-        name,
-        message
-    ) {
-
-        result.warnings.push({
-
-            check:
-                name,
-
-            message
-
-        });
-
-    }
-
-
-    /* ========================================================
-       NUMBER CHECK
-       ======================================================== */
-
-    function isFiniteNumber(
-        value
-    ) {
-
-        return Number.isFinite(
-            Number(value)
-        );
-
-    }
-
-
-    /* ========================================================
-       POINT EQUALITY
-       ======================================================== */
-
-    function pointsEqual(
+    function pointEqual(
         a,
         b,
         epsilon = EPSILON
@@ -176,32 +228,6 @@
     }
 
 
-    /* ========================================================
-       DISTANCE
-       ======================================================== */
-
-    function distance(
-        a,
-        b
-    ) {
-
-        return Math.hypot(
-
-            Number(b[0]) -
-            Number(a[0]),
-
-            Number(b[1]) -
-            Number(a[1])
-
-        );
-
-    }
-
-
-    /* ========================================================
-       ORIENTATION
-       ======================================================== */
-
     function orientation(
         a,
         b,
@@ -211,30 +237,31 @@
         const value =
 
             (
-                Number(b[0]) -
-                Number(a[0])
-            )
-            *
-            (
-                Number(c[1]) -
-                Number(a[1])
-            )
-
-            -
-
-            (
                 Number(b[1]) -
                 Number(a[1])
             )
             *
             (
                 Number(c[0]) -
+                Number(b[0])
+            )
+
+            -
+
+            (
+                Number(b[0]) -
                 Number(a[0])
+            )
+            *
+            (
+                Number(c[1]) -
+                Number(b[1])
             );
 
 
         if (
-            Math.abs(value) <= EPSILON
+            Math.abs(value) <=
+            EPSILON
         ) {
 
             return 0;
@@ -249,10 +276,6 @@
     }
 
 
-    /* ========================================================
-       ON SEGMENT
-       ======================================================== */
-
     function onSegment(
         a,
         b,
@@ -262,86 +285,81 @@
         return (
 
             Number(b[0]) <=
-                Math.max(
-                    Number(a[0]),
-                    Number(c[0])
-                ) + EPSILON
+            Math.max(
+                Number(a[0]),
+                Number(c[0])
+            ) + EPSILON
 
             &&
 
             Number(b[0]) >=
-                Math.min(
-                    Number(a[0]),
-                    Number(c[0])
-                ) - EPSILON
+            Math.min(
+                Number(a[0]),
+                Number(c[0])
+            ) - EPSILON
 
             &&
 
             Number(b[1]) <=
-                Math.max(
-                    Number(a[1]),
-                    Number(c[1])
-                ) + EPSILON
+            Math.max(
+                Number(a[1]),
+                Number(c[1])
+            ) + EPSILON
 
             &&
 
             Number(b[1]) >=
-                Math.min(
-                    Number(a[1]),
-                    Number(c[1])
-                ) - EPSILON
+            Math.min(
+                Number(a[1]),
+                Number(c[1])
+            ) - EPSILON
 
         );
 
     }
 
 
-    /* ========================================================
-       SEGMENT INTERSECTION
-       ======================================================== */
-
     function segmentsIntersect(
-        a,
-        b,
-        c,
-        d
+        p1,
+        p2,
+        q1,
+        q2
     ) {
+
+        /*
+         * Identical endpoints are not by themselves
+         * considered a self-intersection when they
+         * are adjacent polygon edges.
+         */
 
         const o1 =
             orientation(
-                a,
-                b,
-                c
+                p1,
+                p2,
+                q1
             );
-
 
         const o2 =
             orientation(
-                a,
-                b,
-                d
+                p1,
+                p2,
+                q2
             );
-
 
         const o3 =
             orientation(
-                c,
-                d,
-                a
+                q1,
+                q2,
+                p1
             );
-
 
         const o4 =
             orientation(
-                c,
-                d,
-                b
+                q1,
+                q2,
+                p2
             );
 
-
-        /*
-         * General intersection.
-         */
 
         if (
             o1 !== o2 &&
@@ -353,16 +371,12 @@
         }
 
 
-        /*
-         * Collinear cases.
-         */
-
         if (
             o1 === 0 &&
             onSegment(
-                a,
-                c,
-                b
+                p1,
+                q1,
+                p2
             )
         ) {
 
@@ -374,9 +388,9 @@
         if (
             o2 === 0 &&
             onSegment(
-                a,
-                d,
-                b
+                p1,
+                q2,
+                p2
             )
         ) {
 
@@ -388,9 +402,9 @@
         if (
             o3 === 0 &&
             onSegment(
-                c,
-                a,
-                d
+                q1,
+                p1,
+                q2
             )
         ) {
 
@@ -402,9 +416,9 @@
         if (
             o4 === 0 &&
             onSegment(
-                c,
-                b,
-                d
+                q1,
+                p2,
+                q2
             )
         ) {
 
@@ -419,14 +433,15 @@
 
 
     /* ========================================================
-       SELF INTERSECTION
+       EDGE SELF INTERSECTION
        ======================================================== */
 
     function findSelfIntersections(
         points
     ) {
 
-        const intersections = [];
+        const intersections =
+            [];
 
 
         if (
@@ -439,53 +454,50 @@
         }
 
 
-        const count =
-            points.length;
-
-
         for (
             let i = 0;
-            i < count;
+            i < points.length;
             i++
         ) {
 
-            const a =
+            const a1 =
                 points[i];
 
 
-            const b =
+            const a2 =
                 points[
-                    (i + 1) %
-                    count
+                    (
+                        i + 1
+                    ) %
+                    points.length
                 ];
 
 
             for (
                 let j = i + 1;
-                j < count;
+                j < points.length;
                 j++
             ) {
 
                 /*
                  * Adjacent edges share a vertex
-                 * and are therefore ignored.
+                 * and should not be counted.
                  */
 
                 if (
                     j === i
-                ) {
+                    ||
 
-                    continue;
-
-                }
-
-
-                if (
-                    j ===
-                    (
+                    j === (
                         i + 1
-                    ) %
-                    count
+                    ) % points.length
+
+                    ||
+
+                    (
+                        i === 0 &&
+                        j === points.length - 1
+                    )
                 ) {
 
                     continue;
@@ -493,38 +505,25 @@
                 }
 
 
-                /*
-                 * First and last edge
-                 * are adjacent.
-                 */
-
-                if (
-                    i === 0 &&
-                    j === count - 1
-                ) {
-
-                    continue;
-
-                }
-
-
-                const c =
+                const b1 =
                     points[j];
 
 
-                const d =
+                const b2 =
                     points[
-                        (j + 1) %
-                        count
+                        (
+                            j + 1
+                        ) %
+                        points.length
                     ];
 
 
                 if (
                     segmentsIntersect(
-                        a,
-                        b,
-                        c,
-                        d
+                        a1,
+                        a2,
+                        b1,
+                        b2
                     )
                 ) {
 
@@ -558,7 +557,8 @@
         points
     ) {
 
-        const duplicates = [];
+        const duplicates =
+            [];
 
 
         if (
@@ -582,34 +582,39 @@
                 j++
             ) {
 
+                /*
+                 * Closing point may intentionally
+                 * repeat first point in some formats.
+                 */
+
                 if (
-                    pointsEqual(
+                    j ===
+                    points.length - 1 &&
+                    i === 0 &&
+                    pointEqual(
                         points[i],
                         points[j]
                     )
                 ) {
 
-                    /*
-                     * First and last point may be
-                     * intentionally identical.
-                     */
+                    continue;
 
-                    if (
-                        i === 0 &&
-                        j === points.length - 1
-                    ) {
+                }
 
-                        continue;
 
-                    }
-
+                if (
+                    pointEqual(
+                        points[i],
+                        points[j]
+                    )
+                ) {
 
                     duplicates.push({
 
-                        pointA:
+                        first:
                             i,
 
-                        pointB:
+                        second:
                             j
 
                     });
@@ -634,7 +639,8 @@
         points
     ) {
 
-        const edges = [];
+        const edges =
+            [];
 
 
         if (
@@ -666,11 +672,22 @@
                 ];
 
 
+            const dx =
+                Number(b[0]) -
+                Number(a[0]);
+
+
+            const dy =
+                Number(b[1]) -
+                Number(a[1]);
+
+
             if (
-                distance(
-                    a,
-                    b
-                ) <= EPSILON
+                Math.hypot(
+                    dx,
+                    dy
+                ) <=
+                EPSILON
             ) {
 
                 edges.push(
@@ -695,45 +712,48 @@
         points
     ) {
 
-        const result =
-            createResult();
+        const errors =
+            [];
 
-
-        addCheck(
-
-            result,
-
-            "Points array",
-
-            Array.isArray(
-                points
-            ),
-
-            "Points harus berupa array."
-
-        );
+        const warnings =
+            [];
 
 
         if (
             !Array.isArray(points)
         ) {
 
-            return result;
+            errors.push(
+                "Points harus berupa array."
+            );
+
+
+            return {
+
+                valid:
+                    false,
+
+                errors,
+
+                warnings
+
+            };
 
         }
 
 
-        addCheck(
+        if (
+            points.length <
+            3
+        ) {
 
-            result,
+            errors.push(
 
-            "Minimum points",
+                "Polygon membutuhkan minimal 3 points."
 
-            points.length >= 3,
+            );
 
-            "Polygon membutuhkan minimal 3 titik."
-
-        );
+        }
 
 
         points.forEach(
@@ -742,629 +762,64 @@
                 index
             ) => {
 
-                const valid =
+                if (
+                    !Array.isArray(point) ||
+                    point.length <
+                    2
+                ) {
 
-                    Array.isArray(point) &&
+                    errors.push(
 
-                    point.length >= 2 &&
+                        `Point ${index + 1} tidak valid.`
 
-                    isFiniteNumber(point[0]) &&
-
-                    isFiniteNumber(point[1]);
-
-
-                addCheck(
-
-                    result,
-
-                    `Coordinate point ${index + 1}`,
-
-                    valid,
-
-                    valid
-                        ? ""
-                        : `Point ${index + 1} memiliki koordinat tidak valid.`
-
-                );
-
-            }
-        );
-
-
-        return result;
-
-    }
-
-
-    /* ========================================================
-       VALIDATE CLOSED POLYGON
-       ======================================================== */
-
-    function validateClosedPolygon(
-        points
-    ) {
-
-        const result =
-            createResult();
-
-
-        const pointResult =
-            validatePoints(
-                points
-            );
-
-
-        result.checks.push(
-            ...pointResult.checks
-        );
-
-
-        result.errors.push(
-            ...pointResult.errors
-        );
-
-
-        result.warnings.push(
-            ...pointResult.warnings
-        );
-
-
-        if (
-            !pointResult.valid
-        ) {
-
-            result.valid =
-                false;
-
-            return result;
-
-        }
-
-
-        /*
-         * Zero length edges.
-         */
-
-        const zeroEdges =
-            findZeroLengthEdges(
-                points
-            );
-
-
-        addCheck(
-
-            result,
-
-            "No zero-length edges",
-
-            zeroEdges.length === 0,
-
-            zeroEdges.length
-                ? `Edge invalid: ${zeroEdges.join(", ")}`
-                : ""
-
-        );
-
-
-        /*
-         * Duplicates.
-         */
-
-        const duplicates =
-            findDuplicatePoints(
-                points
-            );
-
-
-        addCheck(
-
-            result,
-
-            "No duplicate points",
-
-            duplicates.length === 0,
-
-            duplicates.length
-
-                ? "Polygon memiliki duplicate points."
-
-                : ""
-
-        );
-
-
-        /*
-         * Self intersection.
-         */
-
-        const intersections =
-            findSelfIntersections(
-                points
-            );
-
-
-        addCheck(
-
-            result,
-
-            "No self intersections",
-
-            intersections.length === 0,
-
-            intersections.length
-
-                ? "Polygon memiliki self-intersection."
-
-                : ""
-
-        );
-
-
-        /*
-         * Area.
-         */
-
-        if (
-            Geometry
-        ) {
-
-            const area =
-                Math.abs(
-                    Number(
-                        Geometry.calculatePolygonArea(
-                            points
-                        )
-                    )
-                );
-
-
-            addCheck(
-
-                result,
-
-                "Positive polygon area",
-
-                area > EPSILON,
-
-                "Area polygon harus lebih besar dari nol."
-
-            );
-
-        }
-
-
-        return result;
-
-    }
-
-
-    /* ========================================================
-       BOUNDS VALIDATION
-       ======================================================== */
-
-    function validateBounds(
-        piece
-    ) {
-
-        const result =
-            createResult();
-
-
-        if (
-            !Geometry ||
-            !piece ||
-            !Array.isArray(
-                piece.points
-            )
-        ) {
-
-            return result;
-
-        }
-
-
-        const bounds =
-            Geometry.getBounds(
-                piece.points
-            );
-
-
-        const valid =
-
-            isFiniteNumber(
-                bounds.minX
-            ) &&
-
-            isFiniteNumber(
-                bounds.maxX
-            ) &&
-
-            isFiniteNumber(
-                bounds.minY
-            ) &&
-
-            isFiniteNumber(
-                bounds.maxY
-            ) &&
-
-            isFiniteNumber(
-                bounds.width
-            ) &&
-
-            isFiniteNumber(
-                bounds.height
-            );
-
-
-        addCheck(
-
-            result,
-
-            "Valid bounds",
-
-            valid,
-
-            valid
-                ? ""
-                : `Bounds piece "${piece.name}" tidak valid.`
-
-        );
-
-
-        if (
-            valid
-        ) {
-
-            addCheck(
-
-                result,
-
-                "Positive width",
-
-                bounds.width > EPSILON,
-
-                `Width "${piece.name}" terlalu kecil.`
-
-            );
-
-
-            addCheck(
-
-                result,
-
-                "Positive height",
-
-                bounds.height > EPSILON,
-
-                `Height "${piece.name}" terlalu kecil.`
-
-            );
-
-        }
-
-
-        return result;
-
-    }
-
-
-    /* ========================================================
-       GRAINLINE VALIDATION
-       ======================================================== */
-
-    function validateGrainline(
-        piece
-    ) {
-
-        const result =
-            createResult();
-
-
-        if (
-            piece.grainline ===
-            undefined
-        ) {
-
-            addWarning(
-
-                result,
-
-                "Grainline",
-
-                `Piece "${piece.name}" belum memiliki grainline.`
-
-            );
-
-
-            return result;
-
-        }
-
-
-        if (
-            !Array.isArray(
-                piece.grainline
-            )
-        ) {
-
-            addCheck(
-
-                result,
-
-                "Grainline array",
-
-                false,
-
-                `Grainline "${piece.name}" bukan array.`
-
-            );
-
-
-            return result;
-
-        }
-
-
-        if (
-            piece.grainline.length ===
-            0
-        ) {
-
-            addWarning(
-
-                result,
-
-                "Grainline empty",
-
-                `Piece "${piece.name}" belum mempunyai grainline.`
-
-            );
-
-
-            return result;
-
-        }
-
-
-        piece.grainline.forEach(
-            (
-                point,
-                index
-            ) => {
-
-                const valid =
-
-                    Array.isArray(point) &&
-
-                    point.length >= 2 &&
-
-                    isFiniteNumber(point[0]) &&
-
-                    isFiniteNumber(point[1]);
-
-
-                addCheck(
-
-                    result,
-
-                    `Grainline point ${index + 1}`,
-
-                    valid,
-
-                    valid
-                        ? ""
-                        : `Grainline point ${index + 1} tidak valid.`
-
-                );
-
-            }
-        );
-
-
-        if (
-            piece.grainline.length >= 2
-        ) {
-
-            const length =
-                distance(
-
-                    piece.grainline[0],
-
-                    piece.grainline[1]
-
-                );
-
-
-            addCheck(
-
-                result,
-
-                "Grainline length",
-
-                length > EPSILON,
-
-                `Grainline "${piece.name}" terlalu pendek.`
-
-            );
-
-        }
-
-
-        return result;
-
-    }
-
-
-    /* ========================================================
-       NOTCH VALIDATION
-       ======================================================== */
-
-    function validateNotches(
-        piece
-    ) {
-
-        const result =
-            createResult();
-
-
-        if (
-            piece.notches ===
-            undefined
-        ) {
-
-            return result;
-
-        }
-
-
-        if (
-            !Array.isArray(
-                piece.notches
-            )
-        ) {
-
-            addCheck(
-
-                result,
-
-                "Notches array",
-
-                false,
-
-                `Notches "${piece.name}" bukan array.`
-
-            );
-
-
-            return result;
-
-        }
-
-
-        piece.notches.forEach(
-            (
-                notch,
-                index
-            ) => {
-
-                const valid =
-
-                    Array.isArray(
-                        notch
-                    ) &&
-
-                    notch.length >= 2 &&
-
-                    isFiniteNumber(
-                        notch[0]
-                    ) &&
-
-                    isFiniteNumber(
-                        notch[1]
                     );
 
 
-                addCheck(
+                    return;
 
-                    result,
+                }
 
-                    `Notch ${index + 1}`,
 
-                    valid,
+                const x =
+                    num(
+                        point[0]
+                    );
 
-                    valid
-                        ? ""
-                        : `Notch ${index + 1} "${piece.name}" tidak valid.`
 
-                );
+                const y =
+                    num(
+                        point[1]
+                    );
+
+
+                if (
+                    x === null ||
+                    y === null
+                ) {
+
+                    errors.push(
+
+                        `Point ${index + 1} ` +
+                        "memiliki coordinate non-numeric."
+
+                    );
+
+                }
 
             }
         );
 
 
-        return result;
+        return {
 
-    }
+            valid:
+                errors.length === 0,
 
+            errors,
 
-    /* ========================================================
-       SEAM VALIDATION
-       ======================================================== */
+            warnings
 
-    function validateSeam(
-        piece
-    ) {
-
-        const result =
-            createResult();
-
-
-        const seam =
-            Number(
-                piece.seamAllowance
-            );
-
-
-        if (
-            piece.seamAllowance ===
-            undefined
-        ) {
-
-            addWarning(
-
-                result,
-
-                "Seam allowance undefined",
-
-                `Piece "${piece.name}" belum memiliki seamAllowance.`
-
-            );
-
-
-            return result;
-
-        }
-
-
-        addCheck(
-
-            result,
-
-            "Seam allowance valid",
-
-            Number.isFinite(
-                seam
-            ) &&
-            seam >= 0,
-
-            `Seam allowance "${piece.name}" tidak valid.`
-
-        );
-
-
-        if (
-            piece.cutPoints
-        ) {
-
-            addCheck(
-
-                result,
-
-                "Cut points available",
-
-                Array.isArray(
-                    piece.cutPoints
-                ) &&
-                piece.cutPoints.length >= 3,
-
-                `Cut points "${piece.name}" tidak valid.`
-
-            );
-
-        }
-
-
-        return result;
+        };
 
     }
 
@@ -1375,152 +830,407 @@
 
     function validatePiece(
         piece,
-        index
+        index,
+        options
     ) {
 
-        const result =
-            createResult();
+        const errors =
+            [];
 
-
-        const name =
-            piece?.name ||
-            `Piece #${index + 1}`;
-
-
-        addCheck(
-
-            result,
-
-            `${name} exists`,
-
-            Boolean(
-                piece
-            ),
-
-            "Piece tidak tersedia."
-
-        );
+        const warnings =
+            [];
 
 
         if (
-            !piece
+            !piece ||
+            typeof piece !==
+                "object"
         ) {
 
-            return result;
+            errors.push(
+
+                `Piece ${index + 1} bukan object.`
+
+            );
+
+
+            return {
+
+                valid:
+                    false,
+
+                errors,
+
+                warnings
+
+            };
 
         }
 
 
-        const geometryResult =
-            validateClosedPolygon(
-                piece.points
+        if (
+            !piece.name
+        ) {
+
+            warnings.push(
+
+                `Piece ${index + 1} tidak memiliki name.`
+
+            );
+
+        }
+
+
+        const points =
+            piece.points ||
+            piece.seamPoints ||
+            null;
+
+
+        const cutPoints =
+            piece.cutPoints ||
+            null;
+
+
+        if (
+            !points
+        ) {
+
+            errors.push(
+
+                `Piece "${piece.name || index + 1}" ` +
+                "tidak memiliki base/seam points."
+
+            );
+
+        }
+        else {
+
+            const validation =
+                validatePoints(
+                    points
+                );
+
+
+            errors.push(
+                ...validation.errors
             );
 
 
-        result.checks.push(
-            ...geometryResult.checks
-        );
+            warnings.push(
+                ...validation.warnings
+            );
+
+        }
 
 
-        result.errors.push(
-            ...geometryResult.errors
-        );
+        if (
+            options.requireCutPoints &&
+            !cutPoints
+        ) {
+
+            errors.push(
+
+                `Piece "${piece.name || index + 1}" ` +
+                "tidak memiliki cutPoints."
+
+            );
+
+        }
 
 
-        result.warnings.push(
-            ...geometryResult.warnings
-        );
+        if (
+            cutPoints
+        ) {
+
+            const validation =
+                validatePoints(
+                    cutPoints
+                );
 
 
-        const boundsResult =
-            validateBounds(
-                piece
+            errors.push(
+                ...validation.errors
             );
 
 
-        result.checks.push(
-            ...boundsResult.checks
-        );
-
-
-        result.errors.push(
-            ...boundsResult.errors
-        );
-
-
-        result.warnings.push(
-            ...boundsResult.warnings
-        );
-
-
-        const grainlineResult =
-            validateGrainline(
-                piece
+            warnings.push(
+                ...validation.warnings
             );
 
 
-        result.checks.push(
-            ...grainlineResult.checks
-        );
+            if (
+                options.checkDuplicatePoints
+            ) {
+
+                const duplicates =
+                    findDuplicatePoints(
+                        cutPoints
+                    );
 
 
-        result.errors.push(
-            ...grainlineResult.errors
-        );
+                if (
+                    duplicates.length
+                ) {
+
+                    errors.push(
+
+                        `Piece "${piece.name || index + 1}" ` +
+                        `memiliki ${duplicates.length} duplicate point.`
+
+                    );
+
+                }
+
+            }
 
 
-        result.warnings.push(
-            ...grainlineResult.warnings
-        );
+            if (
+                options.checkZeroLengthEdges
+            ) {
+
+                const zeroEdges =
+                    findZeroLengthEdges(
+                        cutPoints
+                    );
 
 
-        const notchResult =
-            validateNotches(
-                piece
+                if (
+                    zeroEdges.length
+                ) {
+
+                    errors.push(
+
+                        `Piece "${piece.name || index + 1}" ` +
+                        `memiliki ${zeroEdges.length} zero-length edge.`
+
+                    );
+
+                }
+
+            }
+
+
+            const area =
+                Math.abs(
+                    Geometry.signedArea(
+                        cutPoints
+                    )
+                );
+
+
+            if (
+                area <
+                options.minimumArea
+            ) {
+
+                errors.push(
+
+                    `Piece "${piece.name || index + 1}" ` +
+                    `memiliki area terlalu kecil (${area}).`
+
+                );
+
+            }
+
+
+            if (
+                options.checkSelfIntersection
+            ) {
+
+                const intersections =
+                    findSelfIntersections(
+                        cutPoints
+                    );
+
+
+                if (
+                    intersections.length
+                ) {
+
+                    errors.push(
+
+                        `Piece "${piece.name || index + 1}" ` +
+                        `memiliki ${intersections.length} self-intersection.`
+
+                    );
+
+                }
+
+            }
+
+        }
+
+
+        /*
+         * CLOSED
+         */
+
+        if (
+            options.requireClosed &&
+            piece.closed === false
+        ) {
+
+            errors.push(
+
+                `Piece "${piece.name || index + 1}" ` +
+                "harus closed untuk produksi."
+
+            );
+
+        }
+
+
+        /*
+         * SEAM
+         */
+
+        const seam =
+            num(
+
+                piece.metadata
+                    ?.seamAllowanceCm
+
             );
 
 
-        result.checks.push(
-            ...notchResult.checks
-        );
+        if (
+            seam !== null &&
+            seam < 0
+        ) {
 
+            errors.push(
 
-        result.errors.push(
-            ...notchResult.errors
-        );
+                `Piece "${piece.name || index + 1}" ` +
+                "memiliki seam allowance negatif."
 
-
-        result.warnings.push(
-            ...notchResult.warnings
-        );
-
-
-        const seamResult =
-            validateSeam(
-                piece
             );
 
-
-        result.checks.push(
-            ...seamResult.checks
-        );
+        }
 
 
-        result.errors.push(
-            ...seamResult.errors
-        );
+        if (
+            options.requireSeam &&
+            (
+                seam === null ||
+                seam === 0
+            )
+        ) {
+
+            errors.push(
+
+                `Piece "${piece.name || index + 1}" ` +
+                "belum memiliki seam allowance."
+
+            );
+
+        }
 
 
-        result.warnings.push(
-            ...seamResult.warnings
-        );
+        /*
+         * GRAINLINE
+         */
+
+        if (
+            options.requireGrainline
+        ) {
+
+            if (
+                !Array.isArray(
+                    piece.grainline
+                ) ||
+                piece.grainline.length <
+                2
+            ) {
+
+                errors.push(
+
+                    `Piece "${piece.name || index + 1}" ` +
+                    "tidak memiliki grainline."
+
+                );
+
+            }
+
+        }
 
 
-        result.valid =
-            result.errors.length === 0;
+        /*
+         * NOTCHES
+         */
+
+        if (
+            options.requireNotches
+        ) {
+
+            if (
+                !Array.isArray(
+                    piece.notches
+                )
+            ) {
+
+                errors.push(
+
+                    `Piece "${piece.name || index + 1}" ` +
+                    "tidak memiliki notches array."
+
+                );
+
+            }
+
+        }
 
 
-        return result;
+        /*
+         * LEGACY RADIAL
+         */
+
+        const strategy =
+            piece.metadata
+                ?.seamStrategy;
+
+
+        if (
+            strategy ===
+            "legacy-radial"
+        ) {
+
+            if (
+                options.allowLegacyRadial
+            ) {
+
+                warnings.push(
+
+                    `Piece "${piece.name || index + 1}" ` +
+                    "menggunakan legacy-radial seam geometry."
+
+                );
+
+            }
+            else {
+
+                errors.push(
+
+                    `Piece "${piece.name || index + 1}" ` +
+                    "masih menggunakan legacy-radial."
+
+                );
+
+            }
+
+        }
+
+
+        return {
+
+            valid:
+                errors.length === 0,
+
+            errors,
+
+            warnings
+
+        };
 
     }
 
@@ -1529,52 +1239,57 @@
        PATTERN VALIDATION
        ======================================================== */
 
-    function validateProductionPattern(
-        pattern
+    function validateForProduction(
+        pattern,
+        options = {}
     ) {
 
-        const result =
-            createResult();
+        const config =
+            normalizeOptions(
+                options
+            );
 
 
-        addCheck(
+        const errors =
+            [];
 
-            result,
-
-            "Pattern exists",
-
-            Boolean(
-                pattern
-            ),
-
-            "Production pattern belum tersedia."
-
-        );
+        const warnings =
+            [];
 
 
         if (
             !pattern
         ) {
 
-            return result;
+            errors.push(
+                "Pattern tidak tersedia."
+            );
+
+
+            return {
+
+                valid:
+                    false,
+
+                version:
+                    VERSION,
+
+                errors,
+
+                warnings,
+
+                checks: [],
+
+                summary: {
+
+                    pieceCount:
+                        0
+
+                }
+
+            };
 
         }
-
-
-        addCheck(
-
-            result,
-
-            "Pieces array",
-
-            Array.isArray(
-                pattern.pieces
-            ) &&
-            pattern.pieces.length > 0,
-
-            "Pattern tidak memiliki pieces."
-
-        );
 
 
         if (
@@ -1583,9 +1298,84 @@
             )
         ) {
 
-            return result;
+            errors.push(
+
+                "Pattern tidak memiliki pieces array."
+
+            );
+
+
+            return {
+
+                valid:
+                    false,
+
+                version:
+                    VERSION,
+
+                errors,
+
+                warnings,
+
+                checks: [],
+
+                summary: {
+
+                    pieceCount:
+                        0
+
+                }
+
+            };
 
         }
+
+
+        const checks =
+            [];
+
+
+        /*
+         * Pattern type.
+         */
+
+        checks.push({
+
+            name:
+                "Pattern pieces available",
+
+            passed:
+                pattern.pieces.length >
+                0,
+
+            message:
+                pattern.pieces.length > 0
+                    ? ""
+                    : "Tidak ada pieces."
+
+        });
+
+
+        /*
+         * Engine metadata.
+         */
+
+        checks.push({
+
+            name:
+                "Pattern engine identified",
+
+            passed:
+                Boolean(
+                    pattern.engine
+                ),
+
+            message:
+                pattern.engine
+                    ? ""
+                    : "Engine pattern belum diketahui."
+
+        });
 
 
         pattern.pieces.forEach(
@@ -1594,237 +1384,171 @@
                 index
             ) => {
 
-                const pieceResult =
+                const result =
                     validatePiece(
+
                         piece,
-                        index
+
+                        index,
+
+                        config
+
                     );
 
 
-                result.checks.push(
-                    ...pieceResult.checks
+                errors.push(
+                    ...result.errors
                 );
 
 
-                result.errors.push(
-                    ...pieceResult.errors
+                warnings.push(
+                    ...result.warnings
                 );
 
 
-                result.warnings.push(
-                    ...pieceResult.warnings
-                );
+                checks.push({
+
+                    name:
+                        `Piece ${index + 1} geometry`,
+
+                    passed:
+                        result.valid,
+
+                    message:
+
+                        result.valid
+
+                            ? ""
+
+                            : result.errors.join(
+                                " | "
+                              )
+
+                });
 
             }
         );
 
 
         /*
-         * Metadata
+         * Seam-level validation.
          */
 
-        const unit =
-            pattern.metadata?.unit;
-
-
-        if (
-            unit !== undefined
-        ) {
-
-            const validUnit =
-
-                [
-                    "cm",
-                    "mm",
-                    "inch"
-                ]
-                .includes(
-                    unit
+        const seamValidation =
+            SeamProduction
+                .validateSeamPattern(
+                    pattern
                 );
 
 
-            addCheck(
-
-                result,
-
-                "Pattern unit",
-
-                validUnit,
-
-                validUnit
-                    ? ""
-                    : `Unit "${unit}" tidak valid.`
-
-            );
-
-        }
-        else {
-
-            addWarning(
-
-                result,
-
-                "Pattern unit missing",
-
-                "Pattern belum memiliki metadata.unit."
-
-            );
-
-        }
-
-
-        /*
-         * Geometry type
-         */
-
-        const geometryType =
-            pattern.metadata?.geometryType;
-
-
         if (
-            geometryType
+            !seamValidation.valid
         ) {
 
-            addCheck(
-
-                result,
-
-                "Geometry type",
-
-                typeof geometryType ===
-                    "string",
-
-                "geometryType harus berupa string."
-
+            errors.push(
+                ...seamValidation.errors
             );
 
         }
 
 
-        result.valid =
-            result.errors.length === 0;
-
-
-        return result;
-
-    }
-
-
-    /* ========================================================
-       COMPARISON BASE VS CUTTING
-       ======================================================== */
-
-    function compareBaseAndCutting(
-        basePattern,
-        cuttingPattern
-    ) {
-
-        const result =
-            createResult();
-
-
-        if (
-            !basePattern ||
-            !cuttingPattern
-        ) {
-
-            addCheck(
-
-                result,
-
-                "Base and cutting patterns",
-
-                false,
-
-                "Base pattern atau cutting pattern tidak tersedia."
-
-            );
-
-
-            return result;
-
-        }
-
-
-        const basePieces =
-            basePattern.pieces || [];
-
-
-        const cutPieces =
-            cuttingPattern.pieces || [];
-
-
-        addCheck(
-
-            result,
-
-            "Piece count consistency",
-
-            basePieces.length ===
-                cutPieces.length,
-
-            `Base=${basePieces.length}, ` +
-            `Cut=${cutPieces.length}.`
-
+        warnings.push(
+            ...seamValidation.warnings
         );
 
 
-        const count =
-            Math.min(
+        checks.push({
 
-                basePieces.length,
+            name:
+                "Seam production validation",
 
-                cutPieces.length
+            passed:
+                seamValidation.valid,
 
-            );
+            message:
+
+                seamValidation.valid
+
+                    ? ""
+
+                    : seamValidation.errors.join(
+                        " | "
+                    )
+
+        });
 
 
-        for (
-            let i = 0;
-            i < count;
-            i++
+        /*
+         * Bounds.
+         */
+
+        let bounds =
+            null;
+
+
+        try {
+
+            bounds =
+                Geometry.getPatternBounds(
+                    pattern
+                );
+
+        }
+        catch (
+            error
         ) {
 
-            const base =
-                basePieces[i];
+            errors.push(
 
-
-            const cut =
-                cutPieces[i];
-
-
-            addCheck(
-
-                result,
-
-                `Piece identity ${i + 1}`,
-
-                (
-                    base.name ===
-                    cut.name
-                ),
-
-                `Base "${base.name}" != Cut "${cut.name}".`
+                "Pattern bounds gagal dihitung: " +
+                error.message
 
             );
+
+        }
+
+
+        if (
+            bounds
+        ) {
+
+            checks.push({
+
+                name:
+                    "Pattern bounds",
+
+                passed:
+
+                    Number.isFinite(
+                        bounds.minX
+                    ) &&
+
+                    Number.isFinite(
+                        bounds.minY
+                    ) &&
+
+                    Number.isFinite(
+                        bounds.width
+                    ) &&
+
+                    Number.isFinite(
+                        bounds.height
+                    ),
+
+                message:
+                    ""
+
+            });
 
 
             if (
-                cut.basePoints
+                bounds.width <= 0 ||
+                bounds.height <= 0
             ) {
 
-                addCheck(
+                errors.push(
 
-                    result,
-
-                    `Base geometry preserved ${i + 1}`,
-
-                    Array.isArray(
-                        cut.basePoints
-                    ) &&
-                    cut.basePoints.length >= 3,
-
-                    `Base geometry piece ${i + 1} tidak tersedia.`
+                    "Pattern memiliki bounds kosong."
 
                 );
 
@@ -1833,185 +1557,225 @@
         }
 
 
-        result.valid =
-            result.errors.length === 0;
+        /*
+         * Seam requirement.
+         */
+
+        if (
+            config.requireSeam
+        ) {
+
+            const piecesWithoutSeam =
+
+                pattern.pieces.filter(
+                    piece => {
+
+                        const seam =
+                            num(
+
+                                piece.metadata
+                                    ?.seamAllowanceCm
+
+                            );
 
 
-        return result;
+                        return (
+
+                            seam === null ||
+                            seam <= 0
+
+                        );
+
+                    }
+                );
+
+
+            if (
+                piecesWithoutSeam.length
+            ) {
+
+                errors.push(
+
+                    `${piecesWithoutSeam.length} piece ` +
+                    "belum memiliki seam allowance."
+
+                );
+
+            }
+
+        }
+
+
+        /*
+         * Final state.
+         */
+
+        const valid =
+            errors.length ===
+            0;
+
+
+        return {
+
+            valid,
+
+            version:
+                VERSION,
+
+            errors,
+
+            warnings,
+
+            checks,
+
+            summary: {
+
+                pieceCount:
+                    pattern.pieces.length,
+
+                bounds,
+
+                errorCount:
+                    errors.length,
+
+                warningCount:
+                    warnings.length
+
+            }
+
+        };
 
     }
 
 
     /* ========================================================
-       FULL QUALITY GATE
+       QUICK CHECK
        ======================================================== */
 
-    function validateForProduction(
+    function isValidForProduction(
         pattern,
         options = {}
     ) {
 
-        const result =
-            createResult();
+        return validateForProduction(
 
+            pattern,
 
-        /*
-         * Pattern geometry.
-         */
+            options
 
-        const patternResult =
-            validateProductionPattern(
-                pattern
-            );
-
-
-        result.checks.push(
-            ...patternResult.checks
-        );
-
-
-        result.errors.push(
-            ...patternResult.errors
-        );
-
-
-        result.warnings.push(
-            ...patternResult.warnings
-        );
-
-
-        /*
-         * Cut geometry harus ada
-         * apabila requirement produksi aktif.
-         */
-
-        if (
-            options.requireCutPoints !== false
-        ) {
-
-            (
-                pattern?.pieces ||
-                []
-            )
-            .forEach(
-                (
-                    piece,
-                    index
-                ) => {
-
-                    addCheck(
-
-                        result,
-
-                        `Cut points piece ${index + 1}`,
-
-                        Array.isArray(
-                            piece.cutPoints
-                        ) &&
-                        piece.cutPoints.length >= 3,
-
-                        `Piece "${piece.name}" ` +
-                        "belum mempunyai cutPoints."
-
-                    );
-
-                }
-            );
-
-        }
-
-
-        /*
-         * Seam.
-         */
-
-        if (
-            options.requireSeam === true
-        ) {
-
-            (
-                pattern?.pieces ||
-                []
-            )
-            .forEach(
-                (
-                    piece,
-                    index
-                ) => {
-
-                    addCheck(
-
-                        result,
-
-                        `Seam piece ${index + 1}`,
-
-                        Number.isFinite(
-                            Number(
-                                piece.seamAllowance
-                            )
-                        ) &&
-                        Number(
-                            piece.seamAllowance
-                        ) >= 0,
-
-                        `Seam "${piece.name}" tidak valid.`
-
-                    );
-
-                }
-            );
-
-        }
-
-
-        result.valid =
-            result.errors.length === 0;
-
-
-        return result;
+        ).valid;
 
     }
 
 
     /* ========================================================
-       FORMAT
+       VALIDATE ENGINE RESULT
        ======================================================== */
 
-    function formatResult(
-        result
+    function validateEngineResult(
+        result,
+        options = {}
     ) {
 
-        return {
+        if (
+            !result ||
+            !Array.isArray(
+                result.pieces
+            )
+        ) {
 
-            valid:
-                result.valid,
+            return {
 
-            totalChecks:
-                result.checks.length,
+                valid:
+                    false,
 
-            passedChecks:
-                result.checks
-                    .filter(
-                        check =>
-                            check.passed
-                    )
-                    .length,
+                errors: [
 
-            failedChecks:
-                result.checks
-                    .filter(
-                        check =>
-                            !check.passed
-                    )
-                    .length,
+                    "Engine result tidak memiliki pieces."
 
-            errors:
-                result.errors,
+                ],
 
-            warnings:
-                result.warnings
+                warnings: [],
 
-        };
+                checks: []
+
+            };
+
+        }
+
+
+        /*
+         * Engine result is still BASE pattern.
+         *
+         * Convert it to seam/cut representation first.
+         */
+
+        let seamPattern;
+
+
+        try {
+
+            seamPattern =
+                SeamProduction
+                    .applySeamAllowance(
+
+                        result,
+
+                        {
+
+                            defaultSeam:
+
+                                num(
+                                    options
+                                        .seamAllowance,
+
+                                    0
+
+                                ),
+
+                            strategy:
+
+                                options
+                                    .seamStrategy ||
+
+                                "legacy-radial"
+
+                        }
+
+                    );
+
+        }
+        catch (
+            error
+        ) {
+
+            return {
+
+                valid:
+                    false,
+
+                errors: [
+
+                    error.message
+
+                ],
+
+                warnings: [],
+
+                checks: []
+
+            };
+
+        }
+
+
+        return validateForProduction(
+
+            seamPattern,
+
+            options
+
+        );
 
     }
 
@@ -2020,37 +1784,18 @@
        DEBUG
        ======================================================== */
 
-    function runDebug(
-        pattern = null
+    function debug(
+        pattern,
+        options = {}
     ) {
-
-        const target =
-            pattern ||
-            window.PatternMakerApp?.state
-                ?.cuttingPattern;
-
 
         const result =
             validateForProduction(
 
-                target,
+                pattern,
 
-                {
+                options
 
-                    requireCutPoints:
-                        true,
-
-                    requireSeam:
-                        true
-
-                }
-
-            );
-
-
-        const formatted =
-            formatResult(
-                result
             );
 
 
@@ -2060,57 +1805,39 @@
 
 
         console.log(
+            "Version:",
+            VERSION
+        );
+
+
+        console.log(
             "Valid:",
-            formatted.valid
+            result.valid
         );
 
 
         console.log(
-            "Checks:",
-            formatted.totalChecks
+            "Errors:",
+            result.errors
         );
 
 
         console.log(
-            "Passed:",
-            formatted.passedChecks
+            "Warnings:",
+            result.warnings
         );
 
 
         console.log(
-            "Failed:",
-            formatted.failedChecks
+            "Summary:",
+            result.summary
         );
-
-
-        if (
-            formatted.errors.length
-        ) {
-
-            console.error(
-                "Errors:",
-                formatted.errors
-            );
-
-        }
-
-
-        if (
-            formatted.warnings.length
-        ) {
-
-            console.warn(
-                "Warnings:",
-                formatted.warnings
-            );
-
-        }
 
 
         console.groupEnd();
 
 
-        return formatted;
+        return result;
 
     }
 
@@ -2121,29 +1848,29 @@
 
     window.PatternMakerProductionValidator = {
 
+        VERSION,
+
+        DEFAULT_OPTIONS,
+
         validatePoints,
-
-        validateClosedPolygon,
-
-        validateBounds,
-
-        validateGrainline,
-
-        validateNotches,
-
-        validateSeam,
 
         validatePiece,
 
-        validateProductionPattern,
-
-        compareBaseAndCutting,
-
         validateForProduction,
 
-        formatResult,
+        isValidForProduction,
 
-        runDebug
+        validateEngineResult,
+
+        findSelfIntersections,
+
+        findDuplicatePoints,
+
+        findZeroLengthEdges,
+
+        segmentsIntersect,
+
+        debug
 
     };
 
