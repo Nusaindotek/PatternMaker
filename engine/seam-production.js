@@ -2,31 +2,32 @@
  * ============================================================
  * PATTERNMAKER UNIVERSAL
  * BASELINE FINAL v1
- * KODE 58
+ * KODE 73
  *
  * FILE:
  *   engine/seam-production.js
  * ============================================================
  *
- * RESPONSIBILITY:
+ * SINGLE SEAM PIPELINE
  *
- *   BASE PATTERN
- *        ↓
- *   SEAM PRODUCTION
- *        ↓
- *   CUTTING GEOMETRY
+ * Base Pattern
+ *      ↓
+ * Seam Production
+ *      ↓
+ * Curve Geometry / Polygon Offset
+ *      ↓
+ * Cutting Geometry
  *
- * V1:
- * - seam = 0  → geometry tetap
- * - seam > 0  → legacy radial compatibility offset
- * - base pattern tidak dimutasi
- * - seam metadata disimpan per piece
+ * ============================================================
  *
- * IMPORTANT:
+ * IMPORTANT
  *
- * Legacy radial offset hanya compatibility layer.
- * Ini BELUM merupakan true polygon offset produksi
- * dengan edge-by-edge offset / corner join / curve offset.
+ * seam-production.js sekarang menjadi satu-satunya
+ * orchestrator seam.
+ *
+ * True geometry tetap dimiliki oleh:
+ *
+ *   production-geometry.js
  *
  * ============================================================
  */
@@ -49,10 +50,7 @@
     ) {
 
         throw new Error(
-
-            "production-geometry.js harus dimuat " +
-            "sebelum seam-production.js."
-
+            "production-geometry.js harus dimuat sebelum seam-production.js."
         );
 
     }
@@ -63,7 +61,37 @@
        ======================================================== */
 
     const VERSION =
-        "FINAL-v1";
+        "FINAL-v1.1";
+
+
+    /* ========================================================
+       DEFAULTS
+       ======================================================== */
+
+    const DEFAULTS = {
+
+        defaultSeam:
+            0,
+
+        miterLimit:
+            4,
+
+        curveTolerance:
+            0.05,
+
+        maxSegmentLength:
+            2,
+
+        maxDepth:
+            12,
+
+        minDepth:
+            2,
+
+        preserveExistingCutPoints:
+            false
+
+    };
 
 
     /* ========================================================
@@ -81,7 +109,9 @@
             );
 
 
-        return Number.isFinite(n)
+        return Number.isFinite(
+            n
+        )
             ? n
             : fallback;
 
@@ -128,80 +158,7 @@
 
 
     /* ========================================================
-       CLONE POINTS
-       ======================================================== */
-
-    function clonePoints(
-        points
-    ) {
-
-        return (
-            points ||
-            []
-        )
-        .map(
-            point => [
-
-                num(
-                    point?.[0]
-                ),
-
-                num(
-                    point?.[1]
-                )
-
-            ]
-        );
-
-    }
-
-
-    /* ========================================================
-       OPTIONS
-       ======================================================== */
-
-    function normalizeOptions(
-        options = {}
-    ) {
-
-        return {
-
-            defaultSeam:
-
-                Math.max(
-
-                    0,
-
-                    num(
-                        options.defaultSeam,
-                        0
-                    )
-
-                ),
-
-            strategy:
-                options.strategy ||
-                "legacy-radial",
-
-            applyWhenIncluded:
-                options.applyWhenIncluded !==
-                false,
-
-            keepBasePoints:
-                options.keepBasePoints !==
-                false,
-
-            keepExistingCutPoints:
-                options.keepExistingCutPoints ===
-                true
-
-        };
-
-    }
-
-
-    /* ========================================================
-       PIECE SEAM
+       SEAM FOR PIECE
        ======================================================== */
 
     function getPieceSeam(
@@ -209,23 +166,17 @@
         defaultSeam
     ) {
 
-        const value =
-
-            piece?.metadata
-                ?.seamAllowanceCm
-
-            ??
-
-            piece?.seamAllowanceCm;
-
-
         return Math.max(
 
             0,
 
             num(
-                value,
+
+                piece?.metadata
+                    ?.seamAllowanceCm,
+
                 defaultSeam
+
             )
 
         );
@@ -234,173 +185,7 @@
 
 
     /* ========================================================
-       APPLY PIECE SEAM
-       ======================================================== */
-
-    function applyPieceSeam(
-        piece,
-        seam,
-        options
-    ) {
-
-        const basePoints =
-            clonePoints(
-
-                piece?.seamPoints ||
-
-                piece?.points ||
-
-                piece?.cutPoints ||
-
-                []
-
-            );
-
-
-        if (
-            basePoints.length <
-            3
-        ) {
-
-            throw new Error(
-
-                `Piece "${piece?.name || "unknown"}" ` +
-                "tidak memiliki geometry yang valid."
-
-            );
-
-        }
-
-
-        const existingCut =
-
-            Array.isArray(
-                piece?.cutPoints
-            )
-
-                ? clonePoints(
-                    piece.cutPoints
-                )
-
-                : null;
-
-
-        let cutPoints;
-
-
-        /*
-         * Preserve an existing cut geometry
-         * only when explicitly requested.
-         */
-
-        if (
-            options.keepExistingCutPoints &&
-            existingCut
-        ) {
-
-            cutPoints =
-                existingCut;
-
-        }
-
-        else if (
-            seam <= 0
-        ) {
-
-            cutPoints =
-                clonePoints(
-                    basePoints
-                );
-
-        }
-
-        else if (
-            options.strategy ===
-            "legacy-radial"
-        ) {
-
-            cutPoints =
-                Geometry.offsetRadial(
-
-                    basePoints,
-
-                    seam
-
-                );
-
-        }
-
-        else {
-
-            throw new Error(
-
-                `Seam strategy "${options.strategy}" ` +
-                "belum tersedia."
-
-            );
-
-        }
-
-
-        return {
-
-            ...clone(
-                piece
-            ),
-
-            /*
-             * Original sewing/base geometry.
-             */
-
-            points:
-                clonePoints(
-                    basePoints
-                ),
-
-            seamPoints:
-                clonePoints(
-                    basePoints
-                ),
-
-            /*
-             * Production cutting boundary.
-             */
-
-            cutPoints,
-
-            layer:
-                "CUT",
-
-            metadata: {
-
-                ...(piece?.metadata || {}),
-
-                seamProduction:
-                    true,
-
-                seamAllowanceCm:
-                    seam,
-
-                seamStrategy:
-
-                    seam > 0
-
-                        ? options.strategy
-
-                        : "none",
-
-                seamVersion:
-                    VERSION
-
-            }
-
-        };
-
-    }
-
-
-    /* ========================================================
-       APPLY SEAM ALLOWANCE
+       APPLY SEAM
        ======================================================== */
 
     function applySeamAllowance(
@@ -416,17 +201,31 @@
         ) {
 
             throw new Error(
-
-                "Pattern tidak valid untuk seam allowance."
-
+                "Pattern tidak valid."
             );
 
         }
 
 
-        const config =
-            normalizeOptions(
-                options
+        const config = {
+
+            ...DEFAULTS,
+
+            ...options
+
+        };
+
+
+        const defaultSeam =
+            Math.max(
+
+                0,
+
+                num(
+                    config.defaultSeam,
+                    0
+                )
+
             );
 
 
@@ -439,18 +238,111 @@
 
                             piece,
 
-                            config.defaultSeam
+                            defaultSeam
 
                         );
 
 
-                    return applyPieceSeam(
+                    /*
+                     * Preserve explicit existing cut geometry
+                     * only when requested.
+                     */
+
+                    if (
+
+                        config
+                            .preserveExistingCutPoints ===
+                        true
+
+                        &&
+
+                        Array.isArray(
+                            piece.cutPoints
+                        )
+
+                    ) {
+
+                        return {
+
+                            ...clone(
+                                piece
+                            ),
+
+                            metadata: {
+
+                                ...(piece.metadata || {}),
+
+                                seamProduction:
+                                    true,
+
+                                seamAllowanceCm:
+                                    seam,
+
+                                seamStrategy:
+
+                                    piece.metadata
+                                        ?.seamStrategy
+
+                                    ||
+
+                                    "existing-cut-geometry",
+
+                                seamVersion:
+                                    VERSION
+
+                            }
+
+                        };
+
+                    }
+
+
+                    /*
+                     * Always delegate geometry to
+                     * production-geometry.js.
+                     *
+                     * This guarantees one geometry path.
+                     */
+
+                    return Geometry.offsetPiece(
 
                         piece,
 
                         seam,
 
-                        config
+                        {
+
+                            miterLimit:
+                                num(
+                                    config.miterLimit,
+                                    4
+                                ),
+
+                            curveTolerance:
+                                num(
+                                    config.curveTolerance,
+                                    0.05
+                                ),
+
+                            maxSegmentLength:
+                                num(
+                                    config.maxSegmentLength,
+                                    2
+                                ),
+
+                            maxDepth:
+                                num(
+                                    config.maxDepth,
+                                    12
+                                ),
+
+                            minDepth:
+                                num(
+                                    config.minDepth,
+                                    2
+                                )
+
+                        }
 
                     );
 
@@ -479,14 +371,35 @@
                 geometryType:
                     "PRODUCTION",
 
+                productionGeometry:
+                    true,
+
                 seamProduction:
                     true,
 
                 seamStrategy:
-                    config.strategy,
+                    "curve-flatten-true-polygon-offset",
 
                 defaultSeamAllowanceCm:
-                    config.defaultSeam,
+                    defaultSeam,
+
+                curveTolerance:
+                    num(
+                        config.curveTolerance,
+                        0.05
+                    ),
+
+                maxSegmentLength:
+                    num(
+                        config.maxSegmentLength,
+                        2
+                    ),
+
+                miterLimit:
+                    num(
+                        config.miterLimit,
+                        4
+                    ),
 
                 seamVersion:
                     VERSION
@@ -499,7 +412,7 @@
 
 
     /* ========================================================
-       VALIDATE SEAM PATTERN
+       VALIDATE
        ======================================================== */
 
     function validateSeamPattern(
@@ -522,21 +435,18 @@
             0
         ) {
 
-            errors.push(
-
-                "Seam pattern tidak memiliki pieces."
-
-            );
-
-
             return {
 
                 valid:
                     false,
 
-                errors,
+                errors: [
 
-                warnings
+                    "Pattern tidak memiliki pieces."
+
+                ],
+
+                warnings: []
 
             };
 
@@ -549,83 +459,47 @@
                 index
             ) => {
 
-                const points =
+                const seamPoints =
 
-                    piece.cutPoints ||
+                    piece.seamPoints ||
 
-                    piece.points ||
+                    piece.points;
 
-                    [];
+
+                const cutPoints =
+                    piece.cutPoints;
 
 
                 if (
                     !Array.isArray(
-                        points
-                    ) ||
-                    points.length <
-                    3
+                        seamPoints
+                    )
                 ) {
 
                     errors.push(
 
-                        `Piece ${index + 1} ` +
-                        "tidak memiliki cutPoints valid."
+                        `Piece ${piece.name || index + 1} ` +
+                        "tidak memiliki seam geometry."
 
                     );
-
-
-                    return;
 
                 }
 
 
-                points.forEach(
-                    (
-                        point,
-                        pointIndex
-                    ) => {
+                if (
+                    !Array.isArray(
+                        cutPoints
+                    )
+                ) {
 
-                        if (
+                    errors.push(
 
-                            !Array.isArray(
-                                point
-                            )
+                        `Piece ${piece.name || index + 1} ` +
+                        "tidak memiliki cut geometry."
 
-                            ||
+                    );
 
-                            point.length <
-                            2
-
-                            ||
-
-                            !Number.isFinite(
-                                Number(
-                                    point[0]
-                                )
-                            )
-
-                            ||
-
-                            !Number.isFinite(
-                                Number(
-                                    point[1]
-                                )
-                            )
-
-                        ) {
-
-                            errors.push(
-
-                                `Piece ${index + 1}, ` +
-                                `point ${pointIndex + 1} ` +
-                                "tidak valid."
-
-                            );
-
-                        }
-
-                    }
-                );
+                }
 
 
                 const seam =
@@ -634,50 +508,56 @@
                         piece.metadata
                             ?.seamAllowanceCm,
 
-                        0
+                        null
 
                     );
 
 
                 if (
+                    seam === null ||
                     seam < 0
                 ) {
 
                     errors.push(
 
-                        `Piece ${index + 1} ` +
-                        "memiliki seam allowance negatif."
+                        `Piece ${piece.name || index + 1} ` +
+                        "seam allowance invalid."
 
                     );
 
                 }
 
+
+                if (
+                    piece.metadata
+                        ?.seamStrategy ===
+                    "legacy-radial"
+                ) {
+
+                    warnings.push(
+
+                        `Piece ${piece.name || index + 1} ` +
+                        "masih menggunakan legacy-radial."
+
+                    );
+
+                }
+
+
+                if (
+                    piece.metadata
+                        ?.seamStrategy ===
+                    "curve-flatten-true-polygon-offset"
+                ) {
+
+                    /*
+                     * Expected production path.
+                     */
+
+                }
+
             }
         );
-
-
-        /*
-         * Explicitly warn that this is still
-         * compatibility geometry.
-         */
-
-        if (
-
-            pattern.metadata
-                ?.seamStrategy ===
-            "legacy-radial"
-
-        ) {
-
-            warnings.push(
-
-                "Geometry menggunakan " +
-                "legacy-radial compatibility offset; " +
-                "belum merupakan true polygon offset produksi."
-
-            );
-
-        }
 
 
         return {
@@ -703,13 +583,13 @@
         pattern
     ) {
 
-        const pieces =
-            pattern?.pieces ||
-            [];
-
-
         const values =
-            pieces.map(
+
+            (
+                pattern?.pieces ||
+                []
+            )
+            .map(
                 piece =>
                     num(
 
@@ -719,6 +599,7 @@
                         0
 
                     )
+
             );
 
 
@@ -738,11 +619,12 @@
                         total,
                         value
                     ) =>
-                        total + value,
+                        total +
+                        value,
 
                     0
-                  )
-                  /
+
+                  ) /
                   positive.length
 
                 : 0;
@@ -751,13 +633,10 @@
         return {
 
             pieceCount:
-                pieces.length,
+                values.length,
 
             averageSeam:
-                Math.round(
-                    average *
-                    1000
-                ) / 1000,
+                average,
 
             maxSeam:
 
@@ -784,8 +663,10 @@
                 0,
 
             strategy:
+
                 pattern?.metadata
                     ?.seamStrategy ||
+
                 "none"
 
         };
@@ -794,7 +675,7 @@
 
 
     /* ========================================================
-       CUTTING GEOMETRY
+       TO CUTTING GEOMETRY
        ======================================================== */
 
     function toCuttingGeometry(
@@ -809,51 +690,47 @@
         ) {
 
             throw new Error(
-
-                "Pattern tidak valid untuk cutting geometry."
-
+                "Pattern tidak valid."
             );
 
         }
 
 
-        const normalized =
-            pattern.pieces.map(
-                piece => ({
-
-                    ...clone(
-                        piece
-                    ),
-
-                    cutPoints:
-                        clonePoints(
-
-                            piece.cutPoints ||
-
-                            piece.seamPoints ||
-
-                            piece.points
-
-                        )
-
-                })
-            );
-
-
         return {
+
+            ...clone(
+                pattern
+            ),
 
             type:
                 "cutting-pattern",
-
-            engine:
-                pattern.engine ||
-                null,
 
             version:
                 VERSION,
 
             pieces:
-                normalized,
+
+                pattern.pieces.map(
+                    piece => ({
+
+                        ...clone(
+                            piece
+                        ),
+
+                        cutPoints:
+                            Geometry.clonePoints(
+
+                                piece.cutPoints ||
+
+                                piece.seamPoints ||
+
+                                piece.points
+
+                            )
+
+                    })
+
+                ),
 
             metadata: {
 
@@ -870,20 +747,17 @@
 
 
     /* ========================================================
-       PRODUCTION READY CHECK
+       PRODUCTION READY
        ======================================================== */
 
     function isProductionReady(
         pattern
     ) {
 
-        const validation =
-            validateSeamPattern(
-                pattern
-            );
-
-
-        return validation.valid;
+        return validateSeamPattern(
+            pattern
+        )
+        .valid;
 
     }
 
@@ -895,6 +769,8 @@
     window.PatternMakerSeamProduction = {
 
         VERSION,
+
+        DEFAULTS,
 
         applySeamAllowance,
 
