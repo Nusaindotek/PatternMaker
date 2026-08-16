@@ -1,79 +1,89 @@
-/**
- * ============================================================
- * PATTERNMAKER UNIVERSAL
- * KODE 32 — engine/export-svg.js
- * ============================================================
- *
- * SVG PRODUCTION EXPORTER
- *
- * Input:
- *   Cutting Geometry
- *
- * Output:
- *   SVG 1:1
- *
- * Internal:
- *   cm
- *
- * Export:
- *   mm
- *
- * ============================================================
- *
- * PRINSIP:
- *
- * Preview SVG di browser bukan sumber export.
- *
- * Exporter ini membaca langsung:
- *
- *     cuttingPattern
- *
- * sehingga:
- *
- * Preview
- * DXF
- * PLT
- * SVG
- *
- * semuanya berasal dari geometry produksi yang sama.
- *
- * ============================================================
- */
-
+```javascript id="83svg"
 (function () {
 
     "use strict";
 
 
     /* ========================================================
-       CONSTANT
+       VERSION
        ======================================================== */
 
-    const CM_TO_MM =
-        10;
+    const VERSION =
+        "FINAL-v1";
+
+
+    const DEFAULT_OPTIONS = {
+
+        sourceType:
+            "production",
+
+        validateBeforeExport:
+            true,
+
+        requireProductionPass:
+            false,
+
+        requireNestingPass:
+            false,
+
+        includeCut:
+            true,
+
+        includeSeam:
+            false,
+
+        includeGrainline:
+            true,
+
+        includeNotches:
+            true,
+
+        includeLabels:
+            true,
+
+        includeMarker:
+            true,
+
+        includeMetadata:
+            true,
+
+        precision:
+            3,
+
+        strokeWidth:
+            0.4,
+
+        seamStrokeWidth:
+            0.25,
+
+        grainlineStrokeWidth:
+            0.25,
+
+        notchStrokeWidth:
+            0.35,
+
+        labelFontSize:
+            3,
+
+        padding:
+            10
+
+    };
 
 
     /* ========================================================
-       DEPENDENCY
+       DEPENDENCIES
        ======================================================== */
 
     const ProductionValidator =
         window.PatternMakerProductionValidator;
 
-
-    if (
-        !ProductionValidator
-    ) {
-
-        throw new Error(
-            "production-validator.js belum tersedia."
-        );
-
-    }
+    const NestingValidator =
+        window.PatternMakerNestingValidator;
 
 
     /* ========================================================
-       HELPERS
+       NUMBER
        ======================================================== */
 
     function num(
@@ -84,7 +94,6 @@
         const n =
             Number(value);
 
-
         return Number.isFinite(n)
             ? n
             : fallback;
@@ -92,30 +101,36 @@
     }
 
 
+    /* ========================================================
+       ROUND
+       ======================================================== */
+
     function round(
-        value
+        value,
+        precision
     ) {
 
-        return Math.round(
-            Number(value) * 1000
-        ) / 1000;
-
-    }
+        const factor =
+            10 ** precision;
 
 
-    function cmToMm(
-        value
-    ) {
+        return (
 
-        return round(
-
-            Number(value) *
-            CM_TO_MM
+            Math.round(
+                num(value) *
+                factor
+            )
+            /
+            factor
 
         );
 
     }
 
+
+    /* ========================================================
+       ESCAPE
+       ======================================================== */
 
     function escapeXml(
         value
@@ -149,76 +164,45 @@
 
 
     /* ========================================================
-       POINT CONVERSION
+       OPTIONS
        ======================================================== */
 
-    function pointToMm(
-        point
+    function normalizeOptions(
+        options = {}
     ) {
-
-        if (
-            !Array.isArray(point) ||
-            point.length < 2
-        ) {
-
-            throw new Error(
-                "SVG point tidak valid."
-            );
-
-        }
-
 
         return {
 
-            x:
-                cmToMm(
-                    point[0]
-                ),
+            ...DEFAULT_OPTIONS,
 
-            y:
-                cmToMm(
-                    point[1]
-                )
+            ...options
 
         };
 
     }
 
 
-    function pointsToSvg(
+    /* ========================================================
+       CLONE POINTS
+       ======================================================== */
+
+    function clonePoints(
         points
     ) {
 
-        if (
-            !Array.isArray(points) ||
-            !points.length
-        ) {
+        return (
+            points ||
+            []
+        )
+        .map(
+            point => [
 
-            return "";
+                num(point?.[0]),
 
-        }
+                num(point?.[1])
 
-
-        return points
-            .map(
-                point => {
-
-                    const converted =
-                        pointToMm(
-                            point
-                        );
-
-
-                    return (
-
-                        `${converted.x},` +
-                        `${converted.y}`
-
-                    );
-
-                }
-            )
-            .join(" ");
+            ]
+        );
 
     }
 
@@ -227,51 +211,22 @@
        BOUNDS
        ======================================================== */
 
-    function calculateBounds(
-        pattern
+    function getBounds(
+        points
     ) {
 
-        const allPoints =
-            [];
-
-
-        (
-            pattern?.pieces ||
-            []
-        )
-        .forEach(
-            piece => {
-
-                const points =
-                    getCutPoints(
-                        piece
-                    );
-
-
-                allPoints.push(
-                    ...points
-                );
-
-            }
-        );
-
-
         if (
-            !allPoints.length
+            !Array.isArray(points) ||
+            points.length === 0
         ) {
 
             return {
 
                 minX: 0,
-
                 minY: 0,
-
                 maxX: 0,
-
                 maxY: 0,
-
                 width: 0,
-
                 height: 0
 
             };
@@ -280,20 +235,16 @@
 
 
         const xs =
-            allPoints.map(
+            points.map(
                 point =>
-                    cmToMm(
-                        point[0]
-                    )
+                    num(point[0])
             );
 
 
         const ys =
-            allPoints.map(
+            points.map(
                 point =>
-                    cmToMm(
-                        point[1]
-                    )
+                    num(point[1])
             );
 
 
@@ -303,15 +254,15 @@
             );
 
 
-        const maxX =
-            Math.max(
-                ...xs
-            );
-
-
         const minY =
             Math.min(
                 ...ys
+            );
+
+
+        const maxX =
+            Math.max(
+                ...xs
             );
 
 
@@ -324,18 +275,17 @@
         return {
 
             minX,
-
             minY,
-
             maxX,
-
             maxY,
 
             width:
-                maxX - minX,
+                maxX -
+                minX,
 
             height:
-                maxY - minY
+                maxY -
+                minY
 
         };
 
@@ -343,109 +293,189 @@
 
 
     /* ========================================================
-       CUT POINTS
+       CLOSE
        ======================================================== */
 
-    function getCutPoints(
-        piece
+    function closePoints(
+        points
     ) {
 
+        const result =
+            clonePoints(
+                points
+            );
+
+
         if (
-            piece?.cutPoints &&
-            Array.isArray(
-                piece.cutPoints
-            ) &&
-            piece.cutPoints.length >= 3
+            result.length < 2
         ) {
 
-            return piece.cutPoints;
+            return result;
 
         }
 
 
+        const first =
+            result[0];
+
+
+        const last =
+            result[
+                result.length - 1
+            ];
+
+
         if (
-            piece?.points &&
-            Array.isArray(
-                piece.points
-            ) &&
-            piece.points.length >= 3
+            Math.abs(
+                first[0] -
+                last[0]
+            ) > 1e-9
+
+            ||
+
+            Math.abs(
+                first[1] -
+                last[1]
+            ) > 1e-9
         ) {
 
-            return piece.points;
+            result.push([
+
+                first[0],
+
+                first[1]
+
+            ]);
 
         }
 
 
-        return [];
+        return result;
 
     }
 
 
     /* ========================================================
-       LABEL POSITION
+       PATH
        ======================================================== */
 
-    function getLabelPosition(
-        piece
+    function pointsToPath(
+        points,
+        precision
     ) {
 
-        const points =
-            getCutPoints(
-                piece
+        const closed =
+            closePoints(
+                points
             );
 
 
         if (
-            !points.length
+            closed.length === 0
         ) {
 
-            return {
-
-                x: 0,
-
-                y: 0
-
-            };
+            return "";
 
         }
 
 
-        const converted =
-            points.map(
-                point =>
-                    pointToMm(
-                        point
-                    )
+        const commands = [
+
+            `M ${round(
+                closed[0][0],
+                precision
+            )} ${round(
+                closed[0][1],
+                precision
+            )}`
+
+        ];
+
+
+        for (
+            let i = 1;
+            i < closed.length;
+            i++
+        ) {
+
+            commands.push(
+
+                `L ${round(
+                    closed[i][0],
+                    precision
+                )} ${round(
+                    closed[i][1],
+                    precision
+                )} ${""}`
+
             );
 
-
-        const xs =
-            converted.map(
-                point =>
-                    point.x
-            );
+        }
 
 
-        const ys =
-            converted.map(
-                point =>
-                    point.y
-            );
+        commands.push(
+            "Z"
+        );
 
 
-        return {
+        return commands.join(
+            " "
+        );
 
-            x:
-                (
-                    Math.min(...xs) +
-                    Math.max(...xs)
-                ) / 2,
+    }
 
-            y:
-                Math.min(...ys) -
-                3
 
-        };
+    /* ========================================================
+       LINE
+       ======================================================== */
+
+    function lineElement(
+        a,
+        b,
+        className,
+        strokeWidth,
+        precision
+    ) {
+
+        return (
+
+            `<line ` +
+
+            `class="${escapeXml(
+                className
+            )}" ` +
+
+            `x1="${round(
+                a[0],
+                precision
+            )}" ` +
+
+            `y1="${round(
+                a[1],
+                precision
+            )}" ` +
+
+            `x2="${round(
+                b[0],
+                precision
+            )}" ` +
+
+            `y2="${round(
+                b[1],
+                precision
+            )}" ` +
+
+            `stroke="currentColor" ` +
+
+            `stroke-width="${strokeWidth}" ` +
+
+            `fill="none" ` +
+
+            `vector-effect="non-scaling-stroke"` +
+
+            `/>`
+
+        );
 
     }
 
@@ -454,17 +484,13 @@
        GRAINLINE
        ======================================================== */
 
-    function createGrainlineSvg(
+    function renderGrainline(
         piece,
-        options = {}
+        options
     ) {
 
         if (
-            options.includeGrainline === false ||
-            !Array.isArray(
-                piece?.grainline
-            ) ||
-            piece.grainline.length < 2
+            !options.includeGrainline
         ) {
 
             return "";
@@ -472,204 +498,150 @@
         }
 
 
-        const start =
-            pointToMm(
-                piece.grainline[0]
-            );
+        const grainline =
+            piece?.grainline;
 
 
-        const end =
-            pointToMm(
-                piece.grainline[1]
-            );
+        if (
+            !Array.isArray(
+                grainline
+            ) ||
+            grainline.length <
+            2
+        ) {
+
+            return "";
+
+        }
 
 
-        return `
-
-        <line
-            x1="${start.x}"
-            y1="${start.y}"
-            x2="${end.x}"
-            y2="${end.y}"
-            stroke="black"
-            stroke-width="0.3"
-            stroke-dasharray="2 1"
-            fill="none"
-            vector-effect="non-scaling-stroke"
-        />
-
-        `;
-
-    }
+        const first =
+            grainline[0];
 
 
-    /* ========================================================
-       NOTCH
-       ======================================================== */
-
-    function createNotchSvg(
-        point,
-        options = {}
-    ) {
-
-        const size =
-            num(
-                options.notchSize,
-                0.6
-            );
+        const last =
+            grainline[
+                grainline.length - 1
+            ];
 
 
-        const a = [
+        return lineElement(
 
-            point[0] -
-            size,
+            first,
 
-            point[1] -
-            size
+            last,
 
-        ];
+            "grainline",
 
+            options.grainlineStrokeWidth,
 
-        const b = [
+            options.precision
 
-            point[0] +
-            size,
-
-            point[1] +
-            size
-
-        ];
-
-
-        const start =
-            pointToMm(
-                a
-            );
-
-
-        const end =
-            pointToMm(
-                b
-            );
-
-
-        return `
-
-        <line
-            x1="${start.x}"
-            y1="${start.y}"
-            x2="${end.x}"
-            y2="${end.y}"
-            stroke="black"
-            stroke-width="0.35"
-            fill="none"
-            vector-effect="non-scaling-stroke"
-        />
-
-        `;
+        );
 
     }
 
 
     /* ========================================================
-       DRILL POINT
+       NOTCHES
        ======================================================== */
 
-    function createDrillSvg(
-        point,
-        options = {}
+    function renderNotches(
+        piece,
+        options
     ) {
 
-        const size =
-            num(
-                options.drillSize,
-                0.7
-            );
+        if (
+            !options.includeNotches
+        ) {
+
+            return "";
+
+        }
 
 
-        const p =
-            pointToMm(
-                point
-            );
+        const notches =
+            piece?.notches;
 
 
-        const horizontalA = {
+        if (
+            !Array.isArray(
+                notches
+            ) ||
+            notches.length === 0
+        ) {
 
-            x:
-                cmToMm(
-                    point[0] -
-                    size
-                ),
+            return "";
 
-            y:
-                p.y
-
-        };
+        }
 
 
-        const horizontalB = {
-
-            x:
-                cmToMm(
-                    point[0] +
-                    size
-                ),
-
-            y:
-                p.y
-
-        };
+        const elements = [];
 
 
-        const verticalA = {
+        notches.forEach(
+            notch => {
 
-            x:
-                p.x,
+                if (
+                    !Array.isArray(
+                        notch
+                    ) ||
+                    notch.length <
+                    2
+                ) {
 
-            y:
-                cmToMm(
-                    point[1] -
-                    size
-                )
+                    return;
 
-        };
-
-
-        const verticalB = {
-
-            x:
-                p.x,
-
-            y:
-                cmToMm(
-                    point[1] +
-                    size
-                )
-
-        };
+                }
 
 
-        return `
+                const x =
+                    num(
+                        notch[0]
+                    );
 
-        <line
-            x1="${horizontalA.x}"
-            y1="${horizontalA.y}"
-            x2="${horizontalB.x}"
-            y2="${horizontalB.y}"
-            stroke="black"
-            stroke-width="0.3"
-        />
 
-        <line
-            x1="${verticalA.x}"
-            y1="${verticalA.y}"
-            x2="${verticalB.x}"
-            y2="${verticalB.y}"
-            stroke="black"
-            stroke-width="0.3"
-        />
+                const y =
+                    num(
+                        notch[1]
+                    );
 
-        `;
+
+                const size =
+                    1.5;
+
+
+                elements.push(
+
+                    lineElement(
+
+                        [
+                            x,
+                            y
+                        ],
+
+                        [
+                            x,
+                            y + size
+                        ],
+
+                        "notch",
+
+                        options.notchStrokeWidth,
+
+                        options.precision
+
+                    )
+
+                );
+
+            }
+        );
+
+
+        return elements.join(
+            ""
+        );
 
     }
 
@@ -678,13 +650,13 @@
        LABEL
        ======================================================== */
 
-    function createLabelSvg(
+    function renderLabel(
         piece,
-        options = {}
+        options
     ) {
 
         if (
-            options.includeLabels === false
+            !options.includeLabels
         ) {
 
             return "";
@@ -692,282 +664,671 @@
         }
 
 
-        const position =
-            getLabelPosition(
-                piece
+        const points =
+            piece?.cutPoints ||
+
+            piece?.points ||
+
+            [];
+
+
+        const bounds =
+            getBounds(
+                points
             );
+
+
+        const x =
+            bounds.minX +
+            bounds.width /
+            2;
+
+
+        const y =
+            bounds.minY +
+            bounds.height /
+            2;
 
 
         const label =
+            piece?.name ||
+            "PIECE";
+
+
+        return (
+
+            `<text ` +
+
+            `class="piece-label" ` +
+
+            `x="${round(
+                x,
+                options.precision
+            )}" ` +
+
+            `y="${round(
+                y,
+                options.precision
+            )}" ` +
+
+            `text-anchor="middle" ` +
+
+            `font-size="${num(
+                options.labelFontSize,
+                3
+            )}" ` +
+
+            `fill="currentColor"` +
+
+            `>` +
+
             escapeXml(
+                label
+            ) +
 
-                piece.label ||
-                piece.name ||
-                "PATTERN"
+            `</text>`
 
-            );
-
-
-        const fontSize =
-            num(
-                options.labelHeight,
-                2.5
-            );
-
-
-        return `
-
-        <text
-            x="${position.x}"
-            y="${position.y}"
-            text-anchor="middle"
-            font-family="Arial, sans-serif"
-            font-size="${fontSize}"
-            font-weight="700"
-            fill="black"
-        >
-            ${label}
-        </text>
-
-        `;
+        );
 
     }
 
 
     /* ========================================================
-       PIECE SVG
+       CUT LAYER
        ======================================================== */
 
-    function createPieceSvg(
+    function renderCut(
         piece,
-        index,
-        options = {}
+        options
     ) {
 
+        if (
+            !options.includeCut
+        ) {
+
+            return "";
+
+        }
+
+
         const points =
-            getCutPoints(
-                piece
-            );
+            piece?.cutPoints ||
+
+            piece?.points ||
+
+            [];
 
 
         if (
             points.length < 3
         ) {
 
-            throw new Error(
-
-                `Piece "${piece?.name || index}" ` +
-                "tidak memiliki cutting boundary."
-
-            );
+            return "";
 
         }
 
 
-        const polygonPoints =
-            pointsToSvg(
-                points
-            );
+        return (
 
+            `<path ` +
 
-        let output =
-            "";
+            `class="cut" ` +
 
+            `d="${escapeXml(
+                pointsToPath(
+                    points,
+                    options.precision
+                )
+            )}" ` +
 
-        output += `
+            `fill="none" ` +
 
-        <g
-            id="piece-${index + 1}"
-            data-name="${escapeXml(
-                piece.name ||
-                `piece-${index + 1}`
-            )}"
-            data-type="${escapeXml(
-                piece.type ||
-                "pattern"
-            )}"
-        >
+            `stroke="currentColor" ` +
 
-        `;
+            `stroke-width="${num(
+                options.strokeWidth,
+                0.4
+            )}" ` +
 
+            `vector-effect="non-scaling-stroke"` +
 
-        /*
-         * CUT
-         */
+            `/>`
 
-        output += `
-
-        <polygon
-            points="${polygonPoints}"
-            fill="none"
-            stroke="black"
-            stroke-width="0.4"
-            vector-effect="non-scaling-stroke"
-            data-layer="CUT"
-        />
-
-        `;
-
-
-        /*
-         * GRAINLINE
-         */
-
-        output +=
-            createGrainlineSvg(
-                piece,
-                options
-            );
-
-
-        /*
-         * NOTCHES
-         */
-
-        if (
-            options.includeNotches !== false &&
-            Array.isArray(
-                piece.notches
-            )
-        ) {
-
-            piece.notches.forEach(
-                notch => {
-
-                    output +=
-                        createNotchSvg(
-                            notch,
-                            options
-                        );
-
-                }
-            );
-
-        }
-
-
-        /*
-         * DRILL POINTS
-         */
-
-        if (
-            options.includeDrillPoints !== false &&
-            Array.isArray(
-                piece.drillPoints
-            )
-        ) {
-
-            piece.drillPoints.forEach(
-                point => {
-
-                    output +=
-                        createDrillSvg(
-                            point,
-                            options
-                        );
-
-                }
-            );
-
-        }
-
-
-        /*
-         * LABEL
-         */
-
-        output +=
-            createLabelSvg(
-                piece,
-                options
-            );
-
-
-        output +=
-            `</g>`;
-
-        return output;
+        );
 
     }
 
 
     /* ========================================================
-       QUALITY GATE
+       SEAM LAYER
        ======================================================== */
 
-    function validatePattern(
-        pattern
+    function renderSeam(
+        piece,
+        options
     ) {
 
         if (
-            !pattern
+            !options.includeSeam
+        ) {
+
+            return "";
+
+        }
+
+
+        const points =
+            piece?.seamPoints ||
+
+            piece?.points ||
+
+            [];
+
+
+        if (
+            points.length < 3
+        ) {
+
+            return "";
+
+        }
+
+
+        return (
+
+            `<path ` +
+
+            `class="seam" ` +
+
+            `d="${escapeXml(
+                pointsToPath(
+                    points,
+                    options.precision
+                )
+            )}" ` +
+
+            `fill="none" ` +
+
+            `stroke="currentColor" ` +
+
+            `stroke-width="${num(
+                options.seamStrokeWidth,
+                0.25
+            )}" ` +
+
+            `stroke-dasharray="2 1" ` +
+
+            `vector-effect="non-scaling-stroke"` +
+
+            `/>`
+
+        );
+
+    }
+
+
+    /* ========================================================
+       PIECE
+       ======================================================== */
+
+    function renderPiece(
+        piece,
+        options
+    ) {
+
+        const parts = [];
+
+
+        parts.push(
+
+            renderCut(
+                piece,
+                options
+            )
+
+        );
+
+
+        parts.push(
+
+            renderSeam(
+                piece,
+                options
+            )
+
+        );
+
+
+        parts.push(
+
+            renderGrainline(
+                piece,
+                options
+            )
+
+        );
+
+
+        parts.push(
+
+            renderNotches(
+                piece,
+                options
+            )
+
+        );
+
+
+        parts.push(
+
+            renderLabel(
+                piece,
+                options
+            )
+
+        );
+
+
+        return parts.join(
+            ""
+        );
+
+    }
+
+
+    /* ========================================================
+       MARKER BOUNDARY
+       ======================================================== */
+
+    function renderMarker(
+        marker,
+        options
+    ) {
+
+        if (
+            !options.includeMarker ||
+            !marker
+        ) {
+
+            return "";
+
+        }
+
+
+        const width =
+            num(
+                marker.width
+            );
+
+
+        const length =
+            num(
+                marker.length
+            );
+
+
+        if (
+            width <= 0 ||
+            length <= 0
+        ) {
+
+            return "";
+
+        }
+
+
+        return (
+
+            `<rect ` +
+
+            `class="marker-boundary" ` +
+
+            `x="0" ` +
+
+            `y="0" ` +
+
+            `width="${round(
+                width,
+                options.precision
+            )}" ` +
+
+            `height="${round(
+                length,
+                options.precision
+            )}" ` +
+
+            `fill="none" ` +
+
+            `stroke="currentColor" ` +
+
+            `stroke-width="${num(
+                options.strokeWidth,
+                0.4
+            )}" ` +
+
+            `vector-effect="non-scaling-stroke"` +
+
+            `/>`
+
+        );
+
+    }
+
+
+    /* ========================================================
+       PRODUCTION SOURCE
+       ======================================================== */
+
+    function normalizeProductionPieces(
+        source
+    ) {
+
+        if (
+            !source ||
+            !Array.isArray(
+                source.pieces
+            )
         ) {
 
             throw new Error(
-                "Pattern belum tersedia."
+                "Production pattern tidak valid."
             );
 
         }
 
 
-        const validation =
-            ProductionValidator
+        return source.pieces;
+
+    }
+
+
+    /* ========================================================
+       MARKER SOURCE
+       ======================================================== */
+
+    function normalizeMarkerPieces(
+        source
+    ) {
+
+        if (
+            !source ||
+            !Array.isArray(
+                source.placements
+            )
+        ) {
+
+            throw new Error(
+                "Marker result tidak valid."
+            );
+
+        }
+
+
+        return source.placements.map(
+            placement => ({
+
+                ...placement,
+
+                cutPoints:
+                    placement.points ||
+
+                    placement.cutPoints ||
+
+                    []
+
+            })
+
+        );
+
+    }
+
+
+    /* ========================================================
+       VALIDATION
+       ======================================================== */
+
+    function validateSource(
+        source,
+        type,
+        options
+    ) {
+
+        if (
+            !options.validateBeforeExport
+        ) {
+
+            return {
+
+                valid:
+                    true,
+
+                errors: [],
+
+                warnings: []
+
+            };
+
+        }
+
+
+        if (
+            type ===
+            "production"
+        ) {
+
+            if (
+                !ProductionValidator
+            ) {
+
+                return {
+
+                    valid:
+                        false,
+
+                    errors: [
+
+                        "ProductionValidator tidak tersedia."
+
+                    ],
+
+                    warnings: []
+
+                };
+
+            }
+
+
+            return ProductionValidator
                 .validateForProduction(
 
-                    pattern,
+                    source,
 
                     {
 
                         requireCutPoints:
                             true,
 
+                        requireClosed:
+                            true,
+
                         requireSeam:
-                            true
+                            options.requireProductionPass,
+
+                        requireTrueOffset:
+                            options.requireProductionPass,
+
+                        allowLegacyRadial:
+                            false
 
                     }
 
                 );
+
+        }
+
+
+        if (
+            type ===
+            "marker"
+        ) {
+
+            if (
+                !NestingValidator
+            ) {
+
+                return {
+
+                    valid:
+                        false,
+
+                    errors: [
+
+                        "NestingValidator tidak tersedia."
+
+                    ],
+
+                    warnings: []
+
+                };
+
+            }
+
+
+            return NestingValidator.validate(
+
+                source,
+
+                {
+
+                    requireAllPlaced:
+                        options.requireNestingPass,
+
+                    requireInsideMarker:
+                        true,
+
+                    checkOverlap:
+                        true,
+
+                    checkDuplicateIds:
+                        true
+
+                }
+
+            );
+
+        }
+
+
+        throw new Error(
+
+            `sourceType "${type}" tidak didukung.`
+
+        );
+
+    }
+
+
+    /* ========================================================
+       METADATA
+       ======================================================== */
+
+    function createMetadata(
+        source,
+        type,
+        options
+    ) {
+
+        if (
+            !options.includeMetadata
+        ) {
+
+            return "";
+
+        }
+
+
+        return [
+
+            "<metadata>",
+
+            escapeXml(
+
+                JSON.stringify({
+
+                    PatternMaker:
+                        "Universal",
+
+                    exporter:
+                        VERSION,
+
+                    sourceType:
+                        type,
+
+                    engine:
+                        source?.engine ||
+                        null,
+
+                    unit:
+                        "cm",
+
+                    exportedAt:
+                        new Date()
+                            .toISOString()
+
+                })
+
+            ),
+
+            "</metadata>"
+
+        ].join(
+            ""
+        );
+
+    }
+
+
+    /* ========================================================
+       CREATE SVG
+       ======================================================== */
+
+    function createSvg(
+        source,
+        options = {}
+    ) {
+
+        const config =
+            normalizeOptions(
+                options
+            );
+
+
+        const type =
+            config.sourceType ||
+            "production";
+
+
+        const validation =
+            validateSource(
+
+                source,
+
+                type,
+
+                config
+
+            );
 
 
         if (
             !validation.valid
         ) {
 
-            const messages =
-                validation.errors
-                    .slice(
-                        0,
-                        5
-                    )
-                    .map(
-                        error => {
-
-                            if (
-                                typeof error ===
-                                "string"
-                            ) {
-
-                                return error;
-
-                            }
-
-
-                            return (
-
-                                error.message ||
-                                error.check ||
-                                "Geometry invalid."
-
-                            );
-
-                        }
-                    );
-
-
             throw new Error(
 
-                "SVG export dihentikan: " +
-                messages.join(
+                "SVG export dibatalkan: " +
+
+                validation.errors.join(
                     " | "
                 )
 
@@ -976,192 +1337,272 @@
         }
 
 
-        return validation;
-
-    }
+        let pieces;
 
 
-    /* ========================================================
-       SVG DOCUMENT
-       ======================================================== */
+        let marker =
+            null;
 
-    function buildSVG(
-        pattern,
-        options = {}
-    ) {
 
-        const config = {
+        if (
+            type ===
+            "marker"
+        ) {
 
-            includeGrainline:
-                options.includeGrainline !== false,
+            pieces =
+                normalizeMarkerPieces(
+                    source
+                );
 
-            includeNotches:
-                options.includeNotches !== false,
 
-            includeDrillPoints:
-                options.includeDrillPoints !== false,
+            marker =
+                source.marker ||
+                null;
 
-            includeLabels:
-                options.includeLabels === true,
+        }
+        else {
 
-            labelHeight:
+            pieces =
+                normalizeProductionPieces(
+                    source
+                );
+
+        }
+
+
+        const allPoints =
+            pieces.flatMap(
+                piece =>
+
+                    piece.cutPoints ||
+
+                    piece.points ||
+
+                    []
+
+            );
+
+
+        let bounds =
+            getBounds(
+                allPoints
+            );
+
+
+        if (
+            marker &&
+            marker.width > 0 &&
+            marker.length > 0
+        ) {
+
+            bounds = {
+
+                minX:
+                    0,
+
+                minY:
+                    0,
+
+                maxX:
+                    marker.width,
+
+                maxY:
+                    marker.length,
+
+                width:
+                    marker.width,
+
+                height:
+                    marker.length
+
+            };
+
+        }
+
+
+        const padding =
+            Math.max(
+                0,
                 num(
-                    options.labelHeight,
-                    2.5
-                ),
-
-            notchSize:
-                num(
-                    options.notchSize,
-                    0.6
-                ),
-
-            drillSize:
-                num(
-                    options.drillSize,
-                    0.7
+                    config.padding
                 )
+            );
 
-        };
+
+        const viewBoxX =
+            bounds.minX -
+            padding;
 
 
-        validatePattern(
-            pattern
+        const viewBoxY =
+            bounds.minY -
+            padding;
+
+
+        const viewBoxWidth =
+            bounds.width +
+            padding *
+            2;
+
+
+        const viewBoxHeight =
+            bounds.height +
+            padding *
+            2;
+
+
+        const parts = [];
+
+
+        parts.push(
+
+            `<svg ` +
+
+            `xmlns="http://www.w3.org/2000/svg" ` +
+
+            `version="1.1" ` +
+
+            `viewBox="${round(
+                viewBoxX,
+                config.precision
+            )} ${round(
+                viewBoxY,
+                config.precision
+            )} ${round(
+                viewBoxWidth,
+                config.precision
+            )} ${round(
+                viewBoxHeight,
+                config.precision
+            )}" ` +
+
+            `width="${round(
+                viewBoxWidth,
+                config.precision
+            )}cm" ` +
+
+            `height="${round(
+                viewBoxHeight,
+                config.precision
+            )}cm">`
+
         );
 
 
-        const bounds =
-            calculateBounds(
-                pattern
+        parts.push(
+
+            createMetadata(
+                source,
+                type,
+                config
+            )
+
+        );
+
+
+        /*
+         * Layer: marker
+         */
+
+        if (
+            marker &&
+            config.includeMarker
+        ) {
+
+            parts.push(
+
+                `<g id="marker-layer">`,
+
+                renderMarker(
+                    marker,
+                    config
+                ),
+
+                "</g>"
+
             );
 
-
-        /*
-         * SVG requires positive width/height.
-         */
-
-        const width =
-            Math.max(
-                1,
-                bounds.width
-            );
-
-
-        const height =
-            Math.max(
-                1,
-                bounds.height
-            );
-
-
-        let output =
-            "";
-
-
-        output +=
-            '<?xml version="1.0" encoding="UTF-8"?>\n';
-
-
-        output += `
-
-<svg
-    xmlns="http://www.w3.org/2000/svg"
-    version="1.1"
-    width="${width}mm"
-    height="${height}mm"
-    viewBox="${bounds.minX} ${bounds.minY} ${width} ${height}"
-    data-patternmaker-unit="mm"
-    data-patternmaker-scale="1"
-    data-source-unit="cm"
->
-
-        `;
+        }
 
 
         /*
-         * Metadata.
+         * Layer: pieces
          */
 
-        output += `
+        parts.push(
 
-    <metadata>
-        PatternMaker Universal
-        Geometry: CUTTING_BOUNDARY
-        Source Unit: cm
-        Output Unit: mm
-        Scale: 1:1
-    </metadata>
+            `<g id="pattern-layer">`
 
-        `;
+        );
 
 
-        /*
-         * White page / no visible fill.
-         */
+        pieces.forEach(
+            piece => {
 
-        output += `
+                parts.push(
 
-    <g
-        id="production-pattern"
-        fill="none"
-    >
+                    `<g ` +
 
-        `;
+                    `id="${escapeXml(
+                        piece.name ||
+                        "piece"
+                    )}" ` +
+
+                    `data-piece="${escapeXml(
+                        piece.name ||
+                        ""
+                    )}">`
+
+                );
 
 
-        /*
-         * Pieces.
-         */
+                parts.push(
 
-        pattern.pieces.forEach(
-            (
-                piece,
-                index
-            ) => {
-
-                output +=
-                    createPieceSvg(
-
+                    renderPiece(
                         piece,
-
-                        index,
-
                         config
+                    )
 
-                    );
+                );
+
+
+                parts.push(
+                    "</g>"
+                );
 
             }
         );
 
 
-        output += `
-
-    </g>
-
-        `;
+        parts.push(
+            "</g>"
+        );
 
 
-        output +=
-            "</svg>";
+        parts.push(
+            "</svg>"
+        );
 
 
-        return output;
+        return parts.join(
+            ""
+        );
 
     }
 
 
     /* ========================================================
-       SVG BLOB
+       BLOB
        ======================================================== */
 
-    function createSVGBlob(
-        pattern,
+    function createBlob(
+        source,
         options = {}
     ) {
 
         const svg =
-            buildSVG(
-                pattern,
+            createSvg(
+                source,
                 options
             );
 
@@ -1170,6 +1611,7 @@
 
             [
                 svg
+
             ],
 
             {
@@ -1185,117 +1627,44 @@
 
 
     /* ========================================================
-       DOWNLOAD
+       SUMMARY
        ======================================================== */
 
-    function downloadSVG(
-        pattern,
-        filename =
-            "PatternMaker-Pattern.svg",
+    function getSummary(
+        source,
         options = {}
     ) {
 
-        const blob =
-            createSVGBlob(
-                pattern,
-                options
-            );
+        const type =
+            options.sourceType ||
+            "production";
 
 
-        const url =
-            URL.createObjectURL(
-                blob
-            );
+        const pieces =
 
+            type ===
+            "marker"
 
-        const link =
-            document.createElement(
-                "a"
-            );
+                ? source?.placements ||
+                  []
 
-
-        link.href =
-            url;
-
-
-        link.download =
-            filename;
-
-
-        document.body.appendChild(
-            link
-        );
-
-
-        link.click();
-
-
-        document.body.removeChild(
-            link
-        );
-
-
-        setTimeout(
-            () => {
-
-                URL.revokeObjectURL(
-                    url
-                );
-
-            },
-            1000
-        );
+                : source?.pieces ||
+                  [];
 
 
         return {
 
-            success:
-                true,
+            version:
+                VERSION,
 
-            filename,
+            sourceType:
+                type,
 
-            format:
-                "SVG",
+            pieceCount:
+                pieces.length,
 
-            sourceUnit:
-                "cm",
-
-            outputUnit:
-                "mm",
-
-            scale:
-                1
-
-        };
-
-    }
-
-
-    /* ========================================================
-       EXPORT INFORMATION
-       ======================================================== */
-
-    function getExportInfo() {
-
-        return {
-
-            format:
-                "SVG 1.1",
-
-            sourceUnit:
-                "cm",
-
-            outputUnit:
-                "mm",
-
-            conversion:
-                CM_TO_MM,
-
-            scale:
-                1,
-
-            physicalOutput:
-                true
+            unit:
+                "cm"
 
         };
 
@@ -1306,41 +1675,44 @@
        PUBLIC API
        ======================================================== */
 
-    window.PatternMakerSVG = {
+    window.PatternMakerSvgExporter = {
 
-        cmToMm,
+        VERSION,
 
-        pointToMm,
+        DEFAULT_OPTIONS,
 
-        pointsToSvg,
+        escapeXml,
 
-        calculateBounds,
+        getBounds,
 
-        getCutPoints,
+        closePoints,
 
-        getLabelPosition,
+        pointsToPath,
 
-        createGrainlineSvg,
+        renderCut,
 
-        createNotchSvg,
+        renderSeam,
 
-        createDrillSvg,
+        renderGrainline,
 
-        createLabelSvg,
+        renderNotches,
 
-        createPieceSvg,
+        renderLabel,
 
-        validatePattern,
+        renderPiece,
 
-        buildSVG,
+        renderMarker,
 
-        createSVGBlob,
+        validateSource,
 
-        downloadSVG,
+        createSvg,
 
-        getExportInfo
+        createBlob,
+
+        getSummary
 
     };
 
 
 })();
+```
