@@ -1,17 +1,49 @@
+```javascript
 /**
  * ============================================================
  * PATTERNMAKER UNIVERSAL
  * BASELINE FINAL v1
- * KODE 52
+ * KODE 65
  *
  * FILE:
  *   engine/skirt.js
+ * ============================================================
  *
  * SOURCE:
  *   PatternMaker_Universal_v5_Production_Drafting.html
  *
  * EXTRACTED:
  *   makeSkirtPieces()
+ *
+ * ADDED:
+ *   Grade-point metadata
+ *
+ * ============================================================
+ *
+ * FLOW:
+ *
+ * Canonical Profile
+ *      ↓
+ * Skirt Drafting
+ *      ↓
+ * Base Geometry
+ *      ↓
+ * Grade Points
+ *      ↓
+ * Strict Grading
+ *
+ * ============================================================
+ *
+ * IMPORTANT:
+ *
+ * - Base pattern default TIDAK menambahkan seam allowance.
+ * - Legacy radial seam hanya aktif jika:
+ *
+ *     options.includeLegacySeam === true
+ *
+ * - Seam produksi tetap ditangani oleh:
+ *
+ *     seam-production.js
  *
  * ============================================================
  */
@@ -31,6 +63,9 @@
     const Mapper =
         window.PatternMakerMeasurementMapper;
 
+    const GradePointSchema =
+        window.PatternMakerGradePointSchema;
+
 
     if (
         !Schema ||
@@ -38,7 +73,25 @@
     ) {
 
         throw new Error(
-            "Skirt Engine membutuhkan measurement schema + mapper."
+
+            "Skirt Engine membutuhkan " +
+            "measurement-schema.js dan " +
+            "measurement-mapper.js."
+
+        );
+
+    }
+
+
+    if (
+        !GradePointSchema
+    ) {
+
+        throw new Error(
+
+            "grade-point-schema.js harus dimuat " +
+            "sebelum skirt.js."
+
         );
 
     }
@@ -49,7 +102,7 @@
        ======================================================== */
 
     const VERSION =
-        "V5-MIGRATED-v1";
+        "V5-MIGRATED-v1.1";
 
 
     /* ========================================================
@@ -62,10 +115,14 @@
     ) {
 
         const n =
-            Number(value);
+            Number(
+                value
+            );
 
 
-        return Number.isFinite(n)
+        return Number.isFinite(
+            n
+        )
             ? n
             : fallback;
 
@@ -96,15 +153,22 @@
     ) {
 
         return (
+
             points ||
+
             []
+
         )
         .map(
             point => [
 
-                num(point[0]),
+                num(
+                    point[0]
+                ),
 
-                num(point[1])
+                num(
+                    point[1]
+                )
 
             ]
         );
@@ -119,7 +183,8 @@
     function getMeasurement(
         measurements,
         canonicalId,
-        fallback
+        fallback,
+        aliases = []
     ) {
 
         const direct =
@@ -166,55 +231,40 @@
         }
 
 
+        /*
+         * Explicit legacy aliases.
+         */
+
+        for (
+            const alias
+            of aliases
+        ) {
+
+            const value =
+                measurements?.[
+                    alias
+                ];
+
+
+            if (
+                Number.isFinite(
+                    Number(value)
+                ) &&
+                Number(value) > 0
+            ) {
+
+                return Number(
+                    value
+                );
+
+            }
+
+        }
+
+
         return num(
             fallback
         );
-
-    }
-
-
-    /* ========================================================
-       MEASUREMENTS
-       ======================================================== */
-
-    function getMeasurements(
-        context
-    ) {
-
-        const profile =
-            context?.profile;
-
-
-        const source =
-            profile?.measurements ||
-            context?.measurements ||
-            {};
-
-
-        return {
-
-            waist:
-                getMeasurement(
-                    source,
-                    "waist",
-                    72
-                ),
-
-            hip:
-                getMeasurement(
-                    source,
-                    "hip",
-                    96
-                ),
-
-            garmentLength:
-                getMeasurement(
-                    source,
-                    "garmentLength",
-                    55
-                )
-
-        };
 
     }
 
@@ -248,7 +298,7 @@
 
 
     /* ========================================================
-       RADIAL SEAM
+       LEGACY RADIAL SEAM
        ======================================================== */
 
     function addRadialSeam(
@@ -271,6 +321,7 @@
         let cx =
             0;
 
+
         let cy =
             0;
 
@@ -284,6 +335,7 @@
         ) {
 
             cx += x;
+
             cy += y;
 
         }
@@ -306,14 +358,16 @@
             ) => {
 
                 const dx =
-                    x - cx;
+                    x -
+                    cx;
 
 
                 const dy =
-                    y - cy;
+                    y -
+                    cy;
 
 
-                const len =
+                const length =
                     Math.hypot(
                         dx,
                         dy
@@ -323,10 +377,10 @@
 
                 const factor =
                     (
-                        len +
+                        length +
                         seam
                     ) /
-                    len;
+                    length;
 
 
                 return [
@@ -379,17 +433,23 @@
                 false,
 
             grainline:
+
                 options.grainline
+
                     ? clonePoints(
                         options.grainline
                     )
+
                     : null,
 
             notches:
+
                 options.notches
+
                     ? clonePoints(
                         options.notches
                     )
+
                     : [],
 
             label:
@@ -415,7 +475,194 @@
 
 
     /* ========================================================
-       SKIRT ENGINE
+       GRADE POINT DEFINITIONS
+       ======================================================== */
+
+    function createSkirtGradePoints() {
+
+        /*
+         * Geometry:
+         *
+         * 0 = center waist
+         * 1 = side waist
+         * 2 = side hem
+         * 3 = center hem
+         *
+         * Horizontal grading:
+         *
+         * waist = 1/4 circumference
+         * hip   = 1/4 circumference
+         *
+         * Vertical grading:
+         *
+         * length = full vertical increment
+         */
+
+        return [
+
+            {
+
+                horizontalMeasurement:
+                    "waist",
+
+                verticalMeasurement:
+                    "length",
+
+                horizontalFactor:
+                    0,
+
+                verticalFactor:
+                    0,
+
+                role:
+                    "center-waist"
+
+            },
+
+            {
+
+                horizontalMeasurement:
+                    "waist",
+
+                verticalMeasurement:
+                    "length",
+
+                horizontalFactor:
+                    0.25,
+
+                verticalFactor:
+                    0,
+
+                role:
+                    "side-waist"
+
+            },
+
+            {
+
+                horizontalMeasurement:
+                    "hip",
+
+                verticalMeasurement:
+                    "length",
+
+                horizontalFactor:
+                    0.25,
+
+                verticalFactor:
+                    1,
+
+                role:
+                    "side-hem"
+
+            },
+
+            {
+
+                horizontalMeasurement:
+                    "hip",
+
+                verticalMeasurement:
+                    "length",
+
+                horizontalFactor:
+                    0,
+
+                verticalFactor:
+                    1,
+
+                role:
+                    "center-hem"
+
+            }
+
+        ];
+
+    }
+
+
+    /* ========================================================
+       ATTACH GRADE POINTS
+       ======================================================== */
+
+    function attachGradePoints(
+        piece
+    ) {
+
+        const definitions =
+            createSkirtGradePoints();
+
+
+        const gradePoints =
+            GradePointSchema
+                .createFromPointDefinitions(
+                    definitions
+                );
+
+
+        /*
+         * Ensure grade-point count matches
+         * actual geometry count.
+         */
+
+        if (
+            gradePoints.length !==
+            piece.points.length
+        ) {
+
+            throw new Error(
+
+                `Skirt piece "${piece.name}" ` +
+                "memiliki jumlah grade points " +
+                "yang tidak sama dengan geometry."
+
+            );
+
+        }
+
+
+        const validation =
+            GradePointSchema
+                .validatePieceGradePoints({
+
+                    ...piece,
+
+                    gradePoints
+
+                });
+
+
+        if (
+            !validation.valid
+        ) {
+
+            throw new Error(
+
+                `Grade point validation failed for ` +
+                `"${piece.name}": ` +
+
+                validation.errors.join(
+                    " | "
+                )
+
+            );
+
+        }
+
+
+        return {
+
+            ...piece,
+
+            gradePoints
+
+        };
+
+    }
+
+
+    /* ========================================================
+       SKIRT PIECES
        ======================================================== */
 
     function makeSkirtPieces(
@@ -423,49 +670,115 @@
     ) {
 
         const measurements =
-            getMeasurements(
-                context
-            );
+            context?.profile?.measurements ||
+            context?.measurements ||
+            {};
 
 
         const waist =
-            measurements.waist +
+            getMeasurement(
+
+                measurements,
+
+                "waist",
+
+                72
+
+            )
+
+            +
+
             getEase(
                 context
             );
 
 
         const hip =
-            measurements.hip +
+            getMeasurement(
+
+                measurements,
+
+                "hip",
+
+                96
+
+            )
+
+            +
+
             getEase(
                 context
             );
 
 
+        /*
+         * Canonical:
+         *
+         * garmentLength
+         *
+         * Legacy:
+         *
+         * skirtLength
+         */
+
         const length =
-            measurements.garmentLength;
+            getMeasurement(
 
+                measurements,
 
-        const seam =
-            num(
-                context?.options?.seam,
-                0
-            ) +
+                "garmentLength",
 
-            num(
-                context?.options?.tolerance,
-                0
+                55,
+
+                [
+                    "skirtLength"
+                ]
+
             );
 
 
+        /*
+         * Legacy compatibility seam.
+         *
+         * Normal base pattern does not apply it.
+         */
+
+        const seam =
+            Math.max(
+
+                0,
+
+                num(
+                    context?.options?.seam,
+                    0
+                )
+
+                +
+
+                num(
+                    context?.options?.tolerance,
+                    0
+                )
+
+            );
+
+
+        const includeLegacySeam =
+            context?.options
+                ?.includeLegacySeam ===
+            true;
+
+
+        /*
+         * V5 formula preserved.
+         */
+
         const qW =
-            waist /
-            4;
+            waist / 4;
 
 
         const qH =
-            hip /
-            4;
+            hip / 4;
 
 
         const dart =
@@ -486,7 +799,7 @@
            FRONT
            ==================================================== */
 
-        const front = [
+        const frontBase = [
 
             [
                 20,
@@ -533,7 +846,7 @@
             qW;
 
 
-        const back = [
+        const backBase = [
 
             [
                 backX,
@@ -589,6 +902,32 @@
 
 
         /* ====================================================
+           SEAM OPTION
+           ==================================================== */
+
+        function applyLegacySeam(
+            points
+        ) {
+
+            return (
+
+                includeLegacySeam
+
+                    ? addRadialSeam(
+                        points,
+                        seam
+                    )
+
+                    : clonePoints(
+                        points
+                    )
+
+            );
+
+        }
+
+
+        /* ====================================================
            FRONT PIECE
            ==================================================== */
 
@@ -597,9 +936,8 @@
 
                 "SKIRT_FRONT",
 
-                addRadialSeam(
-                    front,
-                    seam
+                applyLegacySeam(
+                    frontBase
                 ),
 
                 {
@@ -611,6 +949,7 @@
                             qH / 2,
 
                             30
+
                         ],
 
                         [
@@ -663,9 +1002,8 @@
 
                 "SKIRT_BACK",
 
-                addRadialSeam(
-                    back,
-                    seam
+                applyLegacySeam(
+                    backBase
                 ),
 
                 {
@@ -722,11 +1060,27 @@
             );
 
 
+        /* ====================================================
+           GRADE POINTS
+           ==================================================== */
+
+        const frontWithGrade =
+            attachGradePoints(
+                frontPiece
+            );
+
+
+        const backWithGrade =
+            attachGradePoints(
+                backPiece
+            );
+
+
         return [
 
-            frontPiece,
+            frontWithGrade,
 
-            backPiece
+            backWithGrade
 
         ];
 
@@ -734,7 +1088,7 @@
 
 
     /* ========================================================
-       ENGINE CONTRACT
+       ENGINE
        ======================================================== */
 
     const SkirtEngine = {
@@ -748,8 +1102,9 @@
         version:
             VERSION,
 
+
         generate(
-            context
+            context = {}
         ) {
 
             const category =
@@ -784,6 +1139,11 @@
 
                     category,
 
+                    categoryLabel:
+                        Schema.getCategoryLabel(
+                            category
+                        ),
+
                     unit:
                         "cm",
 
@@ -794,10 +1154,27 @@
                         true,
 
                     seamAllowanceIncluded:
-                        true,
+
+                        Boolean(
+                            context?.options
+                                ?.includeLegacySeam
+                        ),
 
                     productionGeometry:
                         false,
+
+                    grading: {
+
+                        supported:
+                            true,
+
+                        strict:
+                            true,
+
+                        gradePointSchema:
+                            GradePointSchema.VERSION
+
+                    },
 
                     formula:
                         "V5 makeSkirtPieces extraction"
@@ -808,13 +1185,26 @@
 
         },
 
-        makeSkirtPieces
+
+        makeSkirtPieces,
+
+
+        validateGradePoints(
+            pattern
+        ) {
+
+            return GradePointSchema
+                .validatePatternGradePoints(
+                    pattern
+                );
+
+        }
 
     };
 
 
     /* ========================================================
-       GLOBAL EXPORT
+       GLOBAL
        ======================================================== */
 
     window.PatternMakerSkirt =
@@ -822,3 +1212,4 @@
 
 
 })();
+```
