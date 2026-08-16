@@ -1,7 +1,7 @@
 /**
  * ============================================================
  * PATTERNMAKER UNIVERSAL
- * KODE 31 — main.js
+ * KODE 34 — main.js
  * ============================================================
  *
  * APPLICATION CONTROLLER
@@ -24,9 +24,11 @@
  *  ↓
  * Production Validation
  *  ↓
+ * Output Audit
+ *  ↓
  * Full / Open Preview
  *  ↓
- * DXF / PLT
+ * DXF / PLT / SVG
  *
  * ============================================================
  */
@@ -68,6 +70,12 @@ const DXF =
 const Plotter =
     window.PatternMakerPlotter;
 
+const SVG =
+    window.PatternMakerSVG;
+
+const OutputAudit =
+    window.PatternMakerOutputAudit;
+
 
 /* ============================================================
    DEPENDENCY VALIDATION
@@ -95,7 +103,11 @@ function validateDependencies() {
 
         DXF,
 
-        Plotter
+        Plotter,
+
+        SVG,
+
+        OutputAudit
 
     };
 
@@ -169,6 +181,9 @@ const AppState = {
         null,
 
     productionValidation:
+        null,
+
+    outputAudit:
         null,
 
     lastExport:
@@ -280,6 +295,45 @@ function setPlotterStatus(
 
     const node =
         $("plotterStatus");
+
+
+    if (
+        !node
+    ) {
+
+        return;
+
+    }
+
+
+    node.textContent =
+        message;
+
+
+    node.className =
+        "status";
+
+
+    if (
+        type
+    ) {
+
+        node.classList.add(
+            type
+        );
+
+    }
+
+}
+
+
+function setAuditStatus(
+    message,
+    type = ""
+) {
+
+    const node =
+        $("auditStatus");
 
 
     if (
@@ -1262,11 +1316,8 @@ function generateBodiceFamily(
 
         sleeve =
             window.makeSleeve(
-
                 sleeveMeasurements,
-
                 bodice
-
             );
 
     }
@@ -1604,6 +1655,251 @@ function validateCuttingForProduction(
 
 
 /* ============================================================
+   OUTPUT AUDIT
+   ============================================================ */
+
+function auditOutputs(
+    pattern
+) {
+
+    if (
+        !OutputAudit
+    ) {
+
+        throw new Error(
+            "Output Audit belum tersedia."
+        );
+
+    }
+
+
+    const audit =
+        OutputAudit.auditPattern(
+            pattern
+        );
+
+
+    AppState.outputAudit =
+        audit;
+
+
+    return audit;
+
+}
+
+
+/* ============================================================
+   AUDIT STATUS
+   ============================================================ */
+
+function renderAuditStatus(
+    audit
+) {
+
+    const resultNode =
+        $("auditResult");
+
+
+    const statusNode =
+        $("auditStatus");
+
+
+    if (
+        statusNode
+    ) {
+
+        if (
+            audit.valid
+        ) {
+
+            statusNode.textContent =
+                `LULUS • ${audit.checks.length} pemeriksaan`;
+
+            statusNode.className =
+                "status ok";
+
+        }
+        else {
+
+            statusNode.textContent =
+                `DITAHAN • ${audit.errors.length} error`;
+
+            statusNode.className =
+                "status error";
+
+        }
+
+    }
+
+
+    if (
+        !resultNode
+    ) {
+
+        return;
+
+    }
+
+
+    const passed =
+        audit.checks.filter(
+            check =>
+                check.passed
+        ).length;
+
+
+    const failed =
+        audit.checks.filter(
+            check =>
+                !check.passed
+        ).length;
+
+
+    const warnings =
+        audit.warnings.length;
+
+
+    const summary =
+        audit.summary;
+
+
+    resultNode.innerHTML = `
+
+        <div class="kv">
+
+            <b>
+                Status
+            </b>
+
+            <span>
+                ${
+                    audit.valid
+                        ? "LULUS"
+                        : "DITAHAN"
+                }
+            </span>
+
+        </div>
+
+
+        <div class="kv">
+
+            <b>
+                Checks
+            </b>
+
+            <span>
+                ${audit.checks.length}
+            </span>
+
+        </div>
+
+
+        <div class="kv">
+
+            <b>
+                Passed
+            </b>
+
+            <span>
+                ${passed}
+            </span>
+
+        </div>
+
+
+        <div class="kv">
+
+            <b>
+                Failed
+            </b>
+
+            <span>
+                ${failed}
+            </span>
+
+        </div>
+
+
+        <div class="kv">
+
+            <b>
+                Warnings
+            </b>
+
+            <span>
+                ${warnings}
+            </span>
+
+        </div>
+
+
+        <div class="kv">
+
+            <b>
+                Pieces
+            </b>
+
+            <span>
+                ${summary?.pieceCount ?? "-"}
+            </span>
+
+        </div>
+
+    `;
+
+
+    if (
+        audit.errors.length
+    ) {
+
+        resultNode.innerHTML += `
+
+            <div class="measurement-note">
+
+                <b>
+                    Error utama:
+                </b>
+
+                ${
+                    audit.errors
+                        .slice(0, 3)
+                        .map(
+                            error => {
+
+                                if (
+                                    typeof error ===
+                                    "string"
+                                ) {
+
+                                    return error;
+
+                                }
+
+
+                                return (
+                                    error.message ||
+                                    error.check ||
+                                    "Error."
+                                );
+
+                            }
+                        )
+                        .join(
+                            " • "
+                        )
+                }
+
+            </div>
+
+        `;
+
+    }
+
+}
+
+
+/* ============================================================
    PREVIEW
    ============================================================ */
 
@@ -1780,9 +2076,10 @@ function renderPreview(
 
 
             const pieceBounds =
-                ProductionGeometry.getBounds(
-                    points
-                );
+                ProductionGeometry
+                    .getBounds(
+                        points
+                    );
 
 
             const label =
@@ -2088,9 +2385,13 @@ function renderResultInfo() {
 
     const validationText =
         !validation
+
             ? "Belum divalidasi"
+
             : validation.valid
+
                 ? "LULUS"
+
                 : "DITAHAN";
 
 
@@ -2283,7 +2584,9 @@ function buildOutputFilename(
     const age =
         AppState.profile &&
         AppState.profile.age !== null
+
             ? `-${AppState.profile.age}y`
+
             : "";
 
 
@@ -2357,40 +2660,10 @@ function validateBeforeExport() {
         !validation.valid
     ) {
 
-        const messages =
-            validation.errors
-                .slice(
-                    0,
-                    5
-                )
-                .map(
-                    error => {
-
-                        if (
-                            typeof error === "string"
-                        ) {
-
-                            return error;
-
-                        }
-
-
-                        return (
-
-                            error.message ||
-                            error.check ||
-                            "Geometry invalid."
-
-                        );
-
-                    }
-                );
-
-
         throw new Error(
 
-            "Output produksi dihentikan: " +
-            messages.join(" | ")
+            "Output produksi dihentikan karena " +
+            "geometry belum lulus validasi."
 
         );
 
@@ -2403,7 +2676,60 @@ function validateBeforeExport() {
 
 
 /* ============================================================
-   DXF EXPORT
+   AUDIT QUALITY GATE
+   ============================================================ */
+
+function validateOutputAudit() {
+
+    if (
+        !AppState.cuttingPattern
+    ) {
+
+        throw new Error(
+
+            "Belum ada cuttingPattern untuk audit."
+
+        );
+
+    }
+
+
+    const audit =
+        OutputAudit.auditPattern(
+            AppState.cuttingPattern
+        );
+
+
+    AppState.outputAudit =
+        audit;
+
+
+    renderAuditStatus(
+        audit
+    );
+
+
+    if (
+        !audit.valid
+    ) {
+
+        throw new Error(
+
+            "Output audit gagal. " +
+            `${audit.errors.length} error ditemukan.`
+
+        );
+
+    }
+
+
+    return audit;
+
+}
+
+
+/* ============================================================
+   DXF
    ============================================================ */
 
 function exportDXF() {
@@ -2424,11 +2750,13 @@ function exportDXF() {
     try {
 
         setPlotterStatus(
-            "Memvalidasi geometry untuk DXF..."
+            "Memvalidasi DXF..."
         );
 
 
         validateBeforeExport();
+
+        validateOutputAudit();
 
 
         const info =
@@ -2443,8 +2771,7 @@ function exportDXF() {
 
             throw new Error(
 
-                "Konfigurasi DXF tidak sesuai dengan " +
-                "sistem 1:1 PatternMaker."
+                "Konfigurasi DXF 1:1 tidak valid."
 
             );
 
@@ -2516,27 +2843,12 @@ function exportDXF() {
         );
 
 
-        setStatus(
-
-            "Export DXF berhasil.",
-
-            "ok"
-
-        );
-
-
         return AppState.lastExport;
 
     }
     catch (
         error
     ) {
-
-        console.error(
-            "DXF export error:",
-            error
-        );
-
 
         setPlotterStatus(
             error.message,
@@ -2634,66 +2946,40 @@ function getPlotterConfig() {
     return {
 
         unitsPerMm:
-
-            Number.isFinite(
-                unitsPerMm
-            ) && unitsPerMm > 0
-
+            Number.isFinite(unitsPerMm) &&
+            unitsPerMm > 0
                 ? unitsPerMm
-
                 : 40,
 
         originX:
-
-            Number.isFinite(
-                originX
-            )
+            Number.isFinite(originX)
                 ? originX
                 : 0,
 
         originY:
-
-            Number.isFinite(
-                originY
-            )
+            Number.isFinite(originY)
                 ? originY
                 : 0,
 
         flipY,
 
         penCut:
-
-            Number.isFinite(
-                cutPen
-            )
-
+            Number.isFinite(cutPen)
                 ? cutPen
                 : 1,
 
         penGrainline:
-
-            Number.isFinite(
-                grainlinePen
-            )
-
+            Number.isFinite(grainlinePen)
                 ? grainlinePen
                 : 2,
 
         penNotch:
-
-            Number.isFinite(
-                notchPen
-            )
-
+            Number.isFinite(notchPen)
                 ? notchPen
                 : 3,
 
         penDrill:
-
-            Number.isFinite(
-                drillPen
-            )
-
+            Number.isFinite(drillPen)
                 ? drillPen
                 : 4,
 
@@ -2724,7 +3010,7 @@ function getPlotterConfig() {
 
 
 /* ============================================================
-   UPDATE PLOTTER STATUS INFO
+   PLOTTER INFO
    ============================================================ */
 
 function updatePlotterInfo() {
@@ -2762,7 +3048,7 @@ function updatePlotterInfo() {
 
 
 /* ============================================================
-   PLT / HPGL EXPORT
+   PLT
    ============================================================ */
 
 function exportPLT() {
@@ -2783,51 +3069,17 @@ function exportPLT() {
     try {
 
         setPlotterStatus(
-            "Memvalidasi geometry untuk PLT / HPGL..."
+            "Memvalidasi PLT / HPGL..."
         );
 
 
         validateBeforeExport();
 
+        validateOutputAudit();
+
 
         const config =
             getPlotterConfig();
-
-
-        /*
-         * Guard skala.
-         */
-
-        if (
-            !Number.isFinite(
-                config.unitsPerMm
-            ) ||
-            config.unitsPerMm <= 0
-        ) {
-
-            throw new Error(
-                "Units/mm plotter tidak valid."
-            );
-
-        }
-
-
-        /*
-         * Build info.
-         */
-
-        const info =
-            Plotter.getExportInfo(
-                config
-            );
-
-
-        setPlotterStatus(
-
-            `Membuat PLT • ` +
-            `${info.unitsPerMm} units/mm...`
-
-        );
 
 
         const filename =
@@ -2880,25 +3132,14 @@ function exportPLT() {
 
         renderResultInfo();
 
-
         updatePlotterInfo();
 
 
         setPlotterStatus(
 
             `PLT / HPGL berhasil dibuat • ` +
-            `${info.unitsPerMm} units/mm • ` +
+            `${config.unitsPerMm} units/mm • ` +
             `${filename}`,
-
-            "ok"
-
-        );
-
-
-        setStatus(
-
-            `Export PLT berhasil • ` +
-            `1:1 geometry`,
 
             "ok"
 
@@ -2911,12 +3152,6 @@ function exportPLT() {
     catch (
         error
     ) {
-
-        console.error(
-            "PLT export error:",
-            error
-        );
-
 
         setPlotterStatus(
             error.message,
@@ -2952,6 +3187,213 @@ function exportPLT() {
 
 
 /* ============================================================
+   SVG
+   ============================================================ */
+
+function exportSVG() {
+
+    if (
+        AppState.exporting
+    ) {
+
+        return;
+
+    }
+
+
+    AppState.exporting =
+        true;
+
+
+    try {
+
+        setPlotterStatus(
+            "Memvalidasi SVG..."
+        );
+
+
+        validateBeforeExport();
+
+        validateOutputAudit();
+
+
+        const filename =
+            buildOutputFilename(
+                "svg"
+            );
+
+
+        const result =
+            SVG.downloadSVG(
+
+                AppState.cuttingPattern,
+
+                filename,
+
+                {
+
+                    includeGrainline:
+                        $("addGrainline")?.value !== "no",
+
+                    includeNotches:
+                        $("addNotches")?.value !== "no",
+
+                    includeDrillPoints:
+                        true,
+
+                    includeLabels:
+                        true,
+
+                    labelHeight:
+                        2.5
+
+                }
+
+            );
+
+
+        AppState.lastExport = {
+
+            ...result,
+
+            format:
+                "SVG 1:1",
+
+            exportedAt:
+                new Date()
+                    .toISOString()
+
+        };
+
+
+        renderResultInfo();
+
+
+        setPlotterStatus(
+
+            `SVG 1:1 berhasil dibuat • ` +
+            `mm • ${filename}`,
+
+            "ok"
+
+        );
+
+
+        return AppState.lastExport;
+
+    }
+    catch (
+        error
+    ) {
+
+        setPlotterStatus(
+            error.message,
+            "error"
+        );
+
+
+        setStatus(
+            error.message,
+            "error"
+        );
+
+
+        return {
+
+            success:
+                false,
+
+            error:
+                error.message
+
+        };
+
+    }
+    finally {
+
+        AppState.exporting =
+            false;
+
+    }
+
+}
+
+
+/* ============================================================
+   AUDIT MANUAL
+   ============================================================ */
+
+function runOutputAudit() {
+
+    if (
+        !AppState.cuttingPattern
+    ) {
+
+        setAuditStatus(
+            "Belum ada cutting geometry.",
+            "error"
+        );
+
+
+        return {
+
+            valid:
+                false,
+
+            errors: [
+
+                "Belum ada cutting geometry."
+
+            ]
+
+        };
+
+    }
+
+
+    const audit =
+        auditOutputs(
+            AppState.cuttingPattern
+        );
+
+
+    renderAuditStatus(
+        audit
+    );
+
+
+    if (
+        audit.valid
+    ) {
+
+        setAuditStatus(
+
+            `LULUS • ${audit.checks.length} checks`,
+
+            "ok"
+
+        );
+
+    }
+    else {
+
+        setAuditStatus(
+
+            `DITAHAN • ${audit.errors.length} error`,
+
+            "error"
+
+        );
+
+    }
+
+
+    return audit;
+
+}
+
+
+/* ============================================================
    INVALIDATE
    ============================================================ */
 
@@ -2978,8 +3420,28 @@ function invalidateGeneratedPattern() {
     AppState.productionValidation =
         null;
 
+    AppState.outputAudit =
+        null;
+
     AppState.lastExport =
         null;
+
+
+    const auditStatus =
+        $("auditStatus");
+
+
+    if (
+        auditStatus
+    ) {
+
+        auditStatus.textContent =
+            "Audit belum dijalankan.";
+
+        auditStatus.className =
+            "status";
+
+    }
 
 }
 
@@ -3062,14 +3524,14 @@ function handleProductionSettingChange() {
     AppState.productionPattern =
         null;
 
-
     AppState.cuttingPattern =
         null;
-
 
     AppState.productionValidation =
         null;
 
+    AppState.outputAudit =
+        null;
 
     AppState.lastExport =
         null;
@@ -3093,6 +3555,11 @@ function handleProductionSettingChange() {
         "Output produksi lama dibatalkan."
     );
 
+
+    setAuditStatus(
+        "Audit perlu dijalankan ulang."
+    );
+
 }
 
 
@@ -3102,13 +3569,6 @@ function handleProductionSettingChange() {
 
 function handlePlotterSettingChange() {
 
-    /*
-     * Tidak perlu regenerate pattern.
-     *
-     * Plotter settings hanya mempengaruhi
-     * output HPGL.
-     */
-
     updatePlotterInfo();
 
 
@@ -3117,7 +3577,10 @@ function handlePlotterSettingChange() {
 
 
     setPlotterStatus(
-        "Pengaturan plotter berubah. PLT akan dibuat dengan konfigurasi baru."
+
+        "Pengaturan plotter berubah. " +
+        "PLT akan dibuat dengan konfigurasi baru."
+
     );
 
 }
@@ -3210,6 +3673,9 @@ function resetApplication() {
     AppState.productionValidation =
         null;
 
+    AppState.outputAudit =
+        null;
+
     AppState.lastExport =
         null;
 
@@ -3221,116 +3687,93 @@ function resetApplication() {
         $("userMode").value =
             "tailor";
 
-
     if ($("category"))
         $("category").value =
             "child";
-
 
     if ($("sizeSystem"))
         $("sizeSystem").value =
             "cm";
 
-
     if ($("garmentType"))
         $("garmentType").value =
             "tshirt";
-
 
     if ($("age"))
         $("age").value =
             "";
 
-
     if ($("fabric"))
         $("fabric").value =
             "cotton";
-
 
     if ($("fabricWidth"))
         $("fabricWidth").value =
             "150";
 
-
     if ($("fabricLength"))
         $("fabricLength").value =
             "200";
-
 
     if ($("stretch"))
         $("stretch").value =
             "medium";
 
-
     if ($("stretchDirection"))
         $("stretchDirection").value =
             "crosswise";
-
 
     if ($("ease"))
         $("ease").value =
             "2";
 
-
     if ($("seam"))
         $("seam").value =
             "1";
-
 
     if ($("patternTolerance"))
         $("patternTolerance").value =
             "0";
 
-
     if ($("addSeam"))
         $("addSeam").value =
             "yes";
-
 
     if ($("addNotches"))
         $("addNotches").value =
             "yes";
 
-
     if ($("addGrainline"))
         $("addGrainline").value =
             "yes";
-
 
     if ($("plotterUnitsPerMm"))
         $("plotterUnitsPerMm").value =
             "40";
 
-
     if ($("plotterOriginX"))
         $("plotterOriginX").value =
             "0";
-
 
     if ($("plotterOriginY"))
         $("plotterOriginY").value =
             "0";
 
-
     if ($("plotterFlipY"))
         $("plotterFlipY").value =
             "no";
-
 
     if ($("plotterCutPen"))
         $("plotterCutPen").value =
             "1";
 
-
     if ($("plotterGrainPen"))
         $("plotterGrainPen").value =
             "2";
 
-
     if ($("plotterNotchPen"))
         $("plotterNotchPen").value =
             "3";
-
 
     if ($("plotterDrillPen"))
         $("plotterDrillPen").value =
@@ -3354,9 +3797,12 @@ function resetApplication() {
         $("resultInfo").innerHTML =
             "";
 
-
     if ($("resultMeasurements"))
         $("resultMeasurements").innerHTML =
+            "";
+
+    if ($("resultAudit"))
+        $("resultAudit").innerHTML =
             "";
 
 
@@ -3386,136 +3832,9 @@ function resetApplication() {
         "Output produksi belum dibuat."
     );
 
-}
 
-
-/* ============================================================
-   BIND EVENTS
-   ============================================================ */
-
-function bindEvents() {
-
-    $("userMode")?.addEventListener(
-        "change",
-        event =>
-            applyMode(
-                event.target.value
-            )
-    );
-
-
-    $("garmentType")?.addEventListener(
-        "change",
-        handleGarmentChange
-    );
-
-
-    $("sizeSystem")?.addEventListener(
-        "change",
-        handleUnitChange
-    );
-
-
-    $("generateBtn")?.addEventListener(
-        "click",
-        generatePattern
-    );
-
-
-    $("resetBtn")?.addEventListener(
-        "click",
-        resetApplication
-    );
-
-
-    $("fitPreviewBtn")?.addEventListener(
-        "click",
-        fitPreview
-    );
-
-
-    $("openPreviewBtn")?.addEventListener(
-        "click",
-        openPreview
-    );
-
-
-    $("exportDxfBtn")?.addEventListener(
-        "click",
-        exportDXF
-    );
-
-
-    $("exportPltBtn")?.addEventListener(
-        "click",
-        exportPLT
-    );
-
-
-    $("measurementFields")?.addEventListener(
-        "input",
-        event => {
-
-            if (
-                event.target?.dataset?.measurement
-            ) {
-
-                handleMeasurementChange();
-
-            }
-
-        }
-    );
-
-
-    [
-
-        "seam",
-        "addSeam",
-        "addNotches",
-        "addGrainline",
-        "patternTolerance"
-
-    ]
-    .forEach(
-        id => {
-
-            $(id)?.addEventListener(
-                "change",
-                handleProductionSettingChange
-            );
-
-        }
-    );
-
-
-    [
-
-        "plotterUnitsPerMm",
-        "plotterOriginX",
-        "plotterOriginY",
-        "plotterFlipY",
-        "plotterCutPen",
-        "plotterGrainPen",
-        "plotterNotchPen",
-        "plotterDrillPen"
-
-    ]
-    .forEach(
-        id => {
-
-            $(id)?.addEventListener(
-                "input",
-                handlePlotterSettingChange
-            );
-
-
-            $(id)?.addEventListener(
-                "change",
-                handlePlotterSettingChange
-            );
-
-        }
+    setAuditStatus(
+        "Audit belum dijalankan."
     );
 
 }
@@ -3704,16 +4023,44 @@ async function generatePattern() {
 
 
                             return (
-
                                 error.message ||
                                 error.check ||
                                 "Geometry invalid."
-
                             );
 
                         }
                     )
                     .join(" | ")
+
+            );
+
+        }
+
+
+        setDraftStatus(
+            "Mengaudit konsistensi output..."
+        );
+
+
+        const audit =
+            auditOutputs(
+                cuttingPattern
+            );
+
+
+        renderAuditStatus(
+            audit
+        );
+
+
+        if (
+            !audit.valid
+        ) {
+
+            throw new Error(
+
+                "Output audit gagal. " +
+                `${audit.errors.length} error ditemukan.`
 
             );
 
@@ -3732,8 +4079,7 @@ async function generatePattern() {
 
         setPlotterStatus(
 
-            "Geometry lulus validasi. " +
-            "Output DXF / PLT siap.",
+            "Geometry dan seluruh output lulus audit.",
 
             "ok"
 
@@ -3752,7 +4098,7 @@ async function generatePattern() {
             `${garment.label} • ` +
             `${cuttingPattern.pieces.length} potongan • ` +
             `Seam ${seamSummary.averageSeam} cm • ` +
-            `VALIDATED`,
+            `AUDITED`,
 
             "ok"
 
@@ -3761,7 +4107,7 @@ async function generatePattern() {
 
         setStatus(
 
-            `Pola berhasil dibuat dan lulus validasi produksi • ` +
+            `Pola berhasil dibuat, divalidasi, dan diaudit • ` +
             `${Schema.getCategoryLabel(
                 getCategory()
             )} • ` +
@@ -3811,58 +4157,145 @@ async function generatePattern() {
 
 
 /* ============================================================
-   FIT PREVIEW
+   BIND EVENTS
    ============================================================ */
 
-function fitPreview() {
+function bindEvents() {
 
-    const svg =
-        $("patternPreview");
-
-
-    if (
-        !svg
-    ) {
-
-        return;
-
-    }
-
-
-    svg.setAttribute(
-        "preserveAspectRatio",
-        "xMidYMid meet"
-    );
-
-}
-
-
-/* ============================================================
-   OPEN PREVIEW
-   ============================================================ */
-
-function openPreview() {
-
-    if (
-        !AppState.cuttingPattern
-    ) {
-
-        setPlotterStatus(
-            "Belum ada cutting geometry."
-        );
-
-
-        return;
-
-    }
-
-
-    renderPreview(
-        AppState.cuttingPattern
+    $("userMode")?.addEventListener(
+        "change",
+        event =>
+            applyMode(
+                event.target.value
+            )
     );
 
 
-    fitPreview();
+    $("garmentType")?.addEventListener(
+        "change",
+        handleGarmentChange
+    );
+
+
+    $("sizeSystem")?.addEventListener(
+        "change",
+        handleUnitChange
+    );
+
+
+    $("generateBtn")?.addEventListener(
+        "click",
+        generatePattern
+    );
+
+
+    $("resetBtn")?.addEventListener(
+        "click",
+        resetApplication
+    );
+
+
+    $("fitPreviewBtn")?.addEventListener(
+        "click",
+        fitPreview
+    );
+
+
+    $("openPreviewBtn")?.addEventListener(
+        "click",
+        openPreview
+    );
+
+
+    $("exportDxfBtn")?.addEventListener(
+        "click",
+        exportDXF
+    );
+
+
+    $("exportPltBtn")?.addEventListener(
+        "click",
+        exportPLT
+    );
+
+
+    $("exportSvgBtn")?.addEventListener(
+        "click",
+        exportSVG
+    );
+
+
+    $("auditOutputBtn")?.addEventListener(
+        "click",
+        runOutputAudit
+    );
+
+
+    $("measurementFields")?.addEventListener(
+        "input",
+        event => {
+
+            if (
+                event.target?.dataset?.measurement
+            ) {
+
+                handleMeasurementChange();
+
+            }
+
+        }
+    );
+
+
+    [
+
+        "seam",
+        "addSeam",
+        "addNotches",
+        "addGrainline",
+        "patternTolerance"
+
+    ]
+    .forEach(
+        id => {
+
+            $(id)?.addEventListener(
+                "change",
+                handleProductionSettingChange
+            );
+
+        }
+    );
+
+
+    [
+
+        "plotterUnitsPerMm",
+        "plotterOriginX",
+        "plotterOriginY",
+        "plotterFlipY",
+        "plotterCutPen",
+        "plotterGrainPen",
+        "plotterNotchPen",
+        "plotterDrillPen"
+
+    ]
+    .forEach(
+        id => {
+
+            $(id)?.addEventListener(
+                "input",
+                handlePlotterSettingChange
+            );
+
+
+            $(id)?.addEventListener(
+                "change",
+                handlePlotterSettingChange
+            );
+
+        }
+    );
 
 }
 
@@ -3927,6 +4360,11 @@ function initializeApplication() {
     );
 
 
+    setAuditStatus(
+        "Audit belum dijalankan."
+    );
+
+
     console.log(
         "PatternMaker Universal initialized.",
         AppState
@@ -3976,6 +4414,10 @@ window.PatternMakerApp = {
     exportDXF,
 
     exportPLT,
+
+    exportSVG,
+
+    runOutputAudit,
 
     getPlotterConfig
 
