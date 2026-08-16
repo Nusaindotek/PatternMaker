@@ -1,36 +1,33 @@
-```javascript id="g2v8nx"
 /**
  * ============================================================
- * PATTERNMAKER UNIVERSAL
- * KODE 11 — engine/production-geometry.js
+ * PATTERMAKER UNIVERSAL
+ * BASELINE FINAL v1
+ * KODE 57
+ *
+ * FILE:
+ *   engine/production-geometry.js
  * ============================================================
  *
- * FUNGSI:
+ * RESPONSIBILITY:
  *
- * Mengubah hasil engine pola menjadi:
- *
- *     Production Pattern Pieces
- *
- * Format ini menjadi sumber bersama untuk:
- *
- *     Preview FULL / OPEN
- *     DXF
- *     PLT / HPGL
- *     SVG
- *     Pattern JSON
- *     Nesting / Marker
+ *   BASE PATTERN
+ *        ↓
+ *   PRODUCTION GEOMETRY
+ *        ↓
+ *   CUTTING GEOMETRY
  *
  * ============================================================
  *
- * PRINSIP:
+ * CATATAN:
  *
- * Pattern Engine
- *       ↓
- * Production Geometry
- *       ↓
- * ┌───────────────┬──────────────┬──────────────┐
- * │ Preview       │ DXF          │ PLT/HPGL     │
- * └───────────────┴──────────────┴──────────────┘
+ * `applyLegacyOffset=true` hanya compatibility mode untuk
+ * geometry V5 yang masih memakai radial seam.
+ *
+ * Untuk pipeline final:
+ *
+ *   seam-production.js
+ *
+ * akan menjadi pemilik seam allowance produksi.
  *
  * ============================================================
  */
@@ -41,56 +38,200 @@
 
 
     /* ========================================================
-       HELPER
+       VERSION
        ======================================================== */
 
-    function round(
+    const VERSION =
+        "FINAL-v1";
+
+
+    /* ========================================================
+       NUMBER
+       ======================================================== */
+
+    function num(
         value,
-        decimals = 3
+        fallback = 0
     ) {
 
-        const multiplier =
-            Math.pow(
-                10,
-                decimals
+        const n =
+            Number(
+                value
             );
 
 
-        return Math.round(
-            Number(value) *
-            multiplier
-        ) /
-        multiplier;
+        return Number.isFinite(
+            n
+        )
+            ? n
+            : fallback;
 
     }
 
 
-    function clonePoint(
-        point
+    /* ========================================================
+       CLONE
+       ======================================================== */
+
+    function clone(
+        value
     ) {
 
-        return [
+        if (
+            value === null ||
+            value === undefined
+        ) {
 
-            round(
-                point[0]
-            ),
+            return value;
 
-            round(
-                point[1]
+        }
+
+
+        if (
+            typeof structuredClone ===
+            "function"
+        ) {
+
+            return structuredClone(
+                value
+            );
+
+        }
+
+
+        return JSON.parse(
+            JSON.stringify(
+                value
             )
-
-        ];
+        );
 
     }
 
+
+    /* ========================================================
+       CLONE POINTS
+       ======================================================== */
 
     function clonePoints(
-        points = []
+        points
     ) {
 
-        return points.map(
-            clonePoint
+        return (
+            points ||
+            []
+        )
+        .map(
+            point => [
+
+                num(
+                    point?.[0]
+                ),
+
+                num(
+                    point?.[1]
+                )
+
+            ]
         );
+
+    }
+
+
+    /* ========================================================
+       DISTANCE
+       ======================================================== */
+
+    function distance(
+        a,
+        b
+    ) {
+
+        return Math.hypot(
+
+            num(
+                b?.[0]
+            ) -
+            num(
+                a?.[0]
+            ),
+
+            num(
+                b?.[1]
+            ) -
+            num(
+                a?.[1]
+            )
+
+        );
+
+    }
+
+
+    /* ========================================================
+       SIGNED AREA
+       ======================================================== */
+
+    function signedArea(
+        points
+    ) {
+
+        if (
+            !Array.isArray(
+                points
+            ) ||
+            points.length < 3
+        ) {
+
+            return 0;
+
+        }
+
+
+        let area =
+            0;
+
+
+        for (
+            let i = 0;
+            i < points.length;
+            i++
+        ) {
+
+            const a =
+                points[i];
+
+
+            const b =
+                points[
+                    (
+                        i + 1
+                    ) %
+                    points.length
+                ];
+
+
+            area +=
+
+                num(
+                    a?.[0]
+                ) *
+                num(
+                    b?.[1]
+                )
+
+                -
+
+                num(
+                    b?.[0]
+                ) *
+                num(
+                    a?.[1]
+                );
+
+        }
+
+
+        return area / 2;
 
     }
 
@@ -100,26 +241,35 @@
        ======================================================== */
 
     function getBounds(
-        points = []
+        points
     ) {
 
         if (
-            !points.length
+            !Array.isArray(
+                points
+            ) ||
+            points.length === 0
         ) {
 
             return {
 
-                minX: 0,
+                minX:
+                    0,
 
-                maxX: 0,
+                minY:
+                    0,
 
-                minY: 0,
+                maxX:
+                    0,
 
-                maxY: 0,
+                maxY:
+                    0,
 
-                width: 0,
+                width:
+                    0,
 
-                height: 0
+                height:
+                    0
 
             };
 
@@ -129,8 +279,8 @@
         const xs =
             points.map(
                 point =>
-                    Number(
-                        point[0]
+                    num(
+                        point?.[0]
                     )
             );
 
@@ -138,8 +288,8 @@
         const ys =
             points.map(
                 point =>
-                    Number(
-                        point[1]
+                    num(
+                        point?.[1]
                     )
             );
 
@@ -172,9 +322,9 @@
 
             minX,
 
-            maxX,
-
             minY,
+
+            maxX,
 
             maxY,
 
@@ -192,1376 +342,65 @@
 
 
     /* ========================================================
-       PIECE ID
+       FINITE POINT
        ======================================================== */
 
-    let pieceCounter =
-        0;
-
-
-    function createPieceId(
-        prefix = "PIECE"
-    ) {
-
-        pieceCounter += 1;
-
-
-        return (
-
-            prefix +
-            "-" +
-            String(
-                pieceCounter
-            )
-            .padStart(
-                4,
-                "0"
-            )
-
-        );
-
-    }
-
-
-    /* ========================================================
-       CREATE PRODUCTION PIECE
-       ======================================================== */
-
-    function createProductionPiece(
-        options = {}
-    ) {
-
-        if (
-            !Array.isArray(
-                options.points
-            ) ||
-            options.points.length < 3
-        ) {
-
-            throw new Error(
-                "Production piece membutuhkan minimal 3 titik."
-            );
-
-        }
-
-
-        const points =
-            clonePoints(
-                options.points
-            );
-
-
-        const bounds =
-            getBounds(
-                points
-            );
-
-
-        return {
-
-            id:
-                options.id ||
-                createPieceId(
-                    options.type ||
-                    "PIECE"
-                ),
-
-            name:
-                options.name ||
-                "Pattern Piece",
-
-            type:
-                options.type ||
-                "pattern",
-
-            side:
-                options.side ||
-                null,
-
-            quantity:
-                Number(
-                    options.quantity ||
-                    1
-                ),
-
-            layer:
-                options.layer ||
-                "OUTLINE",
-
-            points,
-
-            closed:
-                options.closed !== false,
-
-            grainline:
-                clonePoints(
-                    options.grainline ||
-                    []
-                ),
-
-            notches:
-                clonePoints(
-                    options.notches ||
-                    []
-                ),
-
-            drillPoints:
-                clonePoints(
-                    options.drillPoints ||
-                    []
-                ),
-
-            foldline:
-                clonePoints(
-                    options.foldline ||
-                    []
-                ),
-
-            label:
-                options.label ||
-                options.name ||
-                "Pattern Piece",
-
-            seamAllowance:
-                Number(
-                    options.seamAllowance ||
-                    0
-                ),
-
-            bounds,
-
-            metadata:
-                {
-                    source:
-                        options.source ||
-                        "PatternMaker",
-
-                    version:
-                        "1.0",
-
-                    createdAt:
-                        new Date().toISOString()
-
-                }
-
-        };
-
-    }
-
-
-    /* ========================================================
-       TRANSLATE
-       ======================================================== */
-
-    function translatePoints(
-        points,
-        dx,
-        dy
-    ) {
-
-        return points.map(
-            point => [
-
-                round(
-                    point[0] +
-                    dx
-                ),
-
-                round(
-                    point[1] +
-                    dy
-                )
-
-            ]
-        );
-
-    }
-
-
-    function translatePiece(
-        piece,
-        dx,
-        dy
-    ) {
-
-        const translated = {
-
-            ...piece,
-
-            points:
-                translatePoints(
-                    piece.points,
-                    dx,
-                    dy
-                ),
-
-            grainline:
-                translatePoints(
-                    piece.grainline,
-                    dx,
-                    dy
-                ),
-
-            notches:
-                translatePoints(
-                    piece.notches,
-                    dx,
-                    dy
-                ),
-
-            drillPoints:
-                translatePoints(
-                    piece.drillPoints,
-                    dx,
-                    dy
-                ),
-
-            foldline:
-                translatePoints(
-                    piece.foldline,
-                    dx,
-                    dy
-                )
-
-        };
-
-
-        translated.bounds =
-            getBounds(
-                translated.points
-            );
-
-
-        return translated;
-
-    }
-
-
-    /* ========================================================
-       MIRROR X
-       ======================================================== */
-
-    function mirrorPointsX(
-        points,
-        axisX
-    ) {
-
-        return points.map(
-            point => [
-
-                round(
-                    axisX -
-                    (
-                        point[0] -
-                        axisX
-                    )
-                ),
-
-                round(
-                    point[1]
-                )
-
-            ]
-        );
-
-    }
-
-
-    function mirrorPieceX(
-        piece,
-        axisX
-    ) {
-
-        const mirrored = {
-
-            ...piece,
-
-            points:
-                mirrorPointsX(
-                    piece.points,
-                    axisX
-                ),
-
-            grainline:
-                mirrorPointsX(
-                    piece.grainline,
-                    axisX
-                ),
-
-            notches:
-                mirrorPointsX(
-                    piece.notches,
-                    axisX
-                ),
-
-            drillPoints:
-                mirrorPointsX(
-                    piece.drillPoints,
-                    axisX
-                ),
-
-            foldline:
-                mirrorPointsX(
-                    piece.foldline,
-                    axisX
-                )
-
-        };
-
-
-        mirrored.bounds =
-            getBounds(
-                mirrored.points
-            );
-
-
-        return mirrored;
-
-    }
-
-
-    /* ========================================================
-       CENTER PIECE
-       ======================================================== */
-
-    function centerPiece(
-        piece
-    ) {
-
-        const bounds =
-            getBounds(
-                piece.points
-            );
-
-
-        return translatePiece(
-
-            piece,
-
-            -bounds.minX,
-
-            -bounds.minY
-
-        );
-
-    }
-
-
-    /* ========================================================
-       CREATE FRONT FROM LEGACY BODICE
-       ======================================================== */
-
-    function createFrontFromBodice(
-        bodice,
-        options = {}
-    ) {
-
-        if (
-            !bodice ||
-            !bodice.front
-        ) {
-
-            throw new Error(
-                "Bodice front tidak tersedia."
-            );
-
-        }
-
-
-        const points = [
-
-            bodice.front.A,
-
-            bodice.front.B,
-
-            bodice.front.C,
-
-            bodice.front.D,
-
-            bodice.front.E,
-
-            bodice.front.F
-
-        ];
-
-
-        return createProductionPiece({
-
-            id:
-                options.id,
-
-            name:
-                "FRONT",
-
-            type:
-                "bodice-front",
-
-            side:
-                "front",
-
-            quantity:
-                1,
-
-            points,
-
-            label:
-                options.label ||
-                "FRONT",
-
-            grainline:
-                options.grainline ||
-                [],
-
-            notches:
-                options.notches ||
-                [],
-
-            seamAllowance:
-                options.seamAllowance ||
-                0,
-
-            source:
-                "engine/bodice.js"
-
-        });
-
-    }
-
-
-    /* ========================================================
-       CREATE BACK FROM LEGACY BODICE
-       ======================================================== */
-
-    function createBackFromBodice(
-        bodice,
-        options = {}
-    ) {
-
-        if (
-            !bodice ||
-            !bodice.back
-        ) {
-
-            throw new Error(
-                "Bodice back tidak tersedia."
-            );
-
-        }
-
-
-        const points = [
-
-            bodice.back.A,
-
-            bodice.back.B,
-
-            bodice.back.C,
-
-            bodice.back.D,
-
-            bodice.back.E,
-
-            bodice.back.F
-
-        ];
-
-
-        return createProductionPiece({
-
-            id:
-                options.id,
-
-            name:
-                "BACK",
-
-            type:
-                "bodice-back",
-
-            side:
-                "back",
-
-            quantity:
-                1,
-
-            points,
-
-            label:
-                options.label ||
-                "BACK",
-
-            grainline:
-                options.grainline ||
-                [],
-
-            notches:
-                options.notches ||
-                [],
-
-            seamAllowance:
-                options.seamAllowance ||
-                0,
-
-            source:
-                "engine/bodice.js"
-
-        });
-
-    }
-
-
-    /* ========================================================
-       CREATE SLEEVE FROM LEGACY ENGINE
-       ======================================================== */
-
-    function createSleeveFromLegacy(
-        sleeve,
-        options = {}
-    ) {
-
-        if (
-            !sleeve
-        ) {
-
-            throw new Error(
-                "Sleeve result tidak tersedia."
-            );
-
-        }
-
-
-        const points = [
-
-            sleeve.left,
-
-            sleeve.leftCap,
-
-            sleeve.top,
-
-            sleeve.rightCap,
-
-            sleeve.right,
-
-            sleeve.bottomRight,
-
-            sleeve.bottomLeft
-
-        ];
-
-
-        return createProductionPiece({
-
-            id:
-                options.id,
-
-            name:
-                options.name ||
-                "SLEEVE",
-
-            type:
-                "sleeve",
-
-            side:
-                options.side ||
-                null,
-
-            quantity:
-                options.quantity ||
-                1,
-
-            points,
-
-            label:
-                options.label ||
-                "SLEEVE",
-
-            grainline:
-                options.grainline ||
-                [],
-
-            notches:
-                options.notches ||
-                [],
-
-            seamAllowance:
-                options.seamAllowance ||
-                0,
-
-            source:
-                "engine/sleeve.js"
-
-        });
-
-    }
-
-
-    /* ========================================================
-       ADD GRAINLINE
-       ======================================================== */
-
-    function createDefaultGrainline(
-        piece
-    ) {
-
-        const bounds =
-            getBounds(
-                piece.points
-            );
-
-
-        const x =
-            (
-                bounds.minX +
-                bounds.maxX
-            ) /
-            2;
-
-
-        return [
-
-            [
-                round(
-                    x
-                ),
-
-                round(
-                    bounds.minY +
-                    5
-                )
-
-            ],
-
-            [
-
-                round(
-                    x
-                ),
-
-                round(
-                    bounds.maxY -
-                    5
-                )
-
-            ]
-
-        ];
-
-    }
-
-
-    /* ========================================================
-       ADD BASIC NOTCH
-       ======================================================== */
-
-    function createBasicNotch(
+    function isFinitePoint(
         point
     ) {
 
-        if (
-            !point
-        ) {
+        return (
 
-            return [];
+            Array.isArray(
+                point
+            ) &&
 
-        }
+            point.length >=
+            2 &&
 
-
-        const x =
-            Number(
-                point[0]
-            );
-
-
-        const y =
-            Number(
-                point[1]
-            );
-
-
-        return [
-
-            [
-                round(
-                    x -
-                    1.5
-                ),
-
-                round(
-                    y -
-                    1.5
+            Number.isFinite(
+                Number(
+                    point[0]
                 )
+            ) &&
 
-            ],
-
-            [
-
-                round(
-                    x +
-                    1.5
-                ),
-
-                round(
-                    y +
-                    1.5
+            Number.isFinite(
+                Number(
+                    point[1]
                 )
+            )
 
-            ]
-
-        ];
-
-    }
-
-
-    /* ========================================================
-       NORMALIZE GRAINLINE
-       ======================================================== */
-
-    function normalizeGrainline(
-        piece
-    ) {
-
-        if (
-            piece.grainline &&
-            piece.grainline.length
-        ) {
-
-            return piece;
-
-        }
-
-
-        piece.grainline =
-            createDefaultGrainline(
-                piece
-            );
-
-
-        return piece;
-
-    }
-
-
-    /* ========================================================
-       NORMALIZE PIECE
-       ======================================================== */
-
-    function normalizePiece(
-        piece,
-        options = {}
-    ) {
-
-        const normalized = {
-
-            ...piece,
-
-            points:
-                clonePoints(
-                    piece.points
-                ),
-
-            grainline:
-                clonePoints(
-                    piece.grainline ||
-                    []
-                ),
-
-            notches:
-                clonePoints(
-                    piece.notches ||
-                    []
-                ),
-
-            drillPoints:
-                clonePoints(
-                    piece.drillPoints ||
-                    []
-                ),
-
-            foldline:
-                clonePoints(
-                    piece.foldline ||
-                    []
-                )
-
-        };
-
-
-        /*
-         * Grainline.
-         */
-
-        if (
-            options.grainline !== false
-        ) {
-
-            normalizeGrainline(
-                normalized
-            );
-
-        }
-
-
-        /*
-         * Notch.
-         */
-
-        if (
-            options.notches !== false &&
-            normalized.notches.length === 0
-        ) {
-
-            const reference =
-                normalized.points[
-                    Math.floor(
-                        normalized.points.length /
-                        2
-                    )
-                ];
-
-
-            normalized.notches =
-                createBasicNotch(
-                    reference
-                )
-                    .length
-                    ? [
-
-                        reference
-
-                    ]
-                    : [];
-
-        }
-
-
-        normalized.bounds =
-            getBounds(
-                normalized.points
-            );
-
-
-        return normalized;
-
-    }
-
-
-    /* ========================================================
-       FULL OPEN LAYOUT
-       ======================================================== */
-
-    function layoutOpenPieces(
-        pieces,
-        options = {}
-    ) {
-
-        const gap =
-            Number(
-                options.gap ||
-                5
-            );
-
-
-        let currentX =
-            0;
-
-
-        const placed = [];
-
-
-        pieces.forEach(
-            piece => {
-
-                const normalized =
-                    normalizePiece(
-                        piece,
-                        options
-                    );
-
-
-                const bounds =
-                    normalized.bounds;
-
-
-                const width =
-                    bounds.width;
-
-
-                const dx =
-                    currentX -
-                    bounds.minX;
-
-
-                const dy =
-                    -bounds.minY;
-
-
-                const moved =
-                    translatePiece(
-                        normalized,
-                        dx,
-                        dy
-                    );
-
-
-                placed.push(
-                    moved
-                );
-
-
-                currentX +=
-                    width +
-                    gap;
-
-            }
         );
 
-
-        return placed;
-
     }
 
 
     /* ========================================================
-       FULL PATTERN RESULT
+       VALIDATE PIECE
        ======================================================== */
 
-    function createProductionPattern(
-        options = {}
+    function validatePiece(
+        piece,
+        index = 0
     ) {
 
-        const pieces =
+        const errors =
+            [];
+
+        const warnings =
             [];
 
 
         if (
-            options.bodice
-        ) {
-
-            if (
-                options.includeFront !== false
-            ) {
-
-                pieces.push(
-
-                    createFrontFromBodice(
-
-                        options.bodice,
-
-                        {
-
-                            label:
-                                options.frontLabel ||
-                                "FRONT",
-
-                            grainline:
-                                options.frontGrainline ||
-                                [],
-
-                            notches:
-                                options.frontNotches ||
-                                [],
-
-                            seamAllowance:
-                                options.seamAllowance ||
-                                0
-
-                        }
-
-                    )
-
-                );
-
-            }
-
-
-            if (
-                options.includeBack !== false
-            ) {
-
-                pieces.push(
-
-                    createBackFromBodice(
-
-                        options.bodice,
-
-                        {
-
-                            label:
-                                options.backLabel ||
-                                "BACK",
-
-                            grainline:
-                                options.backGrainline ||
-                                [],
-
-                            notches:
-                                options.backNotches ||
-                                [],
-
-                            seamAllowance:
-                                options.seamAllowance ||
-                                0
-
-                        }
-
-                    )
-
-                );
-
-            }
-
-        }
-
-
-        if (
-            options.sleeve
-        ) {
-
-            pieces.push(
-
-                createSleeveFromLegacy(
-
-                    options.sleeve,
-
-                    {
-
-                        name:
-                            "SLEEVE L",
-
-                        side:
-                            "left",
-
-                        quantity:
-                            1,
-
-                        label:
-                            options.sleeveLabel ||
-                            "SLEEVE L",
-
-                        grainline:
-                            options.sleeveGrainline ||
-                            [],
-
-                        notches:
-                            options.sleeveNotches ||
-                            [],
-
-                        seamAllowance:
-                            options.seamAllowance ||
-                            0
-
-                    }
-
-                )
-
-            );
-
-
-            /*
-             * Sleeve kedua:
-             *
-             * Mirror dari sleeve pertama.
-             */
-
-            const firstSleeve =
-                pieces[
-                    pieces.length - 1
-                ];
-
-
-            const sleeveBounds =
-                getBounds(
-                    firstSleeve.points
-                );
-
-
-            const axisX =
-                (
-                    sleeveBounds.minX +
-                    sleeveBounds.maxX
-                ) /
-                2;
-
-
-            let secondSleeve =
-                mirrorPieceX(
-                    firstSleeve,
-                    axisX
-                );
-
-
-            secondSleeve =
-                {
-
-                    ...secondSleeve,
-
-                    id:
-                        createPieceId(
-                            "SLEEVE"
-                        ),
-
-                    name:
-                        "SLEEVE R",
-
-                    side:
-                        "right",
-
-                    label:
-                        options.sleeveRightLabel ||
-                        "SLEEVE R"
-
-                };
-
-
-            pieces.push(
-                secondSleeve
-            );
-
-        }
-
-
-        /*
-         * Full / Open:
-         *
-         * tidak menggunakan foldline
-         * sebagai bentuk utama.
-         */
-
-        const layout =
-            layoutOpenPieces(
-
-                pieces,
-
-                {
-
-                    gap:
-                        options.gap ||
-                        8,
-
-                    grainline:
-                        options.grainline !== false,
-
-                    notches:
-                        options.notches !== false
-
-                }
-
-            );
-
-
-        return {
-
-            pieces:
-                layout,
-
-            metadata: {
-
-                mode:
-                    "full-open",
-
-                pieceCount:
-                    layout.length,
-
-                generatedAt:
-                    new Date().toISOString(),
-
-                unit:
-                    "cm",
-
-                scale:
-                    1
-
-            }
-
-        };
-
-    }
-
-
-    /* ========================================================
-       CALCULATE TOTAL BOUNDS
-       ======================================================== */
-
-    function getPatternBounds(
-        pattern
-    ) {
-
-        if (
-            !pattern ||
-            !pattern.pieces ||
-            !pattern.pieces.length
-        ) {
-
-            return getBounds(
-                []
-            );
-
-        }
-
-
-        const allPoints =
-            pattern.pieces.flatMap(
-                piece =>
-                    piece.points
-            );
-
-
-        return getBounds(
-            allPoints
-        );
-
-    }
-
-
-    /* ========================================================
-       AREA
-       ======================================================== */
-
-    function calculatePolygonArea(
-        points
-    ) {
-
-        let area =
-            0;
-
-
-        for (
-            let i = 0;
-            i < points.length;
-            i++
-        ) {
-
-            const j =
-                (
-                    i + 1
-                ) %
-                points.length;
-
-
-            area +=
-
-                (
-                    points[i][0] *
-                    points[j][1]
-                )
-
-                -
-
-                (
-                    points[j][0] *
-                    points[i][1]
-                );
-
-        }
-
-
-        return Math.abs(
-            area / 2
-        );
-
-    }
-
-
-    /* ========================================================
-       PATTERN SUMMARY
-       ======================================================== */
-
-    function getPatternSummary(
-        pattern
-    ) {
-
-        if (
-            !pattern ||
-            !pattern.pieces
-        ) {
-
-            return {
-
-                pieceCount:
-                    0,
-
-                totalArea:
-                    0,
-
-                width:
-                    0,
-
-                height:
-                    0
-
-            };
-
-        }
-
-
-        const bounds =
-            getPatternBounds(
-                pattern
-            );
-
-
-        const totalArea =
-            pattern.pieces.reduce(
-
-                (
-                    total,
-                    piece
-                ) =>
-
-                    total +
-                    calculatePolygonArea(
-                        piece.points
-                    ),
-
-                0
-
-            );
-
-
-        return {
-
-            pieceCount:
-                pattern.pieces.length,
-
-            totalArea:
-                round(
-                    totalArea
-                ),
-
-            width:
-                round(
-                    bounds.width
-                ),
-
-            height:
-                round(
-                    bounds.height
-                )
-
-        };
-
-    }
-
-
-    /* ========================================================
-       VALIDATION
-       ======================================================== */
-
-    function validateProductionPattern(
-        pattern
-    ) {
-
-        const errors = [];
-
-
-        if (
-            !pattern ||
-            !Array.isArray(
-                pattern.pieces
-            )
+            !piece ||
+            typeof piece !==
+                "object"
         ) {
 
             errors.push(
-                "Pattern tidak memiliki pieces."
+
+                `Piece ${index + 1} bukan object.`
+
             );
 
 
@@ -1570,7 +409,576 @@
                 valid:
                     false,
 
-                errors
+                errors,
+
+                warnings
+
+            };
+
+        }
+
+
+        const points =
+
+            piece.cutPoints ||
+            piece.points ||
+            [];
+
+
+        if (
+            !Array.isArray(
+                points
+            ) ||
+            points.length < 3
+        ) {
+
+            errors.push(
+
+                `Piece ${index + 1} membutuhkan ` +
+                "minimal 3 points."
+
+            );
+
+        }
+
+
+        (
+            points ||
+            []
+        )
+        .forEach(
+            (
+                point,
+                pointIndex
+            ) => {
+
+                if (
+                    !isFinitePoint(
+                        point
+                    )
+                ) {
+
+                    errors.push(
+
+                        `Piece ${index + 1}, ` +
+                        `point ${pointIndex + 1} invalid.`
+
+                    );
+
+                }
+
+            }
+        );
+
+
+        if (
+            Array.isArray(
+                points
+            ) &&
+            points.length >= 3
+        ) {
+
+            if (
+                Math.abs(
+                    signedArea(
+                        points
+                    )
+                ) <
+                1e-8
+            ) {
+
+                warnings.push(
+
+                    `Piece ${index + 1} ` +
+                    "memiliki area mendekati nol."
+
+                );
+
+            }
+
+        }
+
+
+        return {
+
+            valid:
+                errors.length === 0,
+
+            errors,
+
+            warnings
+
+        };
+
+    }
+
+
+    /* ========================================================
+       LEGACY RADIAL OFFSET
+       ======================================================== */
+
+    function offsetRadial(
+        points,
+        amount
+    ) {
+
+        const source =
+            clonePoints(
+                points
+            );
+
+
+        const seam =
+            num(
+                amount
+            );
+
+
+        if (
+            !(seam > 0) ||
+            source.length < 3
+        ) {
+
+            return source;
+
+        }
+
+
+        let cx =
+            0;
+
+
+        let cy =
+            0;
+
+
+        source.forEach(
+            (
+                [
+                    x,
+                    y
+                ]
+            ) => {
+
+                cx += x;
+
+                cy += y;
+
+            }
+        );
+
+
+        cx /=
+            source.length;
+
+
+        cy /=
+            source.length;
+
+
+        return source.map(
+            (
+                [
+                    x,
+                    y
+                ]
+            ) => {
+
+                const dx =
+                    x - cx;
+
+
+                const dy =
+                    y - cy;
+
+
+                const length =
+                    Math.hypot(
+                        dx,
+                        dy
+                    ) ||
+                    1;
+
+
+                const factor =
+                    (
+                        length +
+                        seam
+                    ) /
+                    length;
+
+
+                return [
+
+                    Math.round(
+
+                        (
+                            cx +
+                            dx * factor
+                        ) * 1000
+
+                    ) / 1000,
+
+                    Math.round(
+
+                        (
+                            cy +
+                            dy * factor
+                        ) * 1000
+
+                    ) / 1000
+
+                ];
+
+            }
+        );
+
+    }
+
+
+    /* ========================================================
+       NORMALIZE PATTERN
+       ======================================================== */
+
+    function normalizePattern(
+        pattern
+    ) {
+
+        if (
+            !pattern ||
+            !Array.isArray(
+                pattern.pieces
+            )
+        ) {
+
+            throw new Error(
+
+                "Base pattern tidak valid."
+
+            );
+
+        }
+
+
+        const pieces =
+            pattern.pieces.map(
+                piece => {
+
+                    const points =
+                        clonePoints(
+
+                            piece.points ||
+                            piece.cutPoints
+
+                        );
+
+
+                    const seamPoints =
+
+                        Array.isArray(
+                            piece.seamPoints
+                        )
+
+                            ? clonePoints(
+                                piece.seamPoints
+                            )
+
+                            : clonePoints(
+                                points
+                            );
+
+
+                    return {
+
+                        ...clone(
+                            piece
+                        ),
+
+                        points,
+
+                        seamPoints,
+
+                        cutPoints:
+
+                            Array.isArray(
+                                piece.cutPoints
+                            )
+
+                                ? clonePoints(
+                                    piece.cutPoints
+                                )
+
+                                : null
+
+                    };
+
+                }
+            );
+
+
+        return {
+
+            type:
+                pattern.type ||
+                "base-pattern",
+
+            engine:
+                pattern.engine ||
+                null,
+
+            version:
+                pattern.version ||
+                null,
+
+            pieces,
+
+            metadata: {
+
+                ...(pattern.metadata || {})
+
+            }
+
+        };
+
+    }
+
+
+    /* ========================================================
+       CREATE PRODUCTION PATTERN
+       ======================================================== */
+
+    function createProductionPattern(
+        pattern,
+        options = {}
+    ) {
+
+        const normalized =
+            normalizePattern(
+                pattern
+            );
+
+
+        const seamAllowance =
+            Math.max(
+
+                0,
+
+                num(
+                    options.seamAllowance,
+                    0
+                )
+
+            );
+
+
+        const applyLegacyOffset =
+            options.applyLegacyOffset ===
+            true;
+
+
+        const pieces =
+            normalized.pieces.map(
+                piece => {
+
+                    const seamPoints =
+                        clonePoints(
+
+                            piece.seamPoints ||
+                            piece.points
+
+                        );
+
+
+                    const alreadyHasSeam =
+                        piece.metadata
+                            ?.seamAllowanceIncluded ===
+                        true;
+
+
+                    const shouldOffset =
+
+                        applyLegacyOffset &&
+
+                        seamAllowance > 0 &&
+
+                        !alreadyHasSeam;
+
+
+                    const cutPoints =
+
+                        shouldOffset
+
+                            ? offsetRadial(
+
+                                seamPoints,
+
+                                seamAllowance
+
+                              )
+
+                            : clonePoints(
+
+                                piece.cutPoints ||
+                                seamPoints
+
+                              );
+
+
+                    return {
+
+                        ...piece,
+
+                        seamPoints,
+
+                        cutPoints,
+
+                        points:
+                            clonePoints(
+                                cutPoints
+                            ),
+
+                        layer:
+                            piece.layer ||
+                            "CUT",
+
+                        metadata: {
+
+                            ...(piece.metadata || {}),
+
+                            productionGeometry:
+                                true,
+
+                            seamAllowanceCm:
+                                seamAllowance,
+
+                            cutGeometrySource:
+
+                                shouldOffset
+
+                                    ? "legacy-radial"
+
+                                    : "base"
+
+                        }
+
+                    };
+
+                }
+            );
+
+
+        return {
+
+            type:
+                "production-pattern",
+
+            engine:
+                normalized.engine,
+
+            version:
+                VERSION,
+
+            pieces,
+
+            metadata: {
+
+                ...normalized.metadata,
+
+                unit:
+                    "cm",
+
+                scale:
+                    1,
+
+                geometryType:
+                    "PRODUCTION",
+
+                seamAllowanceCm:
+                    seamAllowance,
+
+                seamStrategy:
+
+                    applyLegacyOffset
+
+                        ? "legacy-radial-compatibility"
+
+                        : "separate-production-layer",
+
+                productionGeometry:
+                    true
+
+            }
+
+        };
+
+    }
+
+
+    /* ========================================================
+       CUTTING GEOMETRY
+       ======================================================== */
+
+    function toCuttingGeometry(
+        pattern,
+        options = {}
+    ) {
+
+        return createProductionPattern(
+
+            pattern,
+
+            options
+
+        );
+
+    }
+
+
+    /* ========================================================
+       VALIDATE PRODUCTION PATTERN
+       ======================================================== */
+
+    function validateProductionPattern(
+        pattern
+    ) {
+
+        const errors =
+            [];
+
+        const warnings =
+            [];
+
+
+        if (
+            !pattern ||
+            !Array.isArray(
+                pattern.pieces
+            ) ||
+            pattern.pieces.length === 0
+        ) {
+
+            errors.push(
+
+                "Production pattern tidak memiliki pieces."
+
+            );
+
+
+            return {
+
+                valid:
+                    false,
+
+                errors,
+
+                warnings,
+
+                summary: {
+
+                    pieceCount:
+                        0
+
+                }
 
             };
 
@@ -1583,37 +991,43 @@
                 index
             ) => {
 
-                if (
-                    !piece.points ||
-                    piece.points.length < 3
-                ) {
-
-                    errors.push(
-
-                        `Piece #${index + 1} ` +
-                        `"${piece.name}" ` +
-                        "tidak memiliki geometri valid."
-
+                const result =
+                    validatePiece(
+                        piece,
+                        index
                     );
 
-                }
+
+                errors.push(
+                    ...result.errors
+                );
 
 
-                if (
-                    piece.quantity <= 0
-                ) {
-
-                    errors.push(
-
-                        `Quantity piece "${piece.name}" ` +
-                        "tidak valid."
-
-                    );
-
-                }
+                warnings.push(
+                    ...result.warnings
+                );
 
             }
         );
+
+
+        const allPoints =
+
+            pattern.pieces.flatMap(
+
+                piece =>
+
+                    piece.cutPoints ||
+                    piece.points ||
+                    []
+
+            );
+
+
+        const bounds =
+            getBounds(
+                allPoints
+            );
 
 
         return {
@@ -1621,7 +1035,18 @@
             valid:
                 errors.length === 0,
 
-            errors
+            errors,
+
+            warnings,
+
+            summary: {
+
+                pieceCount:
+                    pattern.pieces.length,
+
+                bounds
+
+            }
 
         };
 
@@ -1629,51 +1054,66 @@
 
 
     /* ========================================================
-       EXPORT GLOBAL API
+       PATTERN BOUNDS
+       ======================================================== */
+
+    function getPatternBounds(
+        pattern
+    ) {
+
+        const allPoints =
+
+            (
+                pattern?.pieces ||
+                []
+            )
+            .flatMap(
+
+                piece =>
+
+                    piece.cutPoints ||
+                    piece.points ||
+                    []
+
+            );
+
+
+        return getBounds(
+            allPoints
+        );
+
+    }
+
+
+    /* ========================================================
+       PUBLIC API
        ======================================================== */
 
     window.PatternMakerProductionGeometry = {
 
+        VERSION,
+
         getBounds,
 
-        createProductionPiece,
+        signedArea,
 
-        translatePoints,
+        distance,
 
-        translatePiece,
+        validatePiece,
 
-        mirrorPointsX,
-
-        mirrorPieceX,
-
-        centerPiece,
-
-        createFrontFromBodice,
-
-        createBackFromBodice,
-
-        createSleeveFromLegacy,
-
-        createDefaultGrainline,
-
-        createBasicNotch,
-
-        normalizePiece,
-
-        layoutOpenPieces,
+        normalizePattern,
 
         createProductionPattern,
 
+        toCuttingGeometry,
+
+        validateProductionPattern,
+
         getPatternBounds,
 
-        calculatePolygonArea,
-
-        getPatternSummary,
-
-        validateProductionPattern
+        offsetRadial
 
     };
 
 
 })();
-```
