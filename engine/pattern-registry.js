@@ -1,28 +1,39 @@
-```javascript
 /**
  * ============================================================
  * PATTERNMAKER UNIVERSAL
- * KODE 7 — engine/pattern-registry.js
+ * BASELINE FINAL v1
+ * KODE 49
+ *
+ * FILE:
+ *   engine/pattern-registry.js
  * ============================================================
  *
- * Fungsi:
- * - Registry / routing semua pattern engine.
- * - Satu pintu masuk untuk generate pattern.
- * - Menentukan engine berdasarkan garment definition.
- * - Menjaga agar UI tidak bergantung langsung pada engine.
+ * RESPONSIBILITY:
  *
- * STATUS ENGINE:
+ *   Central Pattern Engine Registry
  *
- * bodice  -> engine lama, siap dihubungkan
- * sleeve  -> engine lama, siap dihubungkan
- * dress   -> belum dibuat
- * skirt   -> belum dibuat
- * pants   -> belum dibuat
- * shirt   -> belum dibuat
- * outer   -> belum dibuat
- * custom  -> belum dibuat
+ * Flow:
  *
- * Tidak membuat geometri palsu.
+ *   Garment
+ *      ↓
+ *   patternEngine ID
+ *      ↓
+ *   Registry
+ *      ↓
+ *   Engine
+ *      ↓
+ *   generate(context)
+ *
+ * ============================================================
+ *
+ * Registry TIDAK membuat pattern.
+ * Registry hanya:
+ *
+ * - register engine
+ * - resolve engine
+ * - validate engine contract
+ * - expose engine catalog
+ *
  * ============================================================
  */
 
@@ -32,149 +43,236 @@
 
 
     /* ========================================================
-       VALIDASI DEPENDENCY
+       VERSION
        ======================================================== */
 
-    if (
-        !window.PatternMakerGarment
-    ) {
-
-        throw new Error(
-            "garment.js belum dimuat sebelum pattern-registry.js."
-        );
-
-    }
-
-
-    if (
-        !window.PatternMakerMeasurements
-    ) {
-
-        throw new Error(
-            "measurements.js belum dimuat sebelum pattern-registry.js."
-        );
-
-    }
-
-
-    const Garment =
-        window.PatternMakerGarment;
-
-
-    const Measurements =
-        window.PatternMakerMeasurements;
+    const VERSION =
+        "FINAL-v1";
 
 
     /* ========================================================
-       ENGINE STORE
+       ENGINE REGISTRY
        ======================================================== */
 
-    const ENGINES = {};
+    const ENGINES =
+        new Map();
 
 
     /* ========================================================
-       ENGINE STATUS
+       CUSTOM ENGINE REGISTRY
        ======================================================== */
 
-    const ENGINE_STATUS = {
-
-        bodice: {
-            id: "bodice",
-            label: "Bodice Engine",
-            status: "legacy-available"
-        },
-
-        sleeve: {
-            id: "sleeve",
-            label: "Sleeve Engine",
-            status: "legacy-available"
-        },
-
-        dress: {
-            id: "dress",
-            label: "Dress Engine",
-            status: "planned"
-        },
-
-        skirt: {
-            id: "skirt",
-            label: "Skirt Engine",
-            status: "planned"
-        },
-
-        pants: {
-            id: "pants",
-            label: "Pants Engine",
-            status: "planned"
-        },
-
-        shirt: {
-            id: "shirt",
-            label: "Shirt Engine",
-            status: "planned"
-        },
-
-        outer: {
-            id: "outer",
-            label: "Outerwear Engine",
-            status: "planned"
-        },
-
-        custom: {
-            id: "custom",
-            label: "Custom Pattern Engine",
-            status: "planned"
-        }
-
-    };
+    const CUSTOM_ENGINES =
+        new Map();
 
 
     /* ========================================================
-       REGISTER ENGINE
+       CLONE
        ======================================================== */
 
-    function registerEngine(
-        engineId,
-        engine
+    function clone(
+        value
     ) {
 
         if (
-            !engineId ||
-            typeof engineId !== "string"
+            value === null ||
+            value === undefined
         ) {
 
-            throw new Error(
-                "engineId harus berupa string."
+            return value;
+
+        }
+
+
+        if (
+            typeof structuredClone ===
+            "function"
+        ) {
+
+            return structuredClone(
+                value
             );
 
         }
+
+
+        /*
+         * Engine object may contain functions.
+         *
+         * Therefore do not JSON-clone it.
+         */
+
+        return value;
+
+    }
+
+
+    /* ========================================================
+       ENGINE CONTRACT
+       ======================================================== */
+
+    function validateEngineContract(
+        engine
+    ) {
+
+        const errors =
+            [];
+
+        const warnings =
+            [];
 
 
         if (
             !engine ||
-            typeof engine !== "object"
+            typeof engine !==
+                "object"
         ) {
 
-            throw new Error(
-                `Engine "${engineId}" tidak valid.`
+            errors.push(
+                "Engine harus berupa object."
+            );
+
+
+            return {
+
+                valid:
+                    false,
+
+                errors,
+
+                warnings
+
+            };
+
+        }
+
+
+        if (
+            !engine.id
+        ) {
+
+            errors.push(
+                "Engine tidak memiliki id."
             );
 
         }
 
 
         if (
-            typeof engine.generate !== "function"
+            !engine.label
         ) {
 
-            throw new Error(
-                `Engine "${engineId}" harus memiliki fungsi generate().`
+            warnings.push(
+                `Engine "${engine.id || "unknown"}" tidak memiliki label.`
             );
 
         }
 
 
-        ENGINES[engineId] =
-            engine;
+        if (
+            typeof engine.generate !==
+            "function"
+        ) {
+
+            errors.push(
+
+                `Engine "${engine.id || "unknown"}" ` +
+                "tidak memiliki generate(context)."
+
+            );
+
+        }
+
+
+        if (
+            engine.version ===
+            undefined
+        ) {
+
+            warnings.push(
+
+                `Engine "${engine.id || "unknown"}" ` +
+                "tidak memiliki version."
+
+            );
+
+        }
+
+
+        return {
+
+            valid:
+                errors.length === 0,
+
+            errors,
+
+            warnings
+
+        };
+
+    }
+
+
+    /* ========================================================
+       REGISTER
+       ======================================================== */
+
+    function registerEngine(
+        engine,
+        options = {}
+    ) {
+
+        const validation =
+            validateEngineContract(
+                engine
+            );
+
+
+        if (
+            !validation.valid
+        ) {
+
+            throw new Error(
+
+                "Engine registration gagal: " +
+
+                validation.errors.join(
+                    " | "
+                )
+
+            );
+
+        }
+
+
+        const id =
+            String(
+                engine.id
+            )
+            .trim();
+
+
+        if (
+            ENGINES.has(
+                id
+            ) &&
+            options.replace !==
+            true
+        ) {
+
+            throw new Error(
+
+                `Pattern engine "${id}" sudah terdaftar.`
+
+            );
+
+        }
+
+
+        ENGINES.set(
+            id,
+            engine
+        );
 
 
         return engine;
@@ -183,47 +281,68 @@
 
 
     /* ========================================================
-       UNREGISTER ENGINE
+       REGISTER CUSTOM
        ======================================================== */
 
-    function unregisterEngine(
-        engineId
+    function registerCustomEngine(
+        engine,
+        options = {}
     ) {
 
+        const validation =
+            validateEngineContract(
+                engine
+            );
+
+
         if (
-            Object.prototype.hasOwnProperty.call(
-                ENGINES,
-                engineId
-            )
+            !validation.valid
         ) {
 
-            delete ENGINES[
-                engineId
-            ];
+            throw new Error(
 
-            return true;
+                "Custom engine registration gagal: " +
+
+                validation.errors.join(
+                    " | "
+                )
+
+            );
 
         }
 
 
-        return false;
+        const id =
+            String(
+                engine.id
+            )
+            .trim();
 
-    }
+
+        if (
+            CUSTOM_ENGINES.has(
+                id
+            ) &&
+            options.replace !==
+            true
+        ) {
+
+            throw new Error(
+
+                `Custom engine "${id}" sudah terdaftar.`
+
+            );
+
+        }
 
 
-    /* ========================================================
-       CHECK ENGINE
-       ======================================================== */
-
-    function hasEngine(
-        engineId
-    ) {
-
-        return Boolean(
-            ENGINES[
-                engineId
-            ]
+        CUSTOM_ENGINES.set(
+            id,
+            engine
         );
+
+
+        return engine;
 
     }
 
@@ -236,173 +355,204 @@
         engineId
     ) {
 
+        if (
+            !engineId
+        ) {
+
+            return null;
+
+        }
+
+
         return (
-            ENGINES[
+
+            ENGINES.get(
                 engineId
-            ] || null
+            )
+
+            ||
+
+            CUSTOM_ENGINES.get(
+                engineId
+            )
+
+            ||
+
+            null
+
         );
 
     }
 
 
     /* ========================================================
-       GET ENGINE STATUS
+       HAS ENGINE
        ======================================================== */
 
-    function getEngineStatus(
+    function hasEngine(
         engineId
     ) {
 
-        const definition =
-            ENGINE_STATUS[
+        return Boolean(
+
+            getEngine(
                 engineId
-            ];
+            )
 
-
-        if (!definition) {
-
-            return {
-
-                id:
-                    engineId,
-
-                label:
-                    engineId,
-
-                status:
-                    "unknown"
-
-            };
-
-        }
-
-
-        return {
-
-            ...definition,
-
-            loaded:
-                hasEngine(
-                    engineId
-                )
-
-        };
-
-    }
-
-
-    /* ========================================================
-       GET ALL ENGINE STATUS
-       ======================================================== */
-
-    function getAllEngineStatus() {
-
-        return Object.values(
-            ENGINE_STATUS
-        )
-        .map(
-            definition => ({
-
-                ...definition,
-
-                loaded:
-                    hasEngine(
-                        definition.id
-                    )
-
-            })
         );
 
     }
 
 
     /* ========================================================
-       VALIDATE REQUEST
+       REMOVE ENGINE
        ======================================================== */
 
-    function validatePatternRequest(
-        garmentId
+    function removeEngine(
+        engineId
     ) {
 
-        const garment =
-            Garment.getGarment(
-                garmentId
+        if (
+            ENGINES.has(
+                engineId
+            )
+        ) {
+
+            return ENGINES.delete(
+                engineId
             );
-
-
-        if (!garment) {
-
-            return {
-
-                valid: false,
-
-                reason:
-                    "GARMENT_NOT_FOUND",
-
-                message:
-                    `Garment "${garmentId}" tidak ditemukan.`
-
-            };
 
         }
 
 
-        const required =
-            Measurements.validateMeasurements(
-                garmentId
+        if (
+            CUSTOM_ENGINES.has(
+                engineId
+            )
+        ) {
+
+            return CUSTOM_ENGINES.delete(
+                engineId
+            );
+
+        }
+
+
+        return false;
+
+    }
+
+
+    /* ========================================================
+       ENGINE IDS
+       ======================================================== */
+
+    function getEngineIds() {
+
+        return [
+
+            ...ENGINES.keys(),
+
+            ...CUSTOM_ENGINES.keys()
+
+        ];
+
+    }
+
+
+    /* ========================================================
+       ALL ENGINES
+       ======================================================== */
+
+    function getAllEngines() {
+
+        return [
+
+            ...ENGINES.values(),
+
+            ...CUSTOM_ENGINES.values()
+
+        ];
+
+    }
+
+
+    /* ========================================================
+       BUILT-IN ENGINE IDS
+       ======================================================== */
+
+    function getBuiltInEngineIds() {
+
+        return [
+
+            ...ENGINES.keys()
+
+        ];
+
+    }
+
+
+    /* ========================================================
+       CUSTOM ENGINE IDS
+       ======================================================== */
+
+    function getCustomEngineIds() {
+
+        return [
+
+            ...CUSTOM_ENGINES.keys()
+
+        ];
+
+    }
+
+
+    /* ========================================================
+       ENGINE INFO
+       ======================================================== */
+
+    function getEngineInfo(
+        engineId
+    ) {
+
+        const engine =
+            getEngine(
+                engineId
             );
 
 
         if (
-            !required.valid
+            !engine
         ) {
 
-            return {
-
-                valid: false,
-
-                reason:
-                    "MEASUREMENT_INCOMPLETE",
-
-                message:
-                    "Ukuran belum lengkap.",
-
-                missing:
-                    required.missing
-
-            };
-
-        }
-
-
-        const engineId =
-            garment.patternEngine;
-
-
-        if (!engineId) {
-
-            return {
-
-                valid: false,
-
-                reason:
-                    "ENGINE_NOT_DEFINED",
-
-                message:
-                    `Garment "${garmentId}" belum memiliki pattern engine.`
-
-            };
+            return null;
 
         }
 
 
         return {
 
-            valid: true,
+            id:
+                engine.id,
 
-            garment,
+            label:
+                engine.label ||
+                engine.id,
 
-            engineId
+            version:
+                engine.version ||
+                null,
+
+            source:
+                ENGINES.has(
+                    engineId
+                )
+                    ? "builtin"
+                    : "custom",
+
+            hasGenerate:
+                typeof engine.generate ===
+                "function"
 
         };
 
@@ -410,51 +560,248 @@
 
 
     /* ========================================================
-       GENERATE PATTERN
+       REGISTER FROM GLOBAL
        ======================================================== */
 
-    function generatePattern(
-        options = {}
+    function registerGlobalEngine(
+        globalName,
+        engineId = null
     ) {
 
-        const garmentId =
-            options.garmentId ||
-            Garment.getGarment(
-                options.garment
-            )?.id;
+        const engine =
+            window[
+                globalName
+            ];
 
 
-        if (!garmentId) {
+        if (
+            !engine
+        ) {
 
             throw new Error(
-                "Garment ID belum ditentukan."
+
+                `Global engine "${globalName}" tidak ditemukan.`
+
             );
 
         }
 
 
-        const request =
-            validatePatternRequest(
-                garmentId
+        if (
+            engineId &&
+            !engine.id
+        ) {
+
+            engine.id =
+                engineId;
+
+        }
+
+
+        return registerEngine(
+            engine
+        );
+
+    }
+
+
+    /* ========================================================
+       ENGINE RESOLUTION
+       ======================================================== */
+
+    function resolve(
+        engineId
+    ) {
+
+        return getEngine(
+            engineId
+        );
+
+    }
+
+
+    /* ========================================================
+       GENERATE
+       ======================================================== */
+
+    function generate(
+        engineId,
+        context
+    ) {
+
+        const engine =
+            getEngine(
+                engineId
             );
 
 
         if (
-            !request.valid
+            !engine
         ) {
+
+            throw new Error(
+
+                `Pattern engine "${engineId}" ` +
+                "tidak terdaftar."
+
+            );
+
+        }
+
+
+        if (
+            typeof engine.generate !==
+            "function"
+        ) {
+
+            throw new Error(
+
+                `Pattern engine "${engineId}" ` +
+                "tidak memiliki generate()."
+
+            );
+
+        }
+
+
+        return engine.generate(
+            context
+        );
+
+    }
+
+
+    /* ========================================================
+       VALIDATE REGISTRY
+       ======================================================== */
+
+    function validateRegistry() {
+
+        const result = {
+
+            valid:
+                true,
+
+            errors:
+                [],
+
+            warnings:
+                [],
+
+            engines:
+                {}
+
+        };
+
+
+        getAllEngines()
+            .forEach(
+                engine => {
+
+                    const validation =
+                        validateEngineContract(
+                            engine
+                        );
+
+
+                    result.engines[
+                        engine.id
+                    ] =
+                        validation;
+
+
+                    if (
+                        !validation.valid
+                    ) {
+
+                        result.valid =
+                            false;
+
+
+                        result.errors.push(
+                            ...validation.errors
+                        );
+
+                    }
+
+
+                    if (
+                        validation.warnings.length
+                    ) {
+
+                        result.warnings.push(
+                            ...validation.warnings
+                        );
+
+                    }
+
+                }
+            );
+
+
+        return result;
+
+    }
+
+
+    /* ========================================================
+       GARMENT ENGINE COMPATIBILITY
+       ======================================================== */
+
+    function validateGarmentEngine(
+        garment
+    ) {
+
+        const errors =
+            [];
+
+        const warnings =
+            [];
+
+
+        if (
+            !garment
+        ) {
+
+            errors.push(
+                "Garment tidak tersedia."
+            );
+
 
             return {
 
-                success: false,
+                valid:
+                    false,
 
-                reason:
-                    request.reason,
+                errors,
 
-                message:
-                    request.message,
+                warnings
 
-                missing:
-                    request.missing || []
+            };
+
+        }
+
+
+        if (
+            !garment.patternEngine
+        ) {
+
+            errors.push(
+
+                `Garment "${garment.id}" ` +
+                "tidak memiliki patternEngine."
+
+            );
+
+
+            return {
+
+                valid:
+                    false,
+
+                errors,
+
+                warnings
 
             };
 
@@ -463,173 +810,74 @@
 
         const engine =
             getEngine(
-                request.engineId
+                garment.patternEngine
             );
 
 
-        if (!engine) {
+        if (
+            !engine
+        ) {
+
+            errors.push(
+
+                `Garment "${garment.id}" ` +
+                `menggunakan engine "${garment.patternEngine}" ` +
+                "yang belum terdaftar."
+
+            );
+
 
             return {
 
-                success: false,
+                valid:
+                    false,
 
-                reason:
-                    "ENGINE_NOT_LOADED",
+                errors,
 
-                message:
-                    `Engine "${request.engineId}" belum tersedia.`,
-
-                garment:
-                    request.garment,
-
-                engineStatus:
-                    getEngineStatus(
-                        request.engineId
-                    )
+                warnings
 
             };
 
         }
 
 
-        /*
-         * Measurement data dibuat sekali.
-         * Semua engine menerima format yang sama.
-         */
-
-        const measurements =
-            Measurements.getLegacyMeasurements(
-                garmentId
+        const validation =
+            validateEngineContract(
+                engine
             );
 
 
-        const profile =
-            Measurements.getProfile(
-                garmentId
-            );
+        errors.push(
+            ...validation.errors
+        );
 
 
-        const context = {
-
-            garment:
-                request.garment,
-
-            garmentId,
-
-            engineId:
-                request.engineId,
-
-            measurements,
-
-            profile,
-
-            options:
-
-                options.options ||
-                {},
-
-            mode:
-                options.mode ||
-                "tailor"
-
-        };
-
-
-        try {
-
-            const result =
-                engine.generate(
-                    context
-                );
-
-
-            return {
-
-                success: true,
-
-                garment:
-                    request.garment,
-
-                engineId:
-                    request.engineId,
-
-                result,
-
-                context
-
-            };
-
-        }
-        catch (error) {
-
-            return {
-
-                success: false,
-
-                reason:
-                    "ENGINE_ERROR",
-
-                message:
-                    error.message,
-
-                error,
-
-                garment:
-                    request.garment,
-
-                engineId:
-                    request.engineId
-
-            };
-
-        }
-
-    }
-
-
-    /* ========================================================
-       ENGINE CAPABILITY
-       ======================================================== */
-
-    function getGarmentEngineInfo(
-        garmentId
-    ) {
-
-        const garment =
-            Garment.getGarment(
-                garmentId
-            );
-
-
-        if (!garment) {
-
-            return null;
-
-        }
-
-
-        const engineId =
-            garment.patternEngine;
+        warnings.push(
+            ...validation.warnings
+        );
 
 
         return {
 
-            garmentId,
+            valid:
+                errors.length === 0,
 
-            garmentLabel:
-                garment.label,
+            errors,
 
-            engineId,
+            warnings,
 
-            loaded:
-                hasEngine(
-                    engineId
-                ),
+            engine:
 
-            status:
-                getEngineStatus(
-                    engineId
-                )
+                {
+
+                    id:
+                        engine.id,
+
+                    version:
+                        engine.version ||
+                        null
+
+                }
 
         };
 
@@ -637,157 +885,162 @@
 
 
     /* ========================================================
-       REGISTER LEGACY BODICE ENGINE
-       ========================================================
-       
-       Fungsi ini sengaja terpisah agar kita dapat
-       menyesuaikan API bodice.js lama tanpa mengubah
-       registry pada tahap berikutnya.
+       BATCH GARMENT AUDIT
        ======================================================== */
 
-    function registerLegacyBodiceEngine(
-        legacyBodice
+    function validateGarmentCatalog(
+        garments
     ) {
 
-        if (
-            !legacyBodice
-        ) {
+        const result = {
 
-            throw new Error(
-                "Legacy bodice engine tidak diberikan."
-            );
+            valid:
+                true,
 
-        }
+            errors:
+                [],
+
+            warnings:
+                [],
+
+            garments:
+                {}
+
+        };
 
 
-        registerEngine(
-            "bodice",
-            {
+        (
+            garments ||
+            []
+        )
+        .forEach(
+            garment => {
 
-                id:
-                    "bodice",
+                const validation =
+                    validateGarmentEngine(
+                        garment
+                    );
 
-                label:
-                    "Legacy Bodice Engine",
 
-                generate(
-                    context
+                result.garments[
+                    garment.id
+                ] =
+                    validation;
+
+
+                if (
+                    !validation.valid
                 ) {
 
-                    /*
-                     * ADAPTER SEMENTARA
-                     *
-                     * Jangan langsung mengasumsikan
-                     * nama fungsi bodice lama.
-                     *
-                     * KODE berikutnya akan melakukan
-                     * audit bodice.js dan mengisi adapter
-                     * dengan API sebenarnya.
-                     */
-
-                    if (
-                        typeof legacyBodice.generate
-                        === "function"
-                    ) {
-
-                        return legacyBodice.generate(
-                            context
-                        );
-
-                    }
+                    result.valid =
+                        false;
 
 
-                    if (
-                        typeof legacyBodice.makeBodice
-                        === "function"
-                    ) {
-
-                        return legacyBodice.makeBodice(
-                            context.measurements,
-                            context.options
-                        );
-
-                    }
-
-
-                    throw new Error(
-                        "API bodice.js lama belum memiliki adapter yang cocok."
+                    result.errors.push(
+                        ...validation.errors
                     );
 
                 }
 
+
+                result.warnings.push(
+                    ...validation.warnings
+                );
+
             }
         );
+
+
+        return result;
 
     }
 
 
     /* ========================================================
-       REGISTER LEGACY SLEEVE ENGINE
+       BUILT-IN REGISTRATION
+       ========================================================
+       Built-in engine globals are registered only
+       when available.
        ======================================================== */
 
-    function registerLegacySleeveEngine(
-        legacySleeve
-    ) {
+    function registerBuiltInEngines() {
 
-        if (
-            !legacySleeve
-        ) {
+        const candidates = [
 
-            throw new Error(
-                "Legacy sleeve engine tidak diberikan."
-            );
+            "PatternMakerBodice",
 
-        }
+            "PatternMakerSleeve",
+
+            "PatternMakerShirt",
+
+            "PatternMakerDress",
+
+            "PatternMakerSkirt",
+
+            "PatternMakerPants",
+
+            "PatternMakerShorts"
+
+        ];
 
 
-        registerEngine(
-            "sleeve",
-            {
+        const registered = [];
 
-                id:
-                    "sleeve",
 
-                label:
-                    "Legacy Sleeve Engine",
+        candidates.forEach(
+            globalName => {
 
-                generate(
-                    context
+                const engine =
+                    window[
+                        globalName
+                    ];
+
+
+                if (
+                    !engine
                 ) {
 
-                    if (
-                        typeof legacySleeve.generate
-                        === "function"
-                    ) {
+                    return;
 
-                        return legacySleeve.generate(
-                            context
-                        );
-
-                    }
+                }
 
 
-                    if (
-                        typeof legacySleeve.makeSleeve
-                        === "function"
-                    ) {
+                try {
 
-                        return legacySleeve.makeSleeve(
-                            context.measurements,
-                            context.options
-                        );
-
-                    }
+                    registerEngine(
+                        engine,
+                        {
+                            replace:
+                                true
+                        }
+                    );
 
 
-                    throw new Error(
-                        "API sleeve.js lama belum memiliki adapter yang cocok."
+                    registered.push(
+                        engine.id
+                    );
+
+                }
+                catch (
+                    error
+                ) {
+
+                    console.warn(
+
+                        `PatternMaker: gagal register ` +
+                        `${globalName}:`,
+
+                        error
+
                     );
 
                 }
 
             }
         );
+
+
+        return registered;
 
     }
 
@@ -798,48 +1051,90 @@
 
     function debug() {
 
-        return {
+        const validation =
+            validateRegistry();
 
-            registeredEngines:
-                Object.keys(
-                    ENGINES
-                ),
 
-            status:
-                getAllEngineStatus()
+        console.group(
+            "PatternMaker Pattern Registry"
+        );
 
-        };
+
+        console.log(
+            "Version:",
+            VERSION
+        );
+
+
+        console.log(
+            "Built-in engines:",
+            getBuiltInEngineIds()
+        );
+
+
+        console.log(
+            "Custom engines:",
+            getCustomEngineIds()
+        );
+
+
+        console.log(
+            "Validation:",
+            validation
+        );
+
+
+        console.groupEnd();
+
+
+        return validation;
 
     }
 
 
     /* ========================================================
-       EXPORT GLOBAL
+       PUBLIC API
        ======================================================== */
 
     window.PatternMakerPatternRegistry = {
 
+        VERSION,
+
         registerEngine,
 
-        unregisterEngine,
+        registerCustomEngine,
 
-        hasEngine,
+        registerGlobalEngine,
+
+        registerBuiltInEngines,
 
         getEngine,
 
-        getEngineStatus,
+        resolve,
 
-        getAllEngineStatus,
+        hasEngine,
 
-        validatePatternRequest,
+        removeEngine,
 
-        generatePattern,
+        getEngineIds,
 
-        getGarmentEngineInfo,
+        getAllEngines,
 
-        registerLegacyBodiceEngine,
+        getBuiltInEngineIds,
 
-        registerLegacySleeveEngine,
+        getCustomEngineIds,
+
+        getEngineInfo,
+
+        generate,
+
+        validateEngineContract,
+
+        validateRegistry,
+
+        validateGarmentEngine,
+
+        validateGarmentCatalog,
 
         debug
 
@@ -847,4 +1142,3 @@
 
 
 })();
-```
