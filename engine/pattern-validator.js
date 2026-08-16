@@ -1,20 +1,29 @@
 /**
  * ============================================================
  * PATTERNMAKER UNIVERSAL
- * KODE 22 — engine/pattern-validator.js
+ * BASELINE FINAL v1
+ * KODE 60
+ *
+ * FILE:
+ *   engine/pattern-validator.js
  * ============================================================
  *
- * GLOBAL PATTERN INTEGRATION VALIDATOR
+ * BASE PATTERN QUALITY GATE
  *
- * Tujuan:
- * - Memvalidasi dependency antar module.
- * - Memvalidasi garment definition.
- * - Memvalidasi engine registry.
- * - Memvalidasi production geometry.
- * - Memvalidasi unit.
- * - Memvalidasi points / bounds / quantity.
+ * Tanggung jawab:
  *
- * Validator TIDAK mengubah pattern.
+ *   Pattern Engine
+ *        ↓
+ *   BASE PATTERN
+ *        ↓
+ *   Pattern Validator
+ *
+ * Tidak menangani:
+ *
+ * - seam allowance produksi
+ * - cutting boundary
+ * - nesting
+ * - export
  *
  * ============================================================
  */
@@ -25,453 +34,621 @@
 
 
     /* ========================================================
-       DEPENDENCIES
+       DEPENDENCY
        ======================================================== */
-
-    const Schema =
-        window.PatternMakerMeasurementSchema;
-
-    const Garment =
-        window.PatternMakerGarment;
-
-    const Registry =
-        window.PatternMakerPatternRegistry;
 
     const Geometry =
         window.PatternMakerProductionGeometry;
 
 
+    if (
+        !Geometry
+    ) {
+
+        throw new Error(
+            "production-geometry.js harus dimuat sebelum pattern-validator.js."
+        );
+
+    }
+
+
     /* ========================================================
-       VALIDATOR RESULT
+       VERSION
        ======================================================== */
 
-    function createResult() {
+    const VERSION =
+        "FINAL-v1";
+
+
+    const EPSILON =
+        1e-7;
+
+
+    const DEFAULT_OPTIONS = {
+
+        requireClosed:
+            true,
+
+        checkDuplicates:
+            true,
+
+        checkSelfIntersection:
+            true,
+
+        requireGrainline:
+            false,
+
+        requireNotches:
+            false,
+
+        minimumArea:
+            0.001
+
+    };
+
+
+    /* ========================================================
+       NUMBER
+       ======================================================== */
+
+    function num(
+        value
+    ) {
+
+        const n =
+            Number(
+                value
+            );
+
+
+        return Number.isFinite(
+            n
+        )
+            ? n
+            : null;
+
+    }
+
+
+    /* ========================================================
+       POINT EQUALITY
+       ======================================================== */
+
+    function pointEqual(
+        a,
+        b
+    ) {
+
+        return (
+
+            Array.isArray(a) &&
+            Array.isArray(b) &&
+
+            Math.abs(
+                Number(a[0]) -
+                Number(b[0])
+            ) <= EPSILON
+
+            &&
+
+            Math.abs(
+                Number(a[1]) -
+                Number(b[1])
+            ) <= EPSILON
+
+        );
+
+    }
+
+
+    /* ========================================================
+       ORIENTATION
+       ======================================================== */
+
+    function orientation(
+        a,
+        b,
+        c
+    ) {
+
+        const value =
+
+            (
+                Number(b[1]) -
+                Number(a[1])
+            )
+            *
+            (
+                Number(c[0]) -
+                Number(b[0])
+            )
+
+            -
+
+            (
+                Number(b[0]) -
+                Number(a[0])
+            )
+            *
+            (
+                Number(c[1]) -
+                Number(b[1])
+            );
+
+
+        if (
+            Math.abs(value) <=
+            EPSILON
+        ) {
+
+            return 0;
+
+        }
+
+
+        return value > 0
+            ? 1
+            : 2;
+
+    }
+
+
+    /* ========================================================
+       ON SEGMENT
+       ======================================================== */
+
+    function onSegment(
+        a,
+        b,
+        c
+    ) {
+
+        return (
+
+            Number(b[0]) <=
+            Math.max(
+                Number(a[0]),
+                Number(c[0])
+            ) + EPSILON
+
+            &&
+
+            Number(b[0]) >=
+            Math.min(
+                Number(a[0]),
+                Number(c[0])
+            ) - EPSILON
+
+            &&
+
+            Number(b[1]) <=
+            Math.max(
+                Number(a[1]),
+                Number(c[1])
+            ) + EPSILON
+
+            &&
+
+            Number(b[1]) >=
+            Math.min(
+                Number(a[1]),
+                Number(c[1])
+            ) - EPSILON
+
+        );
+
+    }
+
+
+    /* ========================================================
+       SEGMENT INTERSECTION
+       ======================================================== */
+
+    function segmentsIntersect(
+        p1,
+        p2,
+        q1,
+        q2
+    ) {
+
+        const o1 =
+            orientation(
+                p1,
+                p2,
+                q1
+            );
+
+
+        const o2 =
+            orientation(
+                p1,
+                p2,
+                q2
+            );
+
+
+        const o3 =
+            orientation(
+                q1,
+                q2,
+                p1
+            );
+
+
+        const o4 =
+            orientation(
+                q1,
+                q2,
+                p2
+            );
+
+
+        if (
+            o1 !== o2 &&
+            o3 !== o4
+        ) {
+
+            return true;
+
+        }
+
+
+        if (
+            o1 === 0 &&
+            onSegment(
+                p1,
+                q1,
+                p2
+            )
+        ) {
+
+            return true;
+
+        }
+
+
+        if (
+            o2 === 0 &&
+            onSegment(
+                p1,
+                q2,
+                p2
+            )
+        ) {
+
+            return true;
+
+        }
+
+
+        if (
+            o3 === 0 &&
+            onSegment(
+                q1,
+                p1,
+                q2
+            )
+        ) {
+
+            return true;
+
+        }
+
+
+        if (
+            o4 === 0 &&
+            onSegment(
+                q1,
+                p2,
+                q2
+            )
+        ) {
+
+            return true;
+
+        }
+
+
+        return false;
+
+    }
+
+
+    /* ========================================================
+       SELF INTERSECTION
+       ======================================================== */
+
+    function findSelfIntersections(
+        points
+    ) {
+
+        const result =
+            [];
+
+
+        if (
+            !Array.isArray(points) ||
+            points.length < 4
+        ) {
+
+            return result;
+
+        }
+
+
+        for (
+            let i = 0;
+            i < points.length;
+            i++
+        ) {
+
+            const a1 =
+                points[i];
+
+
+            const a2 =
+                points[
+                    (
+                        i + 1
+                    ) %
+                    points.length
+                ];
+
+
+            for (
+                let j = i + 1;
+                j < points.length;
+                j++
+            ) {
+
+                /*
+                 * Adjacent polygon edges are allowed
+                 * to share a vertex.
+                 */
+
+                if (
+                    j === i ||
+                    j === (
+                        i + 1
+                    ) % points.length ||
+                    (
+                        i === 0 &&
+                        j === points.length - 1
+                    )
+                ) {
+
+                    continue;
+
+                }
+
+
+                const b1 =
+                    points[j];
+
+
+                const b2 =
+                    points[
+                        (
+                            j + 1
+                        ) %
+                        points.length
+                    ];
+
+
+                if (
+                    segmentsIntersect(
+                        a1,
+                        a2,
+                        b1,
+                        b2
+                    )
+                ) {
+
+                    result.push({
+
+                        edgeA:
+                            i,
+
+                        edgeB:
+                            j
+
+                    });
+
+                }
+
+            }
+
+        }
+
+
+        return result;
+
+    }
+
+
+    /* ========================================================
+       DUPLICATE POINTS
+       ======================================================== */
+
+    function findDuplicatePoints(
+        points
+    ) {
+
+        const result =
+            [];
+
+
+        if (
+            !Array.isArray(points)
+        ) {
+
+            return result;
+
+        }
+
+
+        for (
+            let i = 0;
+            i < points.length;
+            i++
+        ) {
+
+            for (
+                let j = i + 1;
+                j < points.length;
+                j++
+            ) {
+
+                /*
+                 * Closing point duplication can be legitimate.
+                 */
+
+                if (
+                    i === 0 &&
+                    j === points.length - 1 &&
+                    pointEqual(
+                        points[i],
+                        points[j]
+                    )
+                ) {
+
+                    continue;
+
+                }
+
+
+                if (
+                    pointEqual(
+                        points[i],
+                        points[j]
+                    )
+                ) {
+
+                    result.push({
+
+                        first:
+                            i,
+
+                        second:
+                            j
+
+                    });
+
+                }
+
+            }
+
+        }
+
+
+        return result;
+
+    }
+
+
+    /* ========================================================
+       POINT VALIDATION
+       ======================================================== */
+
+    function validatePoints(
+        points
+    ) {
+
+        const errors =
+            [];
+
+        const warnings =
+            [];
+
+
+        if (
+            !Array.isArray(points)
+        ) {
+
+            errors.push(
+                "Points harus berupa array."
+            );
+
+
+            return {
+
+                valid:
+                    false,
+
+                errors,
+
+                warnings
+
+            };
+
+        }
+
+
+        if (
+            points.length <
+            3
+        ) {
+
+            errors.push(
+
+                "Polygon membutuhkan minimal 3 points."
+
+            );
+
+        }
+
+
+        points.forEach(
+            (
+                point,
+                index
+            ) => {
+
+                if (
+                    !Array.isArray(point) ||
+                    point.length < 2
+                ) {
+
+                    errors.push(
+
+                        `Point ${index + 1} tidak valid.`
+
+                    );
+
+
+                    return;
+
+                }
+
+
+                if (
+                    num(point[0]) === null ||
+                    num(point[1]) === null
+                ) {
+
+                    errors.push(
+
+                        `Point ${index + 1} ` +
+                        "memiliki coordinate non-numeric."
+
+                    );
+
+                }
+
+            }
+        );
+
 
         return {
 
             valid:
-                true,
+                errors.length === 0,
 
-            errors:
-                [],
+            errors,
 
-            warnings:
-                [],
-
-            checks:
-                []
+            warnings
 
         };
-
-    }
-
-
-    /* ========================================================
-       ADD CHECK
-       ======================================================== */
-
-    function addCheck(
-        result,
-        name,
-        passed,
-        message = ""
-    ) {
-
-        result.checks.push({
-
-            name,
-
-            passed,
-
-            message
-
-        });
-
-
-        if (!passed) {
-
-            result.valid =
-                false;
-
-            result.errors.push({
-
-                check:
-                    name,
-
-                message
-
-            });
-
-        }
-
-    }
-
-
-    /* ========================================================
-       DEPENDENCY VALIDATION
-       ======================================================== */
-
-    function validateDependencies() {
-
-        const result =
-            createResult();
-
-
-        const dependencies = {
-
-            measurementSchema:
-                Schema,
-
-            garment:
-                Garment,
-
-            patternRegistry:
-                Registry,
-
-            productionGeometry:
-                Geometry
-
-        };
-
-
-        Object.entries(
-            dependencies
-        )
-        .forEach(
-            ([name, dependency]) => {
-
-                addCheck(
-
-                    result,
-
-                    `Dependency: ${name}`,
-
-                    Boolean(
-                        dependency
-                    ),
-
-                    dependency
-
-                        ? ""
-
-                        : `${name} belum tersedia.`
-
-                );
-
-            }
-        );
-
-
-        return result;
-
-    }
-
-
-    /* ========================================================
-       GARMENT VALIDATION
-       ======================================================== */
-
-    function validateGarmentDefinition(
-        garmentId
-    ) {
-
-        const result =
-            createResult();
-
-
-        if (!Garment) {
-
-            addCheck(
-
-                result,
-
-                "Garment dependency",
-
-                false,
-
-                "PatternMakerGarment belum tersedia."
-
-            );
-
-
-            return result;
-
-        }
-
-
-        const garment =
-            Garment.getGarment(
-                garmentId
-            );
-
-
-        addCheck(
-
-            result,
-
-            `Garment exists: ${garmentId}`,
-
-            Boolean(
-                garment
-            ),
-
-            garment
-
-                ? ""
-
-                : `Garment "${garmentId}" tidak ditemukan.`
-
-        );
-
-
-        if (!garment) {
-
-            return result;
-
-        }
-
-
-        addCheck(
-
-            result,
-
-            `Pattern engine defined: ${garmentId}`,
-
-            Boolean(
-                garment.patternEngine
-            ),
-
-            garment.patternEngine
-
-                ? ""
-
-                : `Garment "${garmentId}" tidak memiliki patternEngine.`
-
-        );
-
-
-        /*
-         * REQUIRED MEASUREMENT
-         */
-
-        const required =
-            garment.requiredMeasurements || [];
-
-
-        required.forEach(
-            measurementId => {
-
-                const definition =
-                    Schema?.getMeasurementDefinition(
-                        measurementId
-                    );
-
-
-                addCheck(
-
-                    result,
-
-                    `Measurement schema: ${measurementId}`,
-
-                    Boolean(
-                        definition
-                    ),
-
-                    definition
-
-                        ? ""
-
-                        : `Measurement "${measurementId}" belum terdaftar.`
-
-                );
-
-            }
-        );
-
-
-        return result;
-
-    }
-
-
-    /* ========================================================
-       REGISTRY VALIDATION
-       ======================================================== */
-
-    function validateGarmentEngine(
-        garmentId
-    ) {
-
-        const result =
-            createResult();
-
-
-        if (
-            !Garment ||
-            !Registry
-        ) {
-
-            addCheck(
-
-                result,
-
-                "Registry dependencies",
-
-                false,
-
-                "Garment atau Registry belum tersedia."
-
-            );
-
-
-            return result;
-
-        }
-
-
-        const garment =
-            Garment.getGarment(
-                garmentId
-            );
-
-
-        if (!garment) {
-
-            addCheck(
-
-                result,
-
-                "Garment exists",
-
-                false,
-
-                `Garment "${garmentId}" tidak ditemukan.`
-
-            );
-
-
-            return result;
-
-        }
-
-
-        /*
-         * Legacy bodice family
-         */
-
-        if (
-            garment.patternEngine ===
-            "bodice"
-        ) {
-
-            const bodiceAvailable =
-                typeof window.makeBodice ===
-                "function";
-
-
-            addCheck(
-
-                result,
-
-                `Legacy bodice available: ${garmentId}`,
-
-                bodiceAvailable,
-
-                bodiceAvailable
-
-                    ? ""
-
-                    : "makeBodice belum tersedia."
-
-            );
-
-
-            if (
-                garment.features?.sleeve
-            ) {
-
-                const sleeveAvailable =
-                    typeof window.makeSleeve ===
-                    "function";
-
-
-                addCheck(
-
-                    result,
-
-                    `Legacy sleeve available: ${garmentId}`,
-
-                    sleeveAvailable,
-
-                    sleeveAvailable
-
-                        ? ""
-
-                        : "makeSleeve belum tersedia."
-
-                );
-
-            }
-
-
-            return result;
-
-        }
-
-
-        /*
-         * Registry engine
-         */
-
-        const engine =
-            Registry.getEngine(
-                garment.patternEngine
-            );
-
-
-        addCheck(
-
-            result,
-
-            `Registered engine: ${garment.patternEngine}`,
-
-            Boolean(
-                engine
-            ),
-
-            engine
-
-                ? ""
-
-                : `Engine "${garment.patternEngine}" belum terdaftar.`
-
-        );
-
-
-        if (engine) {
-
-            addCheck(
-
-                result,
-
-                `Engine generate(): ${garment.patternEngine}`,
-
-                typeof engine.generate ===
-                    "function",
-
-                typeof engine.generate ===
-                    "function"
-
-                    ? ""
-
-                    : `Engine "${garment.patternEngine}" tidak mempunyai generate().`
-
-            );
-
-        }
-
-
-        return result;
 
     }
 
@@ -482,252 +659,243 @@
 
     function validatePiece(
         piece,
-        index
+        index,
+        options = DEFAULT_OPTIONS
     ) {
 
-        const result =
-            createResult();
+        const errors =
+            [];
+
+        const warnings =
+            [];
 
 
-        const prefix =
-            `Piece #${index + 1}`;
+        if (
+            !piece ||
+            typeof piece !==
+                "object"
+        ) {
+
+            errors.push(
+
+                `Piece ${index + 1} bukan object.`
+
+            );
 
 
-        addCheck(
+            return {
 
-            result,
+                valid:
+                    false,
 
-            `${prefix} object`,
+                errors,
 
-            Boolean(
-                piece &&
-                typeof piece ===
-                    "object"
-            ),
+                warnings
 
-            "Piece bukan object."
-
-        );
-
-
-        if (!piece) {
-
-            return result;
+            };
 
         }
 
 
-        addCheck(
-
-            result,
-
-            `${prefix} name`,
-
-            Boolean(
-                piece.name
-            ),
-
-            `${prefix} tidak memiliki name.`
-
-        );
-
-
-        addCheck(
-
-            result,
-
-            `${prefix} points`,
-
-            Array.isArray(
-                piece.points
-            ) &&
-            piece.points.length >= 3,
-
-            `${prefix} harus memiliki minimal 3 titik.`
-
-        );
+        const points =
+            piece.points ||
+            piece.seamPoints;
 
 
         if (
-            Array.isArray(
-                piece.points
-            )
+            !points
         ) {
 
-            piece.points.forEach(
-                (
-                    point,
-                    pointIndex
-                ) => {
+            errors.push(
 
-                    const validPoint =
+                `Piece "${piece.name || index + 1}" ` +
+                "tidak memiliki points."
 
-                        Array.isArray(point) &&
-
-                        point.length >= 2 &&
-
-                        Number.isFinite(
-                            Number(point[0])
-                        ) &&
-
-                        Number.isFinite(
-                            Number(point[1])
-                        );
-
-
-                    addCheck(
-
-                        result,
-
-                        `${prefix} point ${pointIndex + 1}`,
-
-                        validPoint,
-
-                        validPoint
-
-                            ? ""
-
-                            : `${prefix} memiliki koordinat tidak valid.`
-
-                    );
-
-                }
             );
+
+
+            return {
+
+                valid:
+                    false,
+
+                errors,
+
+                warnings
+
+            };
 
         }
 
 
-        const quantity =
-            Number(
-                piece.quantity
+        const pointValidation =
+            validatePoints(
+                points
             );
 
 
-        addCheck(
-
-            result,
-
-            `${prefix} quantity`,
-
-            Number.isFinite(quantity) &&
-            quantity > 0,
-
-            `${prefix} quantity harus > 0.`
-
+        errors.push(
+            ...pointValidation.errors
         );
 
 
-        /*
-         * Bounds
-         */
+        warnings.push(
+            ...pointValidation.warnings
+        );
+
 
         if (
-            Geometry &&
-            Array.isArray(
-                piece.points
-            ) &&
-            piece.points.length >= 3
+            options.requireClosed &&
+            piece.closed === false
         ) {
 
-            const calculatedBounds =
-                Geometry.getBounds(
-                    piece.points
-                );
+            errors.push(
 
-
-            const width =
-                Number(
-                    calculatedBounds.width
-                );
-
-
-            const height =
-                Number(
-                    calculatedBounds.height
-                );
-
-
-            addCheck(
-
-                result,
-
-                `${prefix} width`,
-
-                Number.isFinite(width) &&
-                width >= 0,
-
-                `${prefix} width tidak valid.`
-
-            );
-
-
-            addCheck(
-
-                result,
-
-                `${prefix} height`,
-
-                Number.isFinite(height) &&
-                height >= 0,
-
-                `${prefix} height tidak valid.`
+                `Piece "${piece.name || index + 1}" ` +
+                "tidak berstatus closed."
 
             );
 
         }
 
 
-        /*
-         * Grainline
-         */
-
         if (
-            piece.grainline !== undefined
+            options.checkDuplicates
         ) {
 
-            addCheck(
+            const duplicates =
+                findDuplicatePoints(
+                    points
+                );
 
-                result,
 
-                `${prefix} grainline`,
+            if (
+                duplicates.length
+            ) {
 
-                Array.isArray(
+                errors.push(
+
+                    `Piece "${piece.name || index + 1}" ` +
+                    "memiliki duplicate points."
+
+                );
+
+            }
+
+        }
+
+
+        if (
+            options.checkSelfIntersection
+        ) {
+
+            const intersections =
+                findSelfIntersections(
+                    points
+                );
+
+
+            if (
+                intersections.length
+            ) {
+
+                errors.push(
+
+                    `Piece "${piece.name || index + 1}" ` +
+                    "memiliki self-intersection."
+
+                );
+
+            }
+
+        }
+
+
+        if (
+            pointValidation.valid
+        ) {
+
+            const area =
+                Math.abs(
+                    Geometry.signedArea(
+                        points
+                    )
+                );
+
+
+            if (
+                area <
+                options.minimumArea
+            ) {
+
+                errors.push(
+
+                    `Piece "${piece.name || index + 1}" ` +
+                    `memiliki area terlalu kecil (${area}).`
+
+                );
+
+            }
+
+        }
+
+
+        if (
+            options.requireGrainline
+        ) {
+
+            if (
+                !Array.isArray(
                     piece.grainline
-                ),
+                ) ||
+                piece.grainline.length <
+                2
+            ) {
 
-                `${prefix} grainline harus berupa array.`
+                errors.push(
 
-            );
+                    `Piece "${piece.name || index + 1}" ` +
+                    "tidak memiliki grainline."
+
+                );
+
+            }
 
         }
 
-
-        /*
-         * Notches
-         */
 
         if (
-            piece.notches !== undefined
+            options.requireNotches
         ) {
 
-            addCheck(
-
-                result,
-
-                `${prefix} notches`,
-
-                Array.isArray(
+            if (
+                !Array.isArray(
                     piece.notches
-                ),
+                )
+            ) {
 
-                `${prefix} notches harus berupa array.`
+                errors.push(
 
-            );
+                    `Piece "${piece.name || index + 1}" ` +
+                    "tidak memiliki notches."
+
+                );
+
+            }
 
         }
 
 
-        return result;
+        return {
+
+            valid:
+                errors.length === 0,
+
+            errors,
+
+            warnings
+
+        };
 
     }
 
@@ -737,403 +905,276 @@
        ======================================================== */
 
     function validatePattern(
-        pattern
+        pattern,
+        options = {}
     ) {
 
-        const result =
-            createResult();
+        const config = {
+
+            ...DEFAULT_OPTIONS,
+
+            ...options
+
+        };
 
 
-        addCheck(
+        const errors =
+            [];
 
-            result,
+        const warnings =
+            [];
 
-            "Pattern object",
-
-            Boolean(
-                pattern &&
-                typeof pattern ===
-                    "object"
-            ),
-
-            "Pattern tidak valid."
-
-        );
-
-
-        if (!pattern) {
-
-            return result;
-
-        }
-
-
-        addCheck(
-
-            result,
-
-            "Pattern pieces",
-
-            Array.isArray(
-                pattern.pieces
-            ) &&
-            pattern.pieces.length > 0,
-
-            "Pattern belum memiliki pieces."
-
-        );
+        const checks =
+            [];
 
 
         if (
-            Array.isArray(
-                pattern.pieces
-            )
+            !pattern
         ) {
 
-            pattern.pieces.forEach(
-                (
-                    piece,
-                    index
-                ) => {
+            return {
 
-                    const pieceResult =
-                        validatePiece(
-                            piece,
-                            index
-                        );
+                valid:
+                    false,
 
+                version:
+                    VERSION,
 
-                    result.checks.push(
-                        ...pieceResult.checks
-                    );
+                errors: [
+                    "Pattern tidak tersedia."
+                ],
 
+                warnings: [],
 
-                    result.errors.push(
-                        ...pieceResult.errors
-                    );
+                checks: [],
 
+                summary: {
 
-                    result.warnings.push(
-                        ...pieceResult.warnings
-                    );
-
-
-                    if (
-                        !pieceResult.valid
-                    ) {
-
-                        result.valid =
-                            false;
-
-                    }
+                    pieceCount:
+                        0
 
                 }
-            );
+
+            };
 
         }
 
 
-        /*
-         * Metadata unit
-         */
-
-        const unit =
-            pattern.metadata?.unit;
-
-
         if (
-            unit !== undefined
+            !Array.isArray(
+                pattern.pieces
+            ) ||
+            pattern.pieces.length ===
+                0
         ) {
 
-            const validUnit =
-                [
-                    "cm",
-                    "mm",
-                    "inch"
-                ]
-                .includes(
-                    unit
-                );
+            return {
+
+                valid:
+                    false,
+
+                version:
+                    VERSION,
+
+                errors: [
+                    "Pattern tidak memiliki pieces."
+                ],
+
+                warnings: [],
+
+                checks: [],
+
+                summary: {
+
+                    pieceCount:
+                        0
+
+                }
+
+            };
+
+        }
 
 
-            addCheck(
+        checks.push({
 
-                result,
+            name:
+                "Pieces available",
 
-                "Pattern unit",
+            passed:
+                true,
 
-                validUnit,
+            message:
+                ""
 
-                validUnit
+        });
+
+
+        checks.push({
+
+            name:
+                "Engine identified",
+
+            passed:
+                Boolean(
+                    pattern.engine
+                ),
+
+            message:
+
+                pattern.engine
 
                     ? ""
 
-                    : `Unit "${unit}" tidak didukung.`
+                    : "Engine pattern belum diketahui."
 
-            );
-
-        }
-        else {
-
-            result.warnings.push({
-
-                check:
-                    "Pattern unit",
-
-                message:
-                    "Pattern belum menyimpan metadata.unit."
-
-            });
-
-        }
+        });
 
 
-        /*
-         * Scale
-         */
+        pattern.pieces.forEach(
+            (
+                piece,
+                index
+            ) => {
 
-        if (
-            pattern.metadata?.scale !==
-            undefined
-        ) {
+                const result =
+                    validatePiece(
 
-            const scale =
-                Number(
-                    pattern.metadata.scale
-                );
+                        piece,
 
+                        index,
 
-            addCheck(
+                        config
 
-                result,
-
-                "Pattern scale",
-
-                Number.isFinite(
-                    scale
-                ) &&
-                scale > 0,
-
-                "Pattern scale harus > 0."
-
-            );
-
-        }
-
-
-        return result;
-
-    }
-
-
-    /* ========================================================
-       GARMENT ENGINE MATRIX
-       ======================================================== */
-
-    function validateAllGarments() {
-
-        const result =
-            createResult();
-
-
-        const garments =
-            Garment?.getAllGarments
-                ? Garment.getAllGarments()
-                : [];
-
-
-        if (!garments.length) {
-
-            addCheck(
-
-                result,
-
-                "Garment catalog",
-
-                false,
-
-                "Garment catalog kosong."
-
-            );
-
-
-            return result;
-
-        }
-
-
-        garments.forEach(
-            garment => {
-
-                const definitionResult =
-                    validateGarmentDefinition(
-                        garment.id
                     );
 
 
-                result.checks.push(
-                    ...definitionResult.checks
+                errors.push(
+                    ...result.errors
                 );
 
 
-                result.errors.push(
-                    ...definitionResult.errors
+                warnings.push(
+                    ...result.warnings
                 );
 
 
-                result.warnings.push(
-                    ...definitionResult.warnings
-                );
+                checks.push({
 
+                    name:
+                        `Piece ${index + 1} geometry`,
 
-                const engineResult =
-                    validateGarmentEngine(
-                        garment.id
-                    );
+                    passed:
+                        result.valid,
 
+                    message:
+                        result.errors.join(
+                            " | "
+                        )
 
-                result.checks.push(
-                    ...engineResult.checks
-                );
-
-
-                result.errors.push(
-                    ...engineResult.errors
-                );
-
-
-                result.warnings.push(
-                    ...engineResult.warnings
-                );
-
-
-                if (
-                    !definitionResult.valid ||
-                    !engineResult.valid
-                ) {
-
-                    result.valid =
-                        false;
-
-                }
+                });
 
             }
         );
 
 
-        return result;
-
-    }
-
-
-    /* ========================================================
-       COMPLETE SYSTEM VALIDATION
-       ======================================================== */
-
-    function validateSystem() {
-
-        const result =
-            createResult();
-
-
         /*
-         * Dependency
+         * Calculate bounds independently.
          */
 
-        const dependencyResult =
-            validateDependencies();
+        const allPoints =
+            pattern.pieces.flatMap(
+                piece =>
+                    piece.points ||
+                    piece.seamPoints ||
+                    []
+            );
 
 
-        result.checks.push(
-            ...dependencyResult.checks
-        );
+        const bounds =
+            Geometry.getBounds(
+                allPoints
+            );
 
 
-        result.errors.push(
-            ...dependencyResult.errors
-        );
+        const boundsValid =
+
+            Number.isFinite(
+                bounds.width
+            ) &&
+
+            Number.isFinite(
+                bounds.height
+            ) &&
+
+            bounds.width >
+            0 &&
+
+            bounds.height >
+            0;
 
 
-        result.warnings.push(
-            ...dependencyResult.warnings
-        );
+        checks.push({
 
+            name:
+                "Pattern bounds",
 
-        /*
-         * Garments
-         */
+            passed:
+                boundsValid,
+
+            message:
+
+                boundsValid
+
+                    ? ""
+
+                    : "Pattern bounds tidak valid."
+
+        });
+
 
         if (
-            dependencyResult.valid
+            !boundsValid
         ) {
 
-            const garmentResult =
-                validateAllGarments();
+            errors.push(
 
+                "Pattern memiliki bounds kosong atau invalid."
 
-            result.checks.push(
-                ...garmentResult.checks
-            );
-
-
-            result.errors.push(
-                ...garmentResult.errors
-            );
-
-
-            result.warnings.push(
-                ...garmentResult.warnings
             );
 
         }
 
 
-        result.valid =
-            result.errors.length === 0;
-
-
-        return result;
-
-    }
-
-
-    /* ========================================================
-       FORMAT RESULT
-       ======================================================== */
-
-    function formatResult(
-        result
-    ) {
-
         return {
 
             valid:
-                result.valid,
+                errors.length ===
+                0,
 
-            totalChecks:
-                result.checks.length,
+            version:
+                VERSION,
 
-            passedChecks:
-                result.checks
-                    .filter(
-                        check =>
-                            check.passed
-                    )
-                    .length,
+            errors,
 
-            failedChecks:
-                result.checks
-                    .filter(
-                        check =>
-                            !check.passed
-                    )
-                    .length,
+            warnings,
 
-            errors:
-                result.errors,
+            checks,
 
-            warnings:
-                result.warnings
+            summary: {
+
+                pieceCount:
+                    pattern.pieces.length,
+
+                bounds,
+
+                errorCount:
+                    errors.length,
+
+                warningCount:
+                    warnings.length
+
+            }
 
         };
 
@@ -1141,78 +1182,83 @@
 
 
     /* ========================================================
-       DEBUG SYSTEM
+       QUICK CHECK
        ======================================================== */
 
-    function runDebug() {
+    function isValid(
+        pattern,
+        options = {}
+    ) {
+
+        return validatePattern(
+
+            pattern,
+
+            options
+
+        ).valid;
+
+    }
+
+
+    /* ========================================================
+       DEBUG
+       ======================================================== */
+
+    function debug(
+        pattern,
+        options = {}
+    ) {
 
         const result =
-            validateSystem();
+            validatePattern(
 
+                pattern,
 
-        const formatted =
-            formatResult(
-                result
+                options
+
             );
 
 
         console.group(
-            "PatternMaker Universal Validation"
+            "PatternMaker Base Pattern Validator"
+        );
+
+
+        console.log(
+            "Version:",
+            VERSION
         );
 
 
         console.log(
             "Valid:",
-            formatted.valid
+            result.valid
         );
 
 
         console.log(
-            "Checks:",
-            formatted.totalChecks
+            "Errors:",
+            result.errors
         );
 
 
         console.log(
-            "Passed:",
-            formatted.passedChecks
+            "Warnings:",
+            result.warnings
         );
 
 
         console.log(
-            "Failed:",
-            formatted.failedChecks
+            "Summary:",
+            result.summary
         );
-
-
-        if (
-            formatted.errors.length
-        ) {
-
-            console.error(
-                "Errors:",
-                formatted.errors
-            );
-
-        }
-
-
-        if (
-            formatted.warnings.length
-        ) {
-
-            console.warn(
-                "Warnings:",
-                formatted.warnings
-            );
-
-        }
 
 
         console.groupEnd();
 
 
-        return formatted;
+        return result;
 
     }
 
@@ -1221,25 +1267,27 @@
        PUBLIC API
        ======================================================== */
 
-    window.PatternMakerValidator = {
+    window.PatternMakerPatternValidator = {
 
-        validateDependencies,
+        VERSION,
 
-        validateGarmentDefinition,
+        DEFAULT_OPTIONS,
 
-        validateGarmentEngine,
+        validatePoints,
 
         validatePiece,
 
         validatePattern,
 
-        validateAllGarments,
+        isValid,
 
-        validateSystem,
+        findDuplicatePoints,
 
-        formatResult,
+        findSelfIntersections,
 
-        runDebug
+        segmentsIntersect,
+
+        debug
 
     };
 
