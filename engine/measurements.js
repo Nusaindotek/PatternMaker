@@ -1,26 +1,42 @@
-```javascript id="j7x5kp"
 /**
  * ============================================================
  * PATTERNMAKER UNIVERSAL
- * KODE 6 — engine/measurements.js
+ * BASELINE FINAL v1
+ * KODE 47
+ *
+ * FILE:
+ *   engine/measurements.js
  * ============================================================
  *
- * STATUS:
- * REFACTOR dari measurements.js lama
+ * RESPONSIBILITY:
  *
- * Tugas:
- * - Membaca ukuran dari UI/DOM
- * - Menggunakan measurement-schema.js
- * - Membuat BodyProfile
- * - Menyimpan nilai internal dalam CM
- * - Validasi ukuran
- * - Menjaga kompatibilitas dengan engine lama
+ * Compatibility / Measurement Service Layer
  *
- * DEPENDENCY:
+ * Source of Truth:
  *
- * measurement-schema.js
- * profile.js
- * garment.js
+ *   engine/measurement-schema.js
+ *   engine/measurement-mapper.js
+ *   engine/profile.js
+ *
+ * ============================================================
+ *
+ * FLOW:
+ *
+ * UI / Size System / Legacy Input
+ *              ↓
+ *      Measurement Mapper
+ *              ↓
+ *      Canonical Profile
+ *              ↓
+ *      Measurements Service
+ *              ↓
+ *      Pattern Engine
+ *
+ * ============================================================
+ *
+ * INTERNAL UNIT:
+ *
+ *   cm
  *
  * ============================================================
  */
@@ -31,513 +47,127 @@
 
 
     /* ========================================================
-       VALIDASI DEPENDENCY
+       DEPENDENCIES
        ======================================================== */
-
-    if (
-        !window.PatternMakerMeasurementSchema
-    ) {
-
-        throw new Error(
-            "measurement-schema.js belum dimuat."
-        );
-
-    }
-
-
-    if (
-        !window.PatternMakerProfile
-    ) {
-
-        throw new Error(
-            "profile.js belum dimuat."
-        );
-
-    }
-
-
-    if (
-        !window.PatternMakerGarment
-    ) {
-
-        throw new Error(
-            "garment.js belum dimuat."
-        );
-
-    }
-
 
     const Schema =
         window.PatternMakerMeasurementSchema;
 
+    const Mapper =
+        window.PatternMakerMeasurementMapper;
+
     const Profile =
         window.PatternMakerProfile;
 
-    const Garment =
-        window.PatternMakerGarment;
 
-
-    /* ========================================================
-       STATE
-       ======================================================== */
-
-    let currentProfile = null;
-
-
-    /* ========================================================
-       DOM HELPER
-       ======================================================== */
-
-    function getElement(
-        id
+    if (
+        !Schema
     ) {
 
-        return document.getElementById(
-            id
+        throw new Error(
+            "measurement-schema.js harus dimuat sebelum measurements.js."
+        );
+
+    }
+
+
+    if (
+        !Mapper
+    ) {
+
+        throw new Error(
+            "measurement-mapper.js harus dimuat sebelum measurements.js."
+        );
+
+    }
+
+
+    if (
+        !Profile
+    ) {
+
+        throw new Error(
+            "profile.js harus dimuat sebelum measurements.js."
         );
 
     }
 
 
     /* ========================================================
-       SAFE NUMBER
+       VERSION
        ======================================================== */
 
-    function getNumber(
-        id
+    const VERSION =
+        "FINAL-v1";
+
+
+    const INTERNAL_UNIT =
+        "cm";
+
+
+    /* ========================================================
+       ACTIVE PROFILE
+       ======================================================== */
+
+    let activeProfile =
+        null;
+
+
+    /* ========================================================
+       UTILITY
+       ======================================================== */
+
+    function clone(
+        value
     ) {
 
-        const element =
-            getElement(id);
+        if (
+            value === null ||
+            value === undefined
+        ) {
 
-
-        if (!element) {
-
-            return null;
+            return value;
 
         }
 
 
-        const value =
-            Number(
-                element.value
+        if (
+            typeof structuredClone ===
+            "function"
+        ) {
+
+            return structuredClone(
+                value
             );
 
+        }
 
-        if (
-            !Number.isFinite(
+
+        return JSON.parse(
+            JSON.stringify(
                 value
             )
-        ) {
-
-            return null;
-
-        }
-
-
-        return value;
-
-    }
-
-
-    /* ========================================================
-       READ UNIT
-       ======================================================== */
-
-    function getInputUnit() {
-
-        const element =
-            getElement(
-                "sizeSystem"
-            );
-
-
-        if (
-            !element ||
-            !element.value
-        ) {
-
-            return "cm";
-
-        }
-
-
-        return element.value;
-
-    }
-
-
-    /* ========================================================
-       READ CATEGORY
-       ======================================================== */
-
-    function getCategory() {
-
-        const element =
-            getElement(
-                "category"
-            );
-
-
-        if (
-            !element ||
-            !element.value
-        ) {
-
-            return "custom";
-
-        }
-
-
-        return element.value;
-
-    }
-
-
-    /* ========================================================
-       READ AGE
-       ======================================================== */
-
-    function getAge() {
-
-        const element =
-            getElement(
-                "age"
-            );
-
-
-        if (
-            !element ||
-            element.value === ""
-        ) {
-
-            return null;
-
-        }
-
-
-        const value =
-            Number(
-                element.value
-            );
-
-
-        return Number.isFinite(
-            value
-        )
-            ? value
-            : null;
-
-    }
-
-
-    /* ========================================================
-       GET CURRENT GARMENT
-       ======================================================== */
-
-    function getCurrentGarment() {
-
-        const element =
-            getElement(
-                "garmentType"
-            );
-
-
-        if (
-            !element ||
-            !element.value
-        ) {
-
-            return "custom";
-
-        }
-
-
-        return element.value;
-
-    }
-
-
-    /* ========================================================
-       MEASUREMENT FIELD LIST
-       ======================================================== */
-
-    function getMeasurementIds(
-        garmentType = getCurrentGarment()
-    ) {
-
-        const garment =
-            Garment.getGarment(
-                garmentType
-            );
-
-
-        if (!garment) {
-
-            return [];
-
-        }
-
-
-        return [
-            ...new Set([
-                ...garment.requiredMeasurements,
-                ...garment.optionalMeasurements
-            ])
-        ];
-
-    }
-
-
-    /* ========================================================
-       READ MEASUREMENTS FROM DOM
-       ======================================================== */
-
-    function readMeasurementsFromDOM(
-        garmentType = getCurrentGarment()
-    ) {
-
-        const unit =
-            getInputUnit();
-
-
-        const ids =
-            getMeasurementIds(
-                garmentType
-            );
-
-
-        const measurements = {};
-
-
-        ids.forEach(
-            measurementId => {
-
-                const value =
-                    getNumber(
-                        measurementId
-                    );
-
-
-                /*
-                 * Field lama PatternMaker
-                 * mungkin belum mempunyai ID
-                 * untuk semua measurement baru.
-                 *
-                 * Karena itu field yang tidak ada
-                 * tidak langsung menyebabkan crash.
-                 */
-
-                if (
-                    value === null
-                ) {
-
-                    return;
-
-                }
-
-
-                measurements[
-                    measurementId
-                ] = value;
-
-            }
         );
 
-
-        return {
-
-            unit,
-
-            measurements
-
-        };
-
     }
 
 
-    /* ========================================================
-       CREATE PROFILE FROM DOM
-       ======================================================== */
-
-    function createProfileFromDOM(
-        garmentType = getCurrentGarment()
+    function isProfile(
+        value
     ) {
 
-        const input =
-            readMeasurementsFromDOM(
-                garmentType
-            );
+        return (
 
+            value instanceof
+            Profile.BodyProfile
 
-        const profile =
-            Profile.createBodyProfile({
-
-                name:
-                    buildProfileName(),
-
-                category:
-                    getCategory(),
-
-                age:
-                    getAge(),
-
-                unit:
-                    input.unit,
-
-                source:
-                    "dom"
-
-            });
-
-
-        Object.entries(
-            input.measurements
-        )
-        .forEach(
-            ([id, value]) => {
-
-                profile.setMeasurement(
-                    id,
-                    value,
-                    input.unit
-                );
-
-            }
         );
 
-
-        currentProfile =
-            profile;
-
-
-        return profile;
-
     }
 
 
     /* ========================================================
-       PROFILE NAME
-       ======================================================== */
-
-    function buildProfileName() {
-
-        const category =
-            Schema.getCategoryLabel(
-                getCategory()
-            );
-
-
-        const age =
-            getAge();
-
-
-        if (
-            age !== null
-        ) {
-
-            return `${category} • ${age} tahun`;
-
-        }
-
-
-        return category;
-
-    }
-
-
-    /* ========================================================
-       VALIDATE CURRENT PROFILE
-       ======================================================== */
-
-    function validateMeasurements(
-        garmentType = getCurrentGarment()
-    ) {
-
-        if (
-            !currentProfile
-        ) {
-
-            currentProfile =
-                createProfileFromDOM(
-                    garmentType
-                );
-
-        }
-
-
-        const result =
-            Garment.validateProfileForGarment(
-                currentProfile,
-                garmentType
-            );
-
-
-        return result;
-
-    }
-
-
-    /* ========================================================
-       GET COMPLETE MEASUREMENTS
-       ======================================================== */
-
-    function getMeasurements(
-        garmentType = getCurrentGarment()
-    ) {
-
-        if (
-            !currentProfile
-        ) {
-
-            currentProfile =
-                createProfileFromDOM(
-                    garmentType
-                );
-
-        }
-
-
-        /*
-         * Return plain object agar
-         * engine lama seperti bodice.js
-         * tetap bisa menerima object measurements.
-         */
-
-        return {
-            ...currentProfile.measurements
-        };
-
-    }
-
-
-    /* ========================================================
-       GET PROFILE
-       ======================================================== */
-
-    function getProfile(
-        garmentType = getCurrentGarment()
-    ) {
-
-        if (
-            !currentProfile
-        ) {
-
-            currentProfile =
-                createProfileFromDOM(
-                    garmentType
-                );
-
-        }
-
-
-        return currentProfile;
-
-    }
-
-
-    /* ========================================================
-       SET PROFILE
+       PROFILE SETTER
        ======================================================== */
 
     function setProfile(
@@ -548,32 +178,60 @@
             !profile
         ) {
 
-            throw new Error(
-                "Profile tidak boleh kosong."
-            );
+            activeProfile =
+                null;
+
+
+            return null;
 
         }
 
 
+        /*
+         * Accept BodyProfile instance.
+         */
+
         if (
-            !(
+            isProfile(
                 profile
-                instanceof Profile.BodyProfile
             )
         ) {
 
-            throw new Error(
-                "Object harus berupa BodyProfile."
-            );
+            activeProfile =
+                profile;
+
+
+            return activeProfile;
 
         }
 
 
-        currentProfile =
-            profile;
+        /*
+         * Accept serialized/plain profile.
+         */
+
+        const normalized =
+            Profile.fromJSON(
+                profile
+            );
 
 
-        return currentProfile;
+        activeProfile =
+            normalized;
+
+
+        return activeProfile;
+
+    }
+
+
+    /* ========================================================
+       PROFILE GETTER
+       ======================================================== */
+
+    function getProfile() {
+
+        return activeProfile;
 
     }
 
@@ -584,137 +242,102 @@
 
     function clearProfile() {
 
-        currentProfile =
+        activeProfile =
             null;
 
     }
 
 
     /* ========================================================
-       CHECK REQUIRED FIELD
+       CREATE PROFILE
        ======================================================== */
 
-    function getMissingMeasurements(
-        garmentType = getCurrentGarment()
+    function createProfile(
+        options = {}
     ) {
 
-        const result =
-            validateMeasurements(
-                garmentType
+        const profile =
+            Profile.createBodyProfile(
+                options
             );
 
 
-        return result.missing
-            .map(
-                item =>
-                    item.id
-            );
+        activeProfile =
+            profile;
+
+
+        return profile;
 
     }
 
 
     /* ========================================================
-       FORMAT VALUE
+       SET MEASUREMENTS
        ======================================================== */
 
-    function formatMeasurement(
-        measurementId,
-        value,
-        outputUnit = null
+    function setMeasurements(
+        measurements,
+        options = {}
     ) {
 
-        const unit =
-            outputUnit ||
-            getInputUnit();
+        if (
+            !activeProfile
+        ) {
 
+            activeProfile =
+                createProfile({
 
-        const cm =
-            Schema.measurementToCm(
-                value,
-                getInputUnit()
-            );
+                    category:
+                        options.category ||
+                        "custom",
 
+                    age:
+                        options.age ??
+                        null,
 
-        const display =
-            Schema.measurementFromCm(
-                cm,
-                unit
-            );
+                    name:
+                        options.name ||
+                        "Measurement Profile",
 
+                    source:
+                        options.source ||
+                        "measurement-service"
 
-        const definition =
-            Schema.getMeasurementDefinition(
-                measurementId
-            );
-
-
-        if (!definition) {
-
-            return {
-
-                value:
-                    display,
-
-                unit
-
-            };
+                });
 
         }
 
 
-        return {
+        const result =
+            activeProfile.setMeasurements(
 
-            value:
-                Number(
-                    display.toFixed(2)
-                ),
+                measurements,
 
-            unit,
+                {
 
-            label:
-                definition.label
+                    unit:
+                        options.unit ||
+                        INTERNAL_UNIT
 
-        };
+                }
 
-    }
-
-
-    /* ========================================================
-       GET SUMMARY
-       ======================================================== */
-
-    function getSummary(
-        garmentType = getCurrentGarment()
-    ) {
-
-        const profile =
-            getProfile(
-                garmentType
-            );
-
-
-        const validation =
-            validateMeasurements(
-                garmentType
             );
 
 
         return {
 
             profile:
-                profile.toJSON(),
-
-            garment:
-                Garment.getGarmentUIData(
-                    garmentType
-                ),
-
-            validation,
+                activeProfile,
 
             measurements:
-                {
-                    ...profile.measurements
-                }
+                activeProfile
+                    .getCanonicalMeasurements(),
+
+            warnings:
+                result.warnings || [],
+
+            conflicts:
+                result.conflicts || []
 
         };
 
@@ -722,130 +345,80 @@
 
 
     /* ========================================================
-       BACKWARD COMPATIBILITY
-       ========================================================
-       
-       Engine lama biasanya memerlukan:
-       
-       {
-           bust,
-           waist,
-           hip,
-           shoulder,
-           ...
-       }
-       
-       Fungsi ini mempertahankan
-       bentuk object tersebut.
+       SET ONE
        ======================================================== */
 
-    function getLegacyMeasurements(
-        garmentType = getCurrentGarment()
-    ) {
-
-        const measurements =
-            getMeasurements(
-                garmentType
-            );
-
-
-        return {
-
-            bust:
-                measurements.bust ??
-                null,
-
-            waist:
-                measurements.waist ??
-                null,
-
-            hip:
-                measurements.hip ??
-                null,
-
-            shoulder:
-                measurements.shoulder ??
-                null,
-
-            neck:
-                measurements.neck ??
-                null,
-
-            bodyLength:
-                measurements.bodyLength ??
-                null,
-
-            dressLength:
-                measurements.dressLength ??
-                null,
-
-            skirtLength:
-                measurements.skirtLength ??
-                null,
-
-            upperArm:
-                measurements.upperArm ??
-                null,
-
-            elbow:
-                measurements.elbow ??
-                null,
-
-            wrist:
-                measurements.wrist ??
-                null,
-
-            sleeveLength:
-                measurements.sleeveLength ??
-                null,
-
-            armhole:
-                measurements.armhole ??
-                null,
-
-            rise:
-                measurements.rise ??
-                null,
-
-            pantsLength:
-                measurements.pantsLength ??
-                null,
-
-            shortsLength:
-                measurements.shortsLength ??
-                null,
-
-            thigh:
-                measurements.thigh ??
-                null,
-
-            knee:
-                measurements.knee ??
-                null,
-
-            hem:
-                measurements.hem ??
-                null,
-
-            height:
-                measurements.height ??
-                null
-
-        };
-
-    }
-
-
-    /* ========================================================
-       APPLY PROFILE TO DOM
-       ======================================================== */
-
-    function applyProfileToDOM(
-        profile
+    function setMeasurement(
+        id,
+        value,
+        unit = INTERNAL_UNIT
     ) {
 
         if (
-            !profile
+            !activeProfile
+        ) {
+
+            throw new Error(
+
+                "Active profile belum tersedia."
+
+            );
+
+        }
+
+
+        return activeProfile.setMeasurement(
+
+            id,
+
+            value,
+
+            unit
+
+        );
+
+    }
+
+
+    /* ========================================================
+       GET ONE
+       ======================================================== */
+
+    function getMeasurement(
+        id,
+        unit = INTERNAL_UNIT
+    ) {
+
+        if (
+            !activeProfile
+        ) {
+
+            return null;
+
+        }
+
+
+        return activeProfile.getMeasurement(
+
+            id,
+
+            unit
+
+        );
+
+    }
+
+
+    /* ========================================================
+       HAS
+       ======================================================== */
+
+    function hasMeasurement(
+        id
+    ) {
+
+        if (
+            !activeProfile
         ) {
 
             return false;
@@ -853,111 +426,382 @@
         }
 
 
-        const unit =
-            getInputUnit();
-
-
-        Object.entries(
-            profile.measurements
-        )
-        .forEach(
-            ([id, cmValue]) => {
-
-                const element =
-                    getElement(id);
-
-
-                if (!element) {
-
-                    return;
-
-                }
-
-
-                const displayValue =
-                    Schema.measurementFromCm(
-                        cmValue,
-                        unit
-                    );
-
-
-                element.value =
-                    Number(
-                        displayValue.toFixed(2)
-                    );
-
-            }
+        return activeProfile.hasMeasurement(
+            id
         );
-
-
-        const categoryElement =
-            getElement(
-                "category"
-            );
-
-
-        if (
-            categoryElement &&
-            profile.category
-        ) {
-
-            categoryElement.value =
-                profile.category;
-
-        }
-
-
-        const ageElement =
-            getElement(
-                "age"
-            );
-
-
-        if (
-            ageElement &&
-            profile.age !== null
-        ) {
-
-            ageElement.value =
-                profile.age;
-
-        }
-
-
-        currentProfile =
-            profile;
-
-
-        return true;
 
     }
 
 
     /* ========================================================
-       DEBUG INFORMATION
+       REMOVE
        ======================================================== */
 
-    function debug() {
+    function removeMeasurement(
+        id
+    ) {
+
+        if (
+            !activeProfile
+        ) {
+
+            return false;
+
+        }
+
+
+        return activeProfile.removeMeasurement(
+            id
+        );
+
+    }
+
+
+    /* ========================================================
+       CANONICAL MEASUREMENTS
+       ======================================================== */
+
+    function getCanonicalMeasurements() {
+
+        if (
+            !activeProfile
+        ) {
+
+            return {};
+
+        }
+
+
+        return activeProfile
+            .getCanonicalMeasurements();
+
+    }
+
+
+    /* ========================================================
+       CONVERTED MEASUREMENTS
+       ======================================================== */
+
+    function getMeasurements(
+        unit = INTERNAL_UNIT
+    ) {
+
+        if (
+            !activeProfile
+        ) {
+
+            return {};
+
+        }
+
+
+        return activeProfile.getMeasurements(
+            unit
+        );
+
+    }
+
+
+    /* ========================================================
+       LEGACY MEASUREMENTS
+       ======================================================== */
+
+    function getLegacyMeasurements(
+        garmentId = null
+    ) {
+
+        if (
+            !activeProfile
+        ) {
+
+            return {};
+
+        }
+
+
+        const canonical =
+            activeProfile
+                .getCanonicalMeasurements();
+
+
+        const legacy =
+            Mapper.toLegacyObject(
+                canonical
+            );
+
+
+        /*
+         * Garment-specific compatibility layer.
+         *
+         * IMPORTANT:
+         *
+         * This does not create a second source of truth.
+         *
+         * It only adds common field names expected
+         * by older engines.
+         */
+
+        if (
+            garmentId
+        ) {
+
+            return applyGarmentCompatibility(
+
+                legacy,
+
+                garmentId
+
+            );
+
+        }
+
+
+        return legacy;
+
+    }
+
+
+    /* ========================================================
+       GARMENT COMPATIBILITY
+       ======================================================== */
+
+    function applyGarmentCompatibility(
+        measurements,
+        garmentId
+    ) {
+
+        const output = {
+
+            ...measurements
+
+        };
+
+
+        const id =
+            String(
+                garmentId ||
+                ""
+            )
+            .toLowerCase();
+
+
+        /*
+         * T-shirt / shirt.
+         */
+
+        if (
+            id.includes(
+                "shirt"
+            ) ||
+            id.includes(
+                "tshirt"
+            )
+        ) {
+
+            /*
+             * Some legacy bodice engines use:
+             *
+             * chestCircumference
+             * shoulderWidth
+             * armholeCircumference
+             *
+             * Those are already emitted by mapper.
+             */
+
+            if (
+                output.chest ===
+                undefined &&
+                output.bust !==
+                undefined
+            ) {
+
+                output.chest =
+                    output.bust;
+
+            }
+
+        }
+
+
+        /*
+         * Women's dress / bodice.
+         */
+
+        if (
+            id.includes(
+                "dress"
+            ) ||
+            id.includes(
+                "bodice"
+            )
+        ) {
+
+            /*
+             * If only chest is available,
+             * preserve it as bust compatibility.
+             *
+             * This is compatibility only.
+             *
+             * It does NOT redefine the canonical
+             * measurement.
+             */
+
+            if (
+                output.bust ===
+                undefined &&
+                output.chest !==
+                undefined
+            ) {
+
+                output.bust =
+                    output.chest;
+
+            }
+
+        }
+
+
+        return output;
+
+    }
+
+
+    /* ========================================================
+       MAP RAW INPUT
+       ======================================================== */
+
+    function mapInput(
+        input,
+        options = {}
+    ) {
+
+        return Mapper.mapObject(
+
+            input,
+
+            {
+
+                unit:
+                    options.unit ||
+                    INTERNAL_UNIT
+
+            }
+
+        );
+
+    }
+
+
+    /* ========================================================
+       NORMALIZE RAW INPUT TO CM
+       ======================================================== */
+
+    function normalizeInputToCm(
+        input,
+        options = {}
+    ) {
+
+        return Mapper.canonicalizeToCm(
+
+            input,
+
+            {
+
+                unit:
+                    options.unit ||
+                    INTERNAL_UNIT
+
+            }
+
+        );
+
+    }
+
+
+    /* ========================================================
+       APPLY SIZE PROFILE
+       ======================================================== */
+
+    function applySizeProfile(
+        sizeProfile
+    ) {
+
+        if (
+            !activeProfile
+        ) {
+
+            throw new Error(
+
+                "Active profile belum tersedia."
+
+            );
+
+        }
+
+
+        return activeProfile.applySizeProfile(
+            sizeProfile
+        );
+
+    }
+
+
+    /* ========================================================
+       VALIDATE REQUIRED
+       ======================================================== */
+
+    function validateRequired(
+        requiredMeasurements
+    ) {
+
+        if (
+            !activeProfile
+        ) {
+
+            return {
+
+                valid:
+                    false,
+
+                missing:
+                    requiredMeasurements || [],
+
+                labels:
+                    [],
+
+                message:
+                    "Active profile belum tersedia."
+
+            };
+
+        }
+
+
+        const result =
+            activeProfile.validateRequired(
+                requiredMeasurements
+            );
+
 
         return {
 
-            currentProfile,
+            ...result,
 
-            category:
-                getCategory(),
+            message:
 
-            garment:
-                getCurrentGarment(),
+                result.valid
 
-            unit:
-                getInputUnit(),
+                    ? ""
 
-            measurements:
-                currentProfile
-                    ? {
-                        ...currentProfile.measurements
-                    }
-                    : {}
+                    : (
+
+                        "Measurement wajib belum lengkap: " +
+
+                        result.labels.join(
+                            ", "
+                        )
+
+                    )
 
         };
 
@@ -965,46 +809,581 @@
 
 
     /* ========================================================
-       EXPORT GLOBAL API
+       VALIDATE PROFILE
+       ======================================================== */
+
+    function validateProfile() {
+
+        if (
+            !activeProfile
+        ) {
+
+            return {
+
+                valid:
+                    false,
+
+                errors:
+                    [
+                        "Active profile belum tersedia."
+                    ],
+
+                warnings:
+                    []
+
+            };
+
+        }
+
+
+        return Profile.validateProfile(
+            activeProfile
+        );
+
+    }
+
+
+    /* ========================================================
+       GET GARMENT MEASUREMENTS
+       ======================================================== */
+
+    function getGarmentMeasurements(
+        garment
+    ) {
+
+        if (
+            !garment
+        ) {
+
+            return {
+
+                measurements:
+                    {},
+
+                missing:
+                    [],
+
+                valid:
+                    false
+
+            };
+
+        }
+
+
+        const required =
+            Schema.getRequiredForGarment(
+                garment
+            );
+
+
+        const validation =
+            validateRequired(
+                required
+            );
+
+
+        return {
+
+            measurements:
+                getCanonicalMeasurements(),
+
+            legacyMeasurements:
+                getLegacyMeasurements(
+                    garment.id
+                ),
+
+            required,
+
+            missing:
+                validation.missing,
+
+            valid:
+                validation.valid
+
+        };
+
+    }
+
+
+    /* ========================================================
+       LEGACY BRIDGE
+       ======================================================== */
+
+    function fromLegacyMeasurements(
+        measurements,
+        options = {}
+    ) {
+
+        const normalized =
+            normalizeInputToCm(
+
+                measurements,
+
+                {
+
+                    unit:
+                        options.unit ||
+                        INTERNAL_UNIT
+
+                }
+
+            );
+
+
+        if (
+            !activeProfile
+        ) {
+
+            activeProfile =
+                createProfile({
+
+                    category:
+                        options.category ||
+                        "custom",
+
+                    age:
+                        options.age ??
+                        null,
+
+                    name:
+                        options.name ||
+                        "Legacy Profile",
+
+                    source:
+                        "legacy-adapter"
+
+                });
+
+        }
+
+
+        activeProfile.setMeasurements(
+
+            normalized.measurements,
+
+            {
+
+                unit:
+                    "cm"
+
+            }
+
+        );
+
+
+        return {
+
+            profile:
+                activeProfile,
+
+            measurements:
+                getCanonicalMeasurements(),
+
+            warnings:
+                normalized.warnings || [],
+
+            conflicts:
+                normalized.conflicts || []
+
+        };
+
+    }
+
+
+    /* ========================================================
+       PROFILE SNAPSHOT
+       ======================================================== */
+
+    function snapshot() {
+
+        if (
+            !activeProfile
+        ) {
+
+            return null;
+
+        }
+
+
+        return clone(
+            activeProfile.toJSON()
+        );
+
+    }
+
+
+    /* ========================================================
+       RESTORE SNAPSHOT
+       ======================================================== */
+
+    function restore(
+        data
+    ) {
+
+        const profile =
+            Profile.fromJSON(
+                data
+            );
+
+
+        activeProfile =
+            profile;
+
+
+        return activeProfile;
+
+    }
+
+
+    /* ========================================================
+       EXPORT JSON
+       ======================================================== */
+
+    function exportJSON() {
+
+        if (
+            !activeProfile
+        ) {
+
+            return null;
+
+        }
+
+
+        return activeProfile.toJSON();
+
+    }
+
+
+    /* ========================================================
+       IMPORT JSON
+       ======================================================== */
+
+    function importJSON(
+        data
+    ) {
+
+        const profile =
+            typeof data ===
+                "string"
+
+                ? Profile.deserialize(
+                    data
+                )
+
+                : Profile.fromJSON(
+                    data
+                );
+
+
+        activeProfile =
+            profile;
+
+
+        return activeProfile;
+
+    }
+
+
+    /* ========================================================
+       RESOLVE MEASUREMENT ID
+       ======================================================== */
+
+    function resolveMeasurementId(
+        id
+    ) {
+
+        return Mapper.resolve(
+            id
+        );
+
+    }
+
+
+    /* ========================================================
+       GET DEFINITION
+       ======================================================== */
+
+    function getMeasurementDefinition(
+        id
+    ) {
+
+        return Schema.getMeasurementDefinition(
+            id
+        );
+
+    }
+
+
+    /* ========================================================
+       CREATE EMPTY MEASUREMENT OBJECT
+       ======================================================== */
+
+    function createEmptyMeasurements() {
+
+        const output = {};
+
+
+        Schema.getMeasurementIds()
+            .forEach(
+                id => {
+
+                    output[
+                        id
+                    ] =
+                        null;
+
+                }
+            );
+
+
+        return output;
+
+    }
+
+
+    /* ========================================================
+       CURRENT CATEGORY
+       ======================================================== */
+
+    function getCategory() {
+
+        return activeProfile
+            ?.category ||
+            null;
+
+    }
+
+
+    /* ========================================================
+       CURRENT AGE
+       ======================================================== */
+
+    function getAge() {
+
+        return (
+            activeProfile
+                ?.age ??
+            null
+        );
+
+    }
+
+
+    /* ========================================================
+       CURRENT SIZE
+       ======================================================== */
+
+    function getSizeInfo() {
+
+        if (
+            !activeProfile
+        ) {
+
+            return null;
+
+        }
+
+
+        return {
+
+            sizeId:
+                activeProfile.sizeId,
+
+            sizeLabel:
+                activeProfile.sizeLabel
+
+        };
+
+    }
+
+
+    /* ========================================================
+       VALIDATE MEASUREMENT VALUE
+       ======================================================== */
+
+    function validateMeasurementValue(
+        id,
+        value,
+        unit = INTERNAL_UNIT
+    ) {
+
+        const canonical =
+            Mapper.resolve(
+                id
+            );
+
+
+        if (
+            !canonical
+        ) {
+
+            return {
+
+                valid:
+                    false,
+
+                message:
+                    `Measurement "${id}" tidak dikenal.`
+
+            };
+
+        }
+
+
+        const valueCm =
+            Schema.measurementToCm(
+                value,
+                unit
+            );
+
+
+        return Schema.validateMeasurementValue(
+
+            canonical,
+
+            valueCm
+
+        );
+
+    }
+
+
+    /* ========================================================
+       DEBUG
+       ======================================================== */
+
+    function debug() {
+
+        console.group(
+            "PatternMaker Measurements Service"
+        );
+
+
+        console.log(
+            "Version:",
+            VERSION
+        );
+
+
+        console.log(
+            "Profile:",
+            activeProfile
+        );
+
+
+        console.log(
+            "Canonical measurements:",
+            getCanonicalMeasurements()
+        );
+
+
+        console.log(
+            "Legacy measurements:",
+            getLegacyMeasurements()
+        );
+
+
+        console.log(
+            "Validation:",
+            validateProfile()
+        );
+
+
+        console.groupEnd();
+
+
+        return {
+
+            profile:
+                snapshot(),
+
+            canonical:
+                getCanonicalMeasurements(),
+
+            legacy:
+                getLegacyMeasurements(),
+
+            validation:
+                validateProfile()
+
+        };
+
+    }
+
+
+    /* ========================================================
+       PUBLIC API
        ======================================================== */
 
     window.PatternMakerMeasurements = {
 
-        getNumber,
+        VERSION,
 
-        getInputUnit,
+        INTERNAL_UNIT,
+
+        setProfile,
+
+        getProfile,
+
+        clearProfile,
+
+        createProfile,
+
+        setMeasurements,
+
+        setMeasurement,
+
+        getMeasurement,
+
+        hasMeasurement,
+
+        removeMeasurement,
+
+        getCanonicalMeasurements,
+
+        getMeasurements,
+
+        getLegacyMeasurements,
+
+        applyGarmentCompatibility,
+
+        mapInput,
+
+        normalizeInputToCm,
+
+        applySizeProfile,
+
+        validateRequired,
+
+        validateProfile,
+
+        getGarmentMeasurements,
+
+        fromLegacyMeasurements,
+
+        snapshot,
+
+        restore,
+
+        exportJSON,
+
+        importJSON,
+
+        resolveMeasurementId,
+
+        getMeasurementDefinition,
+
+        createEmptyMeasurements,
 
         getCategory,
 
         getAge,
 
-        getCurrentGarment,
+        getSizeInfo,
 
-        getMeasurementIds,
-
-        readMeasurementsFromDOM,
-
-        createProfileFromDOM,
-
-        validateMeasurements,
-
-        getMeasurements,
-
-        getProfile,
-
-        setProfile,
-
-        clearProfile,
-
-        getMissingMeasurements,
-
-        formatMeasurement,
-
-        getSummary,
-
-        getLegacyMeasurements,
-
-        applyProfileToDOM,
+        validateMeasurementValue,
 
         debug
 
@@ -1012,4 +1391,3 @@
 
 
 })();
-```
