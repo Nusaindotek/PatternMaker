@@ -1,21 +1,17 @@
-```javascript id="u8k3rm"
 /**
  * ============================================================
  * PATTERNMAKER UNIVERSAL
- * KODE 15 — engine/dress.js
- * ============================================================
+ * BASELINE FINAL v1
+ * KODE 54
  *
- * DRESS PATTERN ENGINE
+ * FILE:
+ *   engine/dress.js
  *
- * Base:
- *   Bodice + Sleeve
+ * SOURCE:
+ *   PatternMaker_Universal_v5_Production_Drafting.html
  *
- * Tambahan:
- *   Dress length
- *   Skirt / body extension
- *
- * Output:
- *   Full / Open pattern pieces
+ * EXTRACTED:
+ *   makeDressPieces()
  *
  * ============================================================
  */
@@ -26,45 +22,38 @@
 
 
     /* ========================================================
-       DEPENDENCY
+       DEPENDENCIES
        ======================================================== */
 
-    const ProductionGeometry =
-        window.PatternMakerProductionGeometry;
+    const Schema =
+        window.PatternMakerMeasurementSchema;
 
-
-    const Legacy =
-        window.PatternMakerLegacyAdapters;
-
-
-    const Registry =
-        window.PatternMakerPatternRegistry;
+    const Bodice =
+        window.PatternMakerBodice;
 
 
     if (
-        !ProductionGeometry
+        !Schema ||
+        !Bodice
     ) {
 
         throw new Error(
-            "production-geometry.js belum tersedia."
-        );
-
-    }
-
-
-    if (
-        !Legacy
-    ) {
-
-        throw new Error(
-            "legacy-pattern-adapter.js belum tersedia."
+            "Dress Engine membutuhkan measurement-schema.js dan bodice.js."
         );
 
     }
 
 
     /* ========================================================
-       HELPERS
+       VERSION
+       ======================================================== */
+
+    const VERSION =
+        "V5-MIGRATED-v1";
+
+
+    /* ========================================================
+       NUMBER
        ======================================================== */
 
     function num(
@@ -73,9 +62,7 @@
     ) {
 
         const n =
-            Number(
-                value
-            );
+            Number(value);
 
 
         return Number.isFinite(n)
@@ -85,783 +72,447 @@
     }
 
 
-    function round(
-        value
+    /* ========================================================
+       MEASUREMENT
+       ======================================================== */
+
+    function getMeasurement(
+        context,
+        id,
+        fallback,
+        aliases = []
     ) {
 
-        return Math.round(
-            Number(value) * 100
-        ) / 100;
+        const source =
+            context?.profile?.measurements ||
+            context?.measurements ||
+            {};
 
-    }
+
+        const direct =
+            source[id];
 
 
-    function shiftPoints(
-        points,
-        dx,
-        dy
-    ) {
+        if (
+            Number.isFinite(
+                Number(direct)
+            ) &&
+            Number(direct) > 0
+        ) {
 
-        return points.map(
-            point => [
+            return Number(
+                direct
+            );
 
-                round(
-                    point[0] + dx
-                ),
+        }
 
-                round(
-                    point[1] + dy
-                )
 
-            ]
+        for (
+            const key
+            of aliases
+        ) {
+
+            const value =
+                source[key];
+
+
+            if (
+                Number.isFinite(
+                    Number(value)
+                ) &&
+                Number(value) > 0
+            ) {
+
+                return Number(
+                    value
+                );
+
+            }
+
+        }
+
+
+        return num(
+            fallback
         );
 
     }
 
 
-    function getBounds(
-        points
-    ) {
-
-        const xs =
-            points.map(
-                p => p[0]
-            );
-
-
-        const ys =
-            points.map(
-                p => p[1]
-            );
-
-
-        return {
-
-            minX:
-                Math.min(
-                    ...xs
-                ),
-
-            maxX:
-                Math.max(
-                    ...xs
-                ),
-
-            minY:
-                Math.min(
-                    ...ys
-                ),
-
-            maxY:
-                Math.max(
-                    ...ys
-                ),
-
-            width:
-                Math.max(
-                    ...xs
-                ) -
-                Math.min(
-                    ...xs
-                ),
-
-            height:
-                Math.max(
-                    ...ys
-                ) -
-                Math.min(
-                    ...ys
-                )
-
-        };
-
-    }
-
-
     /* ========================================================
-       CREATE DRESS BODY EXTENSION
+       DRESS PIECES
        ======================================================== */
 
-    function createDressExtension(
-        bodicePiece,
-        measurements,
-        options = {}
-    ) {
-
-        const bodyLength =
-            num(
-                measurements.bodyLength,
-                60
-            );
-
-
-        const dressLength =
-            num(
-                measurements.dressLength,
-                110
-            );
-
-
-        const extension =
-            Math.max(
-                5,
-                dressLength -
-                bodyLength
-            );
-
-
-        const points =
-            bodicePiece.points;
-
-
-        const bounds =
-            getBounds(
-                points
-            );
-
-
-        const topY =
-            bounds.maxY;
-
-
-        /*
-         * Membuat extension mengikuti lebar
-         * bagian bawah bodice.
-         */
-
-        const bottomPoints = [
-
-            [
-                bounds.minX,
-                topY
-            ],
-
-            [
-                bounds.maxX,
-                topY
-            ],
-
-            [
-                bounds.maxX,
-                topY +
-                extension
-            ],
-
-            [
-                bounds.minX,
-                topY +
-                extension
-            ]
-
-        ];
-
-
-        return {
-
-            ...bodicePiece,
-
-            name:
-                bodicePiece.name ===
-                "FRONT"
-
-                    ? "DRESS FRONT"
-
-                    : "DRESS BACK",
-
-            type:
-                bodicePiece.name ===
-                "FRONT"
-
-                    ? "dress-front"
-
-                    : "dress-back",
-
-            points:
-                [
-
-                    points[0],
-
-                    points[1],
-
-                    points[2],
-
-                    points[3],
-
-                    ...bottomPoints.slice(
-                        1
-                    ),
-
-                    bottomPoints[0]
-
-                ],
-
-            label:
-                bodicePiece.name ===
-                "FRONT"
-
-                    ? "DRESS FRONT"
-
-                    : "DRESS BACK"
-
-        };
-
-    }
-
-
-    /* ========================================================
-       IMPROVE DRESS SILHOUETTE
-       ======================================================== */
-
-    function shapeDressBottom(
-        piece,
-        measurements,
-        options = {}
-    ) {
-
-        const hip =
-            num(
-                measurements.hip,
-                96
-            );
-
-
-        const ease =
-            num(
-                options.ease,
-                2
-            );
-
-
-        const targetWidth =
-            Math.max(
-                20,
-                (
-                    hip +
-                    ease
-                ) / 2
-            );
-
-
-        const bounds =
-            getBounds(
-                piece.points
-            );
-
-
-        const center =
-            (
-                bounds.minX +
-                bounds.maxX
-            ) / 2;
-
-
-        const currentWidth =
-            bounds.width;
-
-
-        const widening =
-            Math.max(
-                0,
-                targetWidth -
-                currentWidth
-            );
-
-
-        const adjusted =
-            piece.points.map(
-                point => {
-
-                    const normalized =
-                        currentWidth > 0
-
-                            ? (
-                                point[0] -
-                                center
-                              ) /
-                              (
-                                currentWidth / 2
-                              )
-
-                            : 0;
-
-
-                    /*
-                     * Pelebaran hanya di bagian
-                     * bawah dress.
-                     */
-
-                    const factor =
-                        point[1] >
-                        bounds.minY +
-                        (
-                            bounds.height *
-                            0.45
-                        )
-
-                            ? (
-                                1 +
-                                widening /
-                                Math.max(
-                                    currentWidth,
-                                    1
-                                )
-                              )
-
-                            : 1;
-
-
-                    return [
-
-                        round(
-                            center +
-                            (
-                                point[0] -
-                                center
-                            ) *
-                            factor
-                        ),
-
-                        round(
-                            point[1]
-                        )
-
-                    ];
-
-                }
-            );
-
-
-        return {
-
-            ...piece,
-
-            points:
-                adjusted
-
-        };
-
-    }
-
-
-    /* ========================================================
-       CREATE WAIST JOIN
-       ======================================================== */
-
-    function createWaistSeam(
-        piece,
-        options = {}
-    ) {
-
-        const bounds =
-            getBounds(
-                piece.points
-            );
-
-
-        const seamY =
-            bounds.minY +
-            bounds.height *
-            0.42;
-
-
-        return {
-
-            ...piece,
-
-            metadata: {
-
-                ...(piece.metadata || {}),
-
-                waistSeam:
-                    round(
-                        seamY
-                    )
-
-            }
-
-        };
-
-    }
-
-
-    /* ========================================================
-       CREATE DRESS PIECES
-       ======================================================== */
-
-    function createDressPieces(
-        context
-    ) {
-
-        const measurements =
-            context.measurements ||
-            {};
-
-
-        const bodiceResult =
-            Legacy.BodiceAdapter.generate(
-                context
-            );
-
-
-        if (
-            !bodiceResult ||
-            !bodiceResult.geometry
-        ) {
-
-            throw new Error(
-                "Bodice engine gagal membuat base dress."
-            );
-
-        }
-
-
-        const bodice =
-            bodiceResult.geometry;
-
-
-        /*
-         * SLEEVE
-         */
-
-        let sleeve =
-            null;
-
-
-        if (
-            Legacy.SleeveAdapter
-        ) {
-
-            const sleeveResult =
-                Legacy.SleeveAdapter.generate(
-                    context
-                );
-
-
-            if (
-                sleeveResult
-            ) {
-
-                sleeve =
-                    sleeveResult.geometry;
-
-            }
-
-        }
-
-
-        /*
-         * FRONT
-         */
-
-        let front =
-            ProductionGeometry.createFrontFromBodice(
-
-                bodice,
-
-                {
-
-                    label:
-                        "DRESS FRONT"
-
-                }
-
-            );
-
-
-        front =
-            createDressExtension(
-
-                front,
-
-                measurements,
-
-                context.options || {}
-
-            );
-
-
-        front =
-            shapeDressBottom(
-
-                front,
-
-                measurements,
-
-                context.options || {}
-
-            );
-
-
-        front =
-            createWaistSeam(
-                front
-            );
-
-
-        /*
-         * BACK
-         */
-
-        let back =
-            ProductionGeometry.createBackFromBodice(
-
-                bodice,
-
-                {
-
-                    label:
-                        "DRESS BACK"
-
-                }
-
-            );
-
-
-        back =
-            createDressExtension(
-
-                back,
-
-                measurements,
-
-                context.options || {}
-
-            );
-
-
-        back =
-            shapeDressBottom(
-
-                back,
-
-                measurements,
-
-                context.options || {}
-
-            );
-
-
-        back =
-            createWaistSeam(
-                back
-            );
-
-
-        const pieces = [
-
-            front,
-
-            back
-
-        ];
-
-
-        /*
-         * SLEEVES
-         */
-
-        if (
-            sleeve
-        ) {
-
-            const sleeveLeft =
-                ProductionGeometry.createSleeveFromLegacy(
-
-                    sleeve,
-
-                    {
-
-                        name:
-                            "DRESS SLEEVE L",
-
-                        side:
-                            "left",
-
-                        quantity:
-                            1,
-
-                        label:
-                            "DRESS SLEEVE L"
-
-                    }
-
-                );
-
-
-            pieces.push(
-                sleeveLeft
-            );
-
-
-            const bounds =
-                ProductionGeometry.getBounds(
-                    sleeveLeft.points
-                );
-
-
-            const axis =
-                (
-                    bounds.minX +
-                    bounds.maxX
-                ) /
-                2;
-
-
-            let sleeveRight =
-                ProductionGeometry.mirrorPieceX(
-
-                    sleeveLeft,
-
-                    axis
-
-                );
-
-
-            sleeveRight = {
-
-                ...sleeveRight,
-
-                name:
-                    "DRESS SLEEVE R",
-
-                side:
-                    "right",
-
-                label:
-                    "DRESS SLEEVE R"
-
-            };
-
-
-            pieces.push(
-                sleeveRight
-            );
-
-        }
-
-
-        return {
-
-            pieces,
-
-            bodice,
-
-            sleeve
-
-        };
-
-    }
-
-
-    /* ========================================================
-       GENERATE DRESS
-       ======================================================== */
-
-    function generate(
+    function makeDressPieces(
         context = {}
     ) {
 
+        /*
+         * V5:
+         *
+         * makeDressPieces()
+         *      ↓
+         * makeUpperPieces("dress")
+         *
+         * We preserve that dependency.
+         */
+
+        const baseContext = {
+
+            ...context,
+
+            garment: {
+
+                ...(context.garment || {}),
+
+                id:
+                    "dress"
+
+            },
+
+            garmentId:
+                "dress"
+
+        };
+
+
+        /*
+         * IMPORTANT:
+         *
+         * Normal modular mode:
+         * seam stays outside the pattern engine.
+         *
+         * Legacy comparison:
+         * caller can explicitly set
+         *
+         * includeLegacySeam: true
+         *
+         * in the Bodice engine.
+         */
+
+        const baseResult =
+            Bodice.generate({
+
+                ...baseContext,
+
+                options: {
+
+                    ...(context.options || {})
+
+                }
+
+            });
+
+
+        const pieces =
+            baseResult.pieces;
+
+
         if (
-            !context.measurements
+            !Array.isArray(
+                pieces
+            )
         ) {
 
             throw new Error(
-                "Dress Engine membutuhkan measurements."
+                "Bodice Engine tidak menghasilkan pieces untuk Dress."
             );
 
         }
 
 
-        const result =
-            createDressPieces(
-                context
+        /* ====================================================
+           SOURCE MEASUREMENTS
+           ==================================================== */
+
+        const source =
+            context?.profile?.measurements ||
+            context?.measurements ||
+            {};
+
+
+        /*
+         * V5 uses:
+         *
+         * dressLength
+         * bodyLength
+         *
+         * They are legacy names.
+         *
+         * Canonical fallback:
+         *
+         * garmentLength
+         */
+
+        const targetLength =
+
+            Number.isFinite(
+                Number(
+                    source.dressLength
+                )
+            ) &&
+            Number(
+                source.dressLength
+            ) > 0
+
+                ? Number(
+                    source.dressLength
+                )
+
+                : getMeasurement(
+
+                    context,
+
+                    "garmentLength",
+
+                    110
+
+                );
+
+
+        const baseBodyLength =
+
+            Number.isFinite(
+                Number(
+                    source.bodyLength
+                )
+            ) &&
+            Number(
+                source.bodyLength
+            ) > 0
+
+                ? Number(
+                    source.bodyLength
+                )
+
+                : getMeasurement(
+
+                    context,
+
+                    "garmentLength",
+
+                    60
+
+                );
+
+
+        /*
+         * Equivalent to V5:
+         *
+         * extra =
+         *   max(0, dressLength - bodyLength)
+         */
+
+        const extra =
+            Math.max(
+
+                0,
+
+                targetLength -
+                baseBodyLength
+
             );
 
 
-        const layout =
-            ProductionGeometry.layoutOpenPieces(
+        /* ====================================================
+           EXTEND FRONT / BACK
+           ==================================================== */
 
-                result.pieces,
+        pieces.forEach(
+            piece => {
 
-                {
+                if (
+                    piece.name !==
+                        "FRONT" &&
 
-                    gap:
-                        num(
-                            context.options?.gap,
-                            8
-                        ),
+                    piece.name !==
+                        "BACK"
+                ) {
 
-                    grainline:
-                        context.options?.grainline !== false,
-
-                    notches:
-                        context.options?.notches !== false
+                    return;
 
                 }
 
+
+                const points =
+                    piece.points ||
+                    [];
+
+
+                if (
+                    !points.length
+                ) {
+
+                    return;
+
+                }
+
+
+                const maxY =
+                    Math.max(
+
+                        ...points.map(
+
+                            point =>
+                                Number(
+                                    point[1]
+                                )
+
+                        )
+
+                    );
+
+
+                /*
+                 * Match V5 behavior:
+                 *
+                 * Only points on the bottom edge
+                 * are extended.
+                 */
+
+                piece.points =
+                    points.map(
+                        (
+                            [
+                                x,
+                                y
+                            ]
+                        ) => [
+
+                            Number(x),
+
+                            Number(y) ===
+                                maxY
+
+                                ? Number(y) +
+                                  extra
+
+                                : Number(y)
+
+                        ]
+                    );
+
+
+                /*
+                 * Extend grainline endpoint.
+                 */
+
+                if (
+                    piece.grainline
+                ) {
+
+                    const grainline =
+                        piece.grainline.map(
+                            point => [
+
+                                Number(
+                                    point[0]
+                                ),
+
+                                Number(
+                                    point[1]
+                                )
+
+                            ]
+                        );
+
+
+                    if (
+                        grainline.length >=
+                        2
+                    ) {
+
+                        grainline[1][1] +=
+                            extra;
+
+                    }
+
+
+                    piece.grainline =
+                        grainline;
+
+                }
+
+            }
+        );
+
+
+        /* ====================================================
+           CATEGORY
+           ==================================================== */
+
+        const category =
+            context?.profile?.category ||
+            context?.category ||
+            "custom";
+
+
+        const categoryLabel =
+            Schema.getCategoryLabel(
+                category
             );
 
 
-        const pattern = {
+        /* ====================================================
+           RESULT
+           ==================================================== */
+
+        return {
 
             type:
-                "dress",
+                "base-pattern",
 
             engine:
                 "dress",
 
             version:
-                "1.0",
+                VERSION,
 
-            pieces:
-                layout,
-
-            source:
-                "engine/dress.js",
+            pieces,
 
             metadata: {
 
-                garment:
-                    "dress",
+                source:
+                    "PatternMaker V5",
+
+                migration:
+                    true,
+
+                category,
+
+                categoryLabel,
 
                 unit:
                     "cm",
 
+                scale:
+                    1,
+
                 fullOpen:
                     true,
 
-                hasFront:
-                    true,
+                seamAllowanceIncluded:
 
-                hasBack:
-                    true,
-
-                hasSleeve:
                     Boolean(
-                        result.sleeve
+                        context?.options
+                            ?.includeLegacySeam
                     ),
 
-                dressLength:
-                    num(
-                        context.measurements.dressLength,
-                        0
-                    ),
+                productionGeometry:
+                    false,
 
-                note:
-                    "Base dress pattern. Fitting sample required before mass production."
+                formula:
+                    "V5 makeDressPieces extraction"
 
             }
 
         };
 
-
-        return pattern;
-
     }
 
 
     /* ========================================================
-       REGISTER
+       ENGINE CONTRACT
        ======================================================== */
 
     const DressEngine = {
@@ -873,46 +524,22 @@
             "Dress Pattern Engine",
 
         version:
-            "1.0",
+            VERSION,
 
-        generate
+        generate:
+            makeDressPieces,
+
+        makeDressPieces
 
     };
-
-
-    if (
-        Registry
-    ) {
-
-        Registry.registerEngine(
-
-            "dress",
-
-            DressEngine
-
-        );
-
-    }
 
 
     /* ========================================================
-       GLOBAL API
+       GLOBAL
        ======================================================== */
 
-    window.PatternMakerDressEngine = {
-
-        DressEngine,
-
-        generate,
-
-        createDressPieces,
-
-        createDressExtension,
-
-        shapeDressBottom
-
-    };
+    window.PatternMakerDress =
+        DressEngine;
 
 
 })();
-```
