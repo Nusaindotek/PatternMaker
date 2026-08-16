@@ -1,23 +1,36 @@
 /**
  * ============================================================
- * PATTERNMAKER UNIVERSAL
- * KODE 39 — engine/universal-audit-runner.js
+ * PATTERMAKER UNIVERSAL
+ * BASELINE FINAL v1
+ * KODE 86
+ *
+ * FILE:
+ *   engine/universal-audit-runner.js
  * ============================================================
  *
- * UNIVERSAL AUDIT RUNNER
+ * UNIVERSAL SYSTEM AUDIT RUNNER
  *
- * Prinsip:
+ * Single command:
  *
- * - TIDAK memperbaiki source code.
- * - TIDAK mengubah garment.
- * - TIDAK mengubah measurement.
- * - TIDAK mengubah engine.
+ *   PatternMakerUniversalAuditRunner.run()
  *
- * Runner hanya mengumpulkan kondisi sistem.
+ * ============================================================
  *
- * Dengan demikian kita tidak mengulang kesalahan:
+ * AUDIT MATRIX:
  *
- * "mengubah kode yang sama tanpa validasi dependency."
+ *   Garment
+ *      ↓
+ *   Base Pattern
+ *      ↓
+ *   Grade Points
+ *      ↓
+ *   Strict Grading
+ *      ↓
+ *   Production
+ *      ↓
+ *   Nesting
+ *      ↓
+ *   Output
  *
  * ============================================================
  */
@@ -28,1180 +41,694 @@
 
 
     /* ========================================================
-       DEPENDENCIES
+       DEPENDENCY
        ======================================================== */
 
     const GarmentAudit =
         window.PatternMakerUniversalGarmentAudit;
 
-    const Validator =
-        window.PatternMakerValidator;
 
-    const ProductionValidator =
-        window.PatternMakerProductionValidator;
+    if (
+        !GarmentAudit
+    ) {
 
-    const OutputAudit =
-        window.PatternMakerOutputAudit;
+        throw new Error(
+            "universal-garment-audit.js harus dimuat sebelum universal-audit-runner.js."
+        );
 
-    const NestingEngine =
-        window.PatternMakerNestingEngine;
-
-    const NestingPreview =
-        window.PatternMakerNestingPreview;
-
-    const Registry =
-        window.PatternMakerPatternRegistry;
-
-    const Schema =
-        window.PatternMakerMeasurementSchema;
+    }
 
 
     /* ========================================================
-       RESULT
+       VERSION
        ======================================================== */
 
-    function createResult() {
+    const VERSION =
+        "FINAL-v1";
+
+
+    /* ========================================================
+       DEFAULT CONFIG
+       ======================================================== */
+
+    const DEFAULT_CONFIG = {
+
+        garments: [
+
+            "bodice",
+            "skirt",
+            "pants",
+            "shorts",
+            "dress",
+            "shirt"
+
+        ],
+
+        profile:
+            GarmentAudit.DEFAULT_PROFILE,
+
+        sizes:
+            GarmentAudit.DEFAULT_SIZES,
+
+        seamAllowance:
+            1,
+
+        miterLimit:
+            4,
+
+        curveTolerance:
+            0.05,
+
+        maxSegmentLength:
+            2,
+
+        materialWidth:
+            140,
+
+        spacing:
+            0.5,
+
+        allowRotation90:
+            true,
+
+        respectGrainline:
+            true,
+
+        requireTrueOffset:
+            true,
+
+        requireAllPlaced:
+            true,
+
+        requireProductionPass:
+            true,
+
+        requireNestingPass:
+            true,
+
+        auditOutputs:
+            true,
+
+        sourceUnit:
+            "cm",
+
+        stopOnFirstFailure:
+            false
+
+    };
+
+
+    /* ========================================================
+       CLONE
+       ======================================================== */
+
+    function clone(
+        value
+    ) {
+
+        if (
+            value === null ||
+            value === undefined
+        ) {
+
+            return value;
+
+        }
+
+
+        if (
+            typeof structuredClone ===
+            "function"
+        ) {
+
+            return structuredClone(
+                value
+            );
+
+        }
+
+
+        return JSON.parse(
+            JSON.stringify(
+                value
+            )
+
+        );
+
+    }
+
+
+    /* ========================================================
+       NUMBER
+       ======================================================== */
+
+    function num(
+        value,
+        fallback = 0
+    ) {
+
+        const n =
+            Number(value);
+
+
+        return Number.isFinite(n)
+            ? n
+            : fallback;
+
+    }
+
+
+    /* ========================================================
+       CONFIG
+       ======================================================== */
+
+    function normalizeConfig(
+        options = {}
+    ) {
 
         return {
 
-            valid: true,
-
-            errors: [],
-
-            warnings: [],
-
-            info: [],
-
-            checks: [],
-
-            sections: {}
-
-        };
-
-    }
-
-
-    function addCheck(
-        result,
-        name,
-        passed,
-        message = "",
-        severity = "error"
-    ) {
-
-        const check = {
-
-            name,
-
-            passed,
-
-            message,
-
-            severity
-
-        };
-
-
-        result.checks.push(
-            check
-        );
-
-
-        if (!passed) {
-
-            result.valid =
-                false;
-
-
-            if (
-                severity ===
-                "warning"
-            ) {
-
-                result.warnings.push(
-                    check
-                );
-
-            }
-            else {
-
-                result.errors.push(
-                    check
-                );
-
-            }
-
-        }
-
-    }
-
-
-    function addInfo(
-        result,
-        message
-    ) {
-
-        result.info.push(
-            message
-        );
-
-    }
-
-
-    /* ========================================================
-       BASIC MODULE AUDIT
-       ======================================================== */
-
-    function auditModules() {
-
-        const result =
-            createResult();
-
-
-        const modules = {
-
-            "Measurement Schema":
-                Schema,
-
-            "Garment Audit":
-                GarmentAudit,
-
-            "Pattern Validator":
-                Validator,
-
-            "Production Validator":
-                ProductionValidator,
-
-            "Output Audit":
-                OutputAudit,
-
-            "Nesting Engine":
-                NestingEngine,
-
-            "Nesting Preview":
-                NestingPreview,
-
-            "Pattern Registry":
-                Registry
-
-        };
-
-
-        Object.entries(
-            modules
-        )
-        .forEach(
-            ([name, module]) => {
-
-                addCheck(
-
-                    result,
-
-                    `Module: ${name}`,
-
-                    Boolean(
-                        module
-                    ),
-
-                    module
-                        ? ""
-                        : `${name} belum tersedia.`
-
-                );
-
-            }
-        );
-
-
-        return result;
-
-    }
-
-
-    /* ========================================================
-       GARMENT AUDIT
-       ======================================================== */
-
-    function auditGarments() {
-
-        const result =
-            createResult();
-
-
-        if (
-            !GarmentAudit
-        ) {
-
-            addCheck(
-
-                result,
-
-                "Universal Garment Audit",
-
-                false,
-
-                "Universal Garment Audit belum tersedia."
-
-            );
-
-
-            return result;
-
-        }
-
-
-        const audit =
-            GarmentAudit.auditSystem();
-
-
-        result.checks.push(
-            ...(audit.checks || [])
-        );
-
-
-        result.errors.push(
-            ...(audit.errors || [])
-        );
-
-
-        result.warnings.push(
-            ...(audit.warnings || [])
-        );
-
-
-        result.sections.matrix =
-            audit.matrix || null;
-
-
-        result.valid =
-            audit.valid;
-
-
-        return result;
-
-    }
-
-
-    /* ========================================================
-       PATTERN ENGINE AUDIT
-       ======================================================== */
-
-    function auditPatternEngines() {
-
-        const result =
-            createResult();
-
-
-        if (
-            !Registry
-        ) {
-
-            addCheck(
-
-                result,
-
-                "Pattern Registry",
-
-                false,
-
-                "Pattern Registry belum tersedia."
-
-            );
-
-
-            return result;
-
-        }
-
-
-        let engineIds =
-            [];
-
-
-        /*
-         * Ambil API registry secara defensif.
-         */
-
-        if (
-            typeof Registry.getEngineIds ===
-            "function"
-        ) {
-
-            engineIds =
-                Registry.getEngineIds();
-
-        }
-        else if (
-            typeof Registry.getAllEngines ===
-            "function"
-        ) {
-
-            const engines =
-                Registry.getAllEngines();
-
-
-            if (
-                Array.isArray(
-                    engines
+            ...clone(
+                DEFAULT_CONFIG
+            ),
+
+            ...options,
+
+            profile:
+                clone(
+                    options.profile ||
+                    DEFAULT_CONFIG.profile
+                ),
+
+            sizes:
+                clone(
+                    options.sizes ||
+                    DEFAULT_CONFIG.sizes
                 )
-            ) {
 
-                engineIds =
-                    engines.map(
-                        engine =>
-                            engine.id
-                    );
+        };
+
+    }
+
+
+    /* ========================================================
+       TIMESTAMP
+       ======================================================== */
+
+    function nowIso() {
+
+        return new Date()
+            .toISOString();
+
+    }
+
+
+    /* ========================================================
+       CREATE EMPTY RESULT
+       ======================================================== */
+
+    function createEmptyResult() {
+
+        return {
+
+            version:
+                VERSION,
+
+            startedAt:
+                null,
+
+            finishedAt:
+                null,
+
+            durationMs:
+                0,
+
+            valid:
+                false,
+
+            totalGarments:
+                0,
+
+            passedGarments:
+                0,
+
+            failedGarments:
+                0,
+
+            results:
+                {},
+
+            failures:
+                [],
+
+            warnings:
+                [],
+
+            summary: {
+
+                generation:
+                    {
+                        passed: 0,
+                        failed: 0
+                    },
+
+                baseValidation:
+                    {
+                        passed: 0,
+                        failed: 0
+                    },
+
+                gradePoints:
+                    {
+                        passed: 0,
+                        failed: 0
+                    },
+
+                grading:
+                    {
+                        passed: 0,
+                        failed: 0
+                    },
+
+                production:
+                    {
+                        passed: 0,
+                        failed: 0
+                    },
+
+                nesting:
+                    {
+                        passed: 0,
+                        failed: 0
+                    },
+
+                outputAudit:
+                    {
+                        passed: 0,
+                        failed: 0
+                    }
 
             }
-            else if (
-                engines &&
-                typeof engines ===
-                    "object"
-            ) {
 
-                engineIds =
-                    Object.keys(
-                        engines
-                    );
+        };
 
-            }
+    }
+
+
+    /* ========================================================
+       INCREMENT STAGE
+       ======================================================== */
+
+    function incrementStage(
+        result,
+        stage,
+        passed
+    ) {
+
+        if (
+            !result.summary[stage]
+        ) {
+
+            return;
+
+        }
+
+
+        if (
+            passed
+        ) {
+
+            result.summary[
+                stage
+            ].passed++;
 
         }
         else {
 
-            addInfo(
-
-                result,
-
-                "Pattern Registry tidak menyediakan API enumeration."
-
-            );
-
-            return result;
+            result.summary[
+                stage
+            ].failed++;
 
         }
 
-
-        if (
-            !Array.isArray(
-                engineIds
-            )
-        ) {
-
-            engineIds =
-                [];
-
-        }
+    }
 
 
-        engineIds.forEach(
-            engineId => {
+    /* ========================================================
+       ANALYZE GARMENT REPORT
+       ======================================================== */
 
-                let engine =
-                    null;
+    function analyzeGarment(
+        result,
+        report
+    ) {
+
+        incrementStage(
+
+            result,
+
+            "generation",
+
+            report.generation
+                ?.valid ===
+            true
+
+        );
 
 
-                if (
-                    typeof Registry.getEngine ===
-                    "function"
-                ) {
+        incrementStage(
 
-                    engine =
-                        Registry.getEngine(
-                            engineId
-                        );
+            result,
 
-                }
+            "baseValidation",
+
+            report.baseValidation
+                ?.valid ===
+            true
+
+        );
 
 
-                addCheck(
+        incrementStage(
+
+            result,
+
+            "gradePoints",
+
+            report.gradePoints
+                ?.valid ===
+            true
+
+        );
+
+
+        incrementStage(
+
+            result,
+
+            "grading",
+
+            report.grading
+                ?.valid ===
+            true
+
+        );
+
+
+        /*
+         * Size-level stages.
+         */
+
+        const sizes =
+            report.sizes ||
+            [];
+
+
+        sizes.forEach(
+            size => {
+
+                incrementStage(
 
                     result,
 
-                    `Pattern engine: ${engineId}`,
+                    "production",
 
-                    Boolean(
-                        engine &&
-                        typeof engine.generate ===
-                            "function"
-                    ),
+                    size.productionValidation
+                        ?.valid ===
+                    true
 
-                    engine
+                );
 
-                        ? (
-                            typeof engine.generate ===
-                                "function"
 
-                                ? ""
+                incrementStage(
 
-                                : `Engine "${engineId}" ` +
-                                  "tidak mempunyai generate()."
-                          )
+                    result,
 
-                        : `Engine "${engineId}" tidak ditemukan.`
+                    "nesting",
+
+                    size.nestingValidation
+                        ?.valid ===
+                    true
+
+                );
+
+
+                incrementStage(
+
+                    result,
+
+                    "outputAudit",
+
+                    size.outputAudit
+                        ?.valid ===
+                    true
 
                 );
 
             }
         );
 
-
-        result.sections.engineCount =
-            engineIds.length;
-
-
-        return result;
-
     }
 
 
     /* ========================================================
-       LEGACY ENGINE AUDIT
+       RUN SINGLE GARMENT
        ======================================================== */
 
-    function auditLegacyEngines() {
+    function runGarment(
+        garment,
+        config,
+        result
+    ) {
 
-        const result =
-            createResult();
+        let report;
 
 
-        addCheck(
+        try {
 
-            result,
+            report =
+                GarmentAudit.runGarment(
 
-            "Legacy makeBodice",
-
-            typeof window.makeBodice ===
-                "function",
-
-            "window.makeBodice belum tersedia."
-
-        );
-
-
-        addCheck(
-
-            result,
-
-            "Legacy makeSleeve",
-
-            typeof window.makeSleeve ===
-                "function",
-
-            "window.makeSleeve belum tersedia."
-
-        );
-
-
-        return result;
-
-    }
-
-
-    /* ========================================================
-       CURRENT APP STATE
-       ======================================================== */
-
-    function auditCurrentState() {
-
-        const result =
-            createResult();
-
-
-        const state =
-            window.PatternMakerApp?.state;
-
-
-        addCheck(
-
-            result,
-
-            "Application State",
-
-            Boolean(
-                state
-            ),
-
-            "PatternMakerApp.state belum tersedia."
-
-        );
-
-
-        if (
-            !state
-        ) {
-
-            return result;
-
-        }
-
-
-        addInfo(
-
-            result,
-
-            `Mode: ${state.mode || "-"}`
-
-        );
-
-
-        addInfo(
-
-            result,
-
-            `Garment: ${state.garment || "-"}`
-
-        );
-
-
-        addInfo(
-
-            result,
-
-            `Base pattern: ${
-                state.basePattern
-                    ? "available"
-                    : "empty"
-            }`
-
-        );
-
-
-        addInfo(
-
-            result,
-
-            `Cutting pattern: ${
-                state.cuttingPattern
-                    ? "available"
-                    : "empty"
-            }`
-
-        );
-
-
-        addInfo(
-
-            result,
-
-            `Nesting result: ${
-                state.nestingResult
-                    ? "available"
-                    : "empty"
-            }`
-
-        );
-
-
-        /*
-         * State kosong bukan error.
-         */
-
-        return result;
-
-    }
-
-
-    /* ========================================================
-       CURRENT SELECTION AUDIT
-       ======================================================== */
-
-    function auditCurrentSelection() {
-
-        const result =
-            createResult();
-
-
-        const app =
-            window.PatternMakerApp;
-
-
-        if (
-            !app ||
-            !app.state
-        ) {
-
-            addCheck(
-
-                result,
-
-                "Current application",
-
-                false,
-
-                "PatternMakerApp belum tersedia."
-
-            );
-
-
-            return result;
-
-        }
-
-
-        if (
-            !GarmentAudit
-        ) {
-
-            addCheck(
-
-                result,
-
-                "Current garment audit",
-
-                false,
-
-                "Universal Garment Audit belum tersedia."
-
-            );
-
-
-            return result;
-
-        }
-
-
-        const garmentId =
-            app.state.garment;
-
-
-        const profile =
-            app.state.profile;
-
-
-        const audit =
-            GarmentAudit.auditCurrentSelection(
-
-                profile,
-
-                garmentId
-
-            );
-
-
-        result.checks.push(
-            ...(audit.checks || [])
-        );
-
-
-        result.errors.push(
-            ...(audit.errors || [])
-        );
-
-
-        result.warnings.push(
-            ...(audit.warnings || [])
-        );
-
-
-        result.valid =
-            audit.valid;
-
-
-        return result;
-
-    }
-
-
-    /* ========================================================
-       PRODUCTION STATE AUDIT
-       ======================================================== */
-
-    function auditProductionState() {
-
-        const result =
-            createResult();
-
-
-        const pattern =
-            window.PatternMakerApp
-                ?.state
-                ?.cuttingPattern;
-
-
-        /*
-         * Tidak ada pattern adalah kondisi
-         * sebelum drafting, bukan error.
-         */
-
-        if (
-            !pattern
-        ) {
-
-            addInfo(
-
-                result,
-
-                "Belum ada cuttingPattern. " +
-                "Production audit belum dapat dijalankan."
-
-            );
-
-
-            return result;
-
-        }
-
-
-        if (
-            !ProductionValidator
-        ) {
-
-            addCheck(
-
-                result,
-
-                "Production Validator",
-
-                false,
-
-                "Production Validator tidak tersedia."
-
-            );
-
-
-            return result;
-
-        }
-
-
-        const validation =
-            ProductionValidator
-                .validateForProduction(
-
-                    pattern,
+                    garment,
 
                     {
 
-                        requireCutPoints:
-                            true,
+                        ...config,
 
-                        requireSeam:
-                            true
+                        profile:
+                            clone(
+                                config.profile
+                            ),
+
+                        sizes:
+                            clone(
+                                config.sizes
+                            )
 
                     }
 
                 );
 
-
-        result.checks.push(
-            ...(validation.checks || [])
-        );
-
-
-        result.errors.push(
-            ...(validation.errors || [])
-        );
-
-
-        result.warnings.push(
-            ...(validation.warnings || [])
-        );
-
-
-        result.valid =
-            validation.valid;
-
-
-        return result;
-
-    }
-
-
-    /* ========================================================
-       OUTPUT STATE AUDIT
-       ======================================================== */
-
-    function auditOutputState() {
-
-        const result =
-            createResult();
-
-
-        const pattern =
-            window.PatternMakerApp
-                ?.state
-                ?.cuttingPattern;
-
-
-        if (
-            !pattern
+        }
+        catch (
+            error
         ) {
 
-            addInfo(
+            report = {
 
-                result,
+                garment,
 
-                "Belum ada cuttingPattern. " +
-                "Output audit menunggu drafting."
+                valid:
+                    false,
 
-            );
+                errors: [
 
+                    error.message
 
-            return result;
+                ],
+
+                warnings: [],
+
+                generation: {
+
+                    valid:
+                        false
+
+                },
+
+                baseValidation: {
+
+                    valid:
+                        false
+
+                },
+
+                gradePoints: {
+
+                    valid:
+                        false
+
+                },
+
+                grading: {
+
+                    valid:
+                        false
+
+                },
+
+                sizes: []
+
+            };
 
         }
 
 
-        if (
-            !OutputAudit
-        ) {
-
-            addCheck(
-
-                result,
-
-                "Output Audit",
-
-                false,
-
-                "Output Audit belum tersedia."
-
-            );
+        result.results[
+            garment
+        ] =
+            report;
 
 
-            return result;
-
-        }
-
-
-        const audit =
-            OutputAudit.auditPattern(
-                pattern
-            );
-
-
-        result.checks.push(
-            ...(audit.checks || [])
-        );
-
-
-        result.errors.push(
-            ...(audit.errors || [])
-        );
-
-
-        result.warnings.push(
-            ...(audit.warnings || [])
-        );
-
-
-        result.valid =
-            audit.valid;
-
-
-        return result;
-
-    }
-
-
-    /* ========================================================
-       NESTING STATE AUDIT
-       ======================================================== */
-
-    function auditNestingState() {
-
-        const result =
-            createResult();
-
-
-        const nest =
-            window.PatternMakerApp
-                ?.state
-                ?.nestingResult;
-
-
-        if (
-            !nest
-        ) {
-
-            addInfo(
-
-                result,
-
-                "Nesting belum dijalankan."
-
-            );
-
-
-            return result;
-
-        }
-
-
-        if (
-            !NestingEngine
-        ) {
-
-            addCheck(
-
-                result,
-
-                "Nesting Engine",
-
-                false,
-
-                "Nesting Engine belum tersedia."
-
-            );
-
-
-            return result;
-
-        }
-
-
-        const validation =
-            NestingEngine.validateNest(
-                nest
-            );
-
-
-        addCheck(
-
+        analyzeGarment(
             result,
-
-            "Nesting geometry",
-
-            validation.valid,
-
-            validation.valid
-
-                ? ""
-
-                : validation.errors
-                    .join(
-                        " | "
-                    )
-
+            report
         );
 
 
         if (
-            validation.warnings?.length
+            report.valid
         ) {
 
-            validation.warnings.forEach(
-                warning => {
+            result.passedGarments++;
 
-                    addWarningMessage(
+        }
+        else {
 
-                        result,
+            result.failedGarments++;
 
-                        "Nesting warning",
 
-                        typeof warning ===
-                            "string"
+            result.failures.push({
 
-                            ? warning
+                garment,
 
-                            : warning.message
+                errors:
+                    report.errors ||
+                    [],
 
-                    );
+                warnings:
+                    report.warnings ||
+                    []
 
-                }
+            });
+
+
+            result.warnings.push(
+
+                ...(
+                    report.warnings ||
+                    []
+                )
+                .map(
+                    warning =>
+                        `${garment}: ${warning}`
+                )
+
             );
 
         }
 
 
-        return result;
+        return report;
 
     }
 
 
-    function addWarningMessage(
-        result,
-        name,
-        message
+    /* ========================================================
+       RUN
+       ======================================================== */
+
+    function run(
+        options = {}
     ) {
 
-        result.warnings.push({
+        const config =
+            normalizeConfig(
+                options
+            );
 
-            check:
-                name,
-
-            message
-
-        });
-
-    }
-
-
-    /* ========================================================
-       FULL RUN
-       ======================================================== */
-
-    function runFullAudit() {
 
         const result =
-            createResult();
+            createEmptyResult();
 
 
-        /*
-         * 1. Modules
-         */
-
-        const modules =
-            auditModules();
+        const started =
+            performance.now();
 
 
-        result.sections.modules =
-            modules;
+        result.startedAt =
+            nowIso();
 
 
-        mergeResult(
-            result,
-            modules
-        );
+        result.totalGarments =
+            config.garments.length;
 
 
-        /*
-         * 2. Garments
-         */
+        for (
+            const garment
+            of config.garments
+        ) {
 
-        const garments =
-            auditGarments();
+            const report =
+                runGarment(
 
+                    garment,
 
-        result.sections.garments =
-            garments;
+                    config,
 
+                    result
 
-        mergeResult(
-            result,
-            garments
-        );
-
-
-        /*
-         * 3. Pattern engines
-         */
-
-        const engines =
-            auditPatternEngines();
+                );
 
 
-        result.sections.patternEngines =
-            engines;
+            if (
+                !report.valid &&
+                config.stopOnFirstFailure
+            ) {
 
+                break;
 
-        mergeResult(
-            result,
-            engines
-        );
+            }
 
-
-        /*
-         * 4. Legacy
-         */
-
-        const legacy =
-            auditLegacyEngines();
-
-
-        result.sections.legacy =
-            legacy;
-
-
-        mergeResult(
-            result,
-            legacy
-        );
-
-
-        /*
-         * 5. Current state
-         */
-
-        const state =
-            auditCurrentState();
-
-
-        result.sections.state =
-            state;
-
-
-        mergeResult(
-            result,
-            state
-        );
-
-
-        /*
-         * 6. Current selection
-         */
-
-        const selection =
-            auditCurrentSelection();
-
-
-        result.sections.selection =
-            selection;
-
-
-        mergeResult(
-            result,
-            selection
-        );
-
-
-        /*
-         * 7. Production
-         */
-
-        const production =
-            auditProductionState();
-
-
-        result.sections.production =
-            production;
-
-
-        mergeResult(
-            result,
-            production
-        );
-
-
-        /*
-         * 8. Output
-         */
-
-        const output =
-            auditOutputState();
-
-
-        result.sections.output =
-            output;
-
-
-        mergeResult(
-            result,
-            output
-        );
-
-
-        /*
-         * 9. Nesting
-         */
-
-        const nesting =
-            auditNestingState();
-
-
-        result.sections.nesting =
-            nesting;
-
-
-        mergeResult(
-            result,
-            nesting
-        );
+        }
 
 
         result.valid =
-            result.errors.length === 0;
+
+            result.failedGarments ===
+            0
+
+            &&
+
+            result.passedGarments ===
+            result.totalGarments;
+
+
+        result.finishedAt =
+            nowIso();
+
+
+        result.durationMs =
+
+            Math.round(
+
+                (
+                    performance.now() -
+                    started
+
+                ) * 100
+
+            ) / 100;
 
 
         return result;
@@ -1210,87 +737,224 @@
 
 
     /* ========================================================
-       MERGE
+       FLAT SUMMARY
        ======================================================== */
 
-    function mergeResult(
-        target,
-        source
-    ) {
-
-        target.checks.push(
-            ...(source.checks || [])
-        );
-
-
-        target.errors.push(
-            ...(source.errors || [])
-        );
-
-
-        target.warnings.push(
-            ...(source.warnings || [])
-        );
-
-
-        target.info.push(
-            ...(source.info || [])
-        );
-
-
-        if (
-            source.valid === false
-        ) {
-
-            target.valid =
-                false;
-
-        }
-
-    }
-
-
-    /* ========================================================
-       FORMAT
-       ======================================================== */
-
-    function formatResult(
+    function getFlatSummary(
         result
     ) {
+
+        if (
+            !result
+        ) {
+
+            return null;
+
+        }
+
 
         return {
 
             valid:
                 result.valid,
 
-            totalChecks:
-                result.checks.length,
+            totalGarments:
+                result.totalGarments,
 
-            passedChecks:
-                result.checks.filter(
-                    check =>
-                        check.passed
-                ).length,
+            passedGarments:
+                result.passedGarments,
 
-            failedChecks:
-                result.checks.filter(
-                    check =>
-                        !check.passed
-                ).length,
+            failedGarments:
+                result.failedGarments,
 
-            errors:
-                result.errors,
+            durationMs:
+                result.durationMs,
 
-            warnings:
-                result.warnings,
+            generationPassed:
+                result.summary.generation.passed,
 
-            info:
-                result.info,
+            baseValidationPassed:
+                result.summary.baseValidation.passed,
 
-            sections:
-                result.sections
+            gradePointPassed:
+                result.summary.gradePoints.passed,
+
+            gradingPassed:
+                result.summary.grading.passed,
+
+            productionPassed:
+                result.summary.production.passed,
+
+            nestingPassed:
+                result.summary.nesting.passed,
+
+            outputAuditPassed:
+                result.summary.outputAudit.passed
 
         };
+
+    }
+
+
+    /* ========================================================
+       COMPLETION %
+       ======================================================== */
+
+    function calculateCompletion(
+        result
+    ) {
+
+        if (
+            !result
+        ) {
+
+            return 0;
+
+        }
+
+
+        const stages = [
+
+            "generation",
+
+            "baseValidation",
+
+            "gradePoints",
+
+            "grading",
+
+            "production",
+
+            "nesting",
+
+            "outputAudit"
+
+        ];
+
+
+        let passed =
+            0;
+
+        let total =
+            0;
+
+
+        stages.forEach(
+            stage => {
+
+                const item =
+                    result.summary[
+                        stage
+                    ];
+
+
+                if (
+                    !item
+                ) {
+
+                    return;
+
+                }
+
+
+                passed +=
+                    item.passed;
+
+
+                total +=
+                    item.passed +
+                    item.failed;
+
+            }
+        );
+
+
+        if (
+            total ===
+            0
+        ) {
+
+            return 0;
+
+        }
+
+
+        return Math.round(
+
+            (
+                passed /
+                total
+
+            ) *
+
+            10000
+
+        ) / 100;
+
+    }
+
+
+    /* ========================================================
+       ASSERT
+       ======================================================== */
+
+    function assert(
+        result
+    ) {
+
+        if (
+            !result ||
+            result.valid !==
+            true
+        ) {
+
+            const messages =
+                [];
+
+
+            if (
+                result?.failures
+            ) {
+
+                result.failures.forEach(
+                    failure => {
+
+                        messages.push(
+
+                            `${failure.garment}: ` +
+
+                            (
+                                failure.errors ||
+                                []
+                            )
+                            .join(
+                                " | "
+                            )
+
+                        );
+
+                    }
+                );
+
+            }
+
+
+            throw new Error(
+
+                messages.join(
+                    "\n"
+                )
+
+                ||
+
+                "PatternMaker universal audit FAILED."
+
+            );
+
+        }
+
+
+        return true;
 
     }
 
@@ -1303,51 +967,43 @@
         result
     ) {
 
-        const formatted =
-            formatResult(
-                result
-            );
-
-
         return {
 
-            generatedAt:
-                new Date()
-                    .toISOString(),
+            version:
+                VERSION,
 
-            summary: {
+            status:
 
-                valid:
-                    formatted.valid,
+                result.valid
 
-                totalChecks:
-                    formatted.totalChecks,
+                    ? "PASS"
 
-                passed:
-                    formatted.passedChecks,
+                    : "FAIL",
 
-                failed:
-                    formatted.failedChecks,
+            completion:
+                calculateCompletion(
+                    result
+                ),
 
-                errors:
-                    formatted.errors.length,
+            summary:
+                getFlatSummary(
+                    result
+                ),
 
-                warnings:
-                    formatted.warnings.length
-
-            },
-
-            errors:
-                formatted.errors,
+            failures:
+                result.failures,
 
             warnings:
-                formatted.warnings,
+                result.warnings,
 
-            information:
-                formatted.info,
+            startedAt:
+                result.startedAt,
 
-            sections:
-                formatted.sections
+            finishedAt:
+                result.finishedAt,
+
+            durationMs:
+                result.durationMs
 
         };
 
@@ -1355,13 +1011,17 @@
 
 
     /* ========================================================
-       CONSOLE REPORT
+       DEBUG
        ======================================================== */
 
-    function runDebug() {
+    function debug(
+        options = {}
+    ) {
 
         const result =
-            runFullAudit();
+            run(
+                options
+            );
 
 
         const report =
@@ -1376,75 +1036,51 @@
 
 
         console.log(
-            "VALID:",
-            report.summary.valid
+            "Version:",
+            VERSION
         );
 
 
         console.log(
-            "TOTAL CHECKS:",
-            report.summary.totalChecks
+            "Status:",
+            report.status
         );
 
 
         console.log(
-            "PASSED:",
-            report.summary.passed
+            "Completion:",
+            `${report.completion}%`
         );
 
 
         console.log(
-            "FAILED:",
-            report.summary.failed
+            "Summary:",
+            report.summary
         );
 
 
         console.log(
-            "ERRORS:",
-            report.summary.errors
+            "Failures:",
+            report.failures
         );
 
 
         console.log(
-            "WARNINGS:",
-            report.summary.warnings
+            "Warnings:",
+            report.warnings
         );
 
 
         console.log(
-            "REPORT:",
-            report
+            "Raw result:",
+            result
         );
-
-
-        if (
-            report.errors.length
-        ) {
-
-            console.error(
-                "ERROR DETAILS:",
-                report.errors
-            );
-
-        }
-
-
-        if (
-            report.warnings.length
-        ) {
-
-            console.warn(
-                "WARNING DETAILS:",
-                report.warnings
-            );
-
-        }
 
 
         console.groupEnd();
 
 
-        return report;
+        return result;
 
     }
 
@@ -1455,31 +1091,25 @@
 
     window.PatternMakerUniversalAuditRunner = {
 
-        auditModules,
+        VERSION,
 
-        auditGarments,
+        DEFAULT_CONFIG,
 
-        auditPatternEngines,
+        normalizeConfig,
 
-        auditLegacyEngines,
+        runGarment,
 
-        auditCurrentState,
+        run,
 
-        auditCurrentSelection,
-
-        auditProductionState,
-
-        auditOutputState,
-
-        auditNestingState,
-
-        runFullAudit,
-
-        formatResult,
+        assert,
 
         createReport,
 
-        runDebug
+        getFlatSummary,
+
+        calculateCompletion,
+
+        debug
 
     };
 
