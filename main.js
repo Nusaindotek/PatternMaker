@@ -1,7 +1,7 @@
 /**
  * ============================================================
  * PATTERNMAKER UNIVERSAL
- * KODE 34 — main.js
+ * KODE 36 — main.js
  * ============================================================
  *
  * APPLICATION CONTROLLER
@@ -26,7 +26,7 @@
  *  ↓
  * Output Audit
  *  ↓
- * Full / Open Preview
+ * Nesting / Marker
  *  ↓
  * DXF / PLT / SVG
  *
@@ -64,6 +64,9 @@ const SeamProduction =
 const ProductionValidator =
     window.PatternMakerProductionValidator;
 
+const NestingEngine =
+    window.PatternMakerNestingEngine;
+
 const DXF =
     window.PatternMakerDXF;
 
@@ -100,6 +103,8 @@ function validateDependencies() {
         SeamProduction,
 
         ProductionValidator,
+
+        NestingEngine,
 
         DXF,
 
@@ -153,6 +158,9 @@ const AppState = {
     exporting:
         false,
 
+    nesting:
+        false,
+
     mode:
         "tailor",
 
@@ -186,6 +194,9 @@ const AppState = {
     outputAudit:
         null,
 
+    nestingResult:
+        null,
+
     lastExport:
         null,
 
@@ -201,7 +212,9 @@ const AppState = {
 
 function $(id) {
 
-    return document.getElementById(id);
+    return document.getElementById(
+        id
+    );
 
 }
 
@@ -334,6 +347,45 @@ function setAuditStatus(
 
     const node =
         $("auditStatus");
+
+
+    if (
+        !node
+    ) {
+
+        return;
+
+    }
+
+
+    node.textContent =
+        message;
+
+
+    node.className =
+        "status";
+
+
+    if (
+        type
+    ) {
+
+        node.classList.add(
+            type
+        );
+
+    }
+
+}
+
+
+function setNestingStatus(
+    message,
+    type = ""
+) {
+
+    const node =
+        $("nestingStatus");
 
 
     if (
@@ -1662,17 +1714,6 @@ function auditOutputs(
     pattern
 ) {
 
-    if (
-        !OutputAudit
-    ) {
-
-        throw new Error(
-            "Output Audit belum tersedia."
-        );
-
-    }
-
-
     const audit =
         OutputAudit.auditPattern(
             pattern
@@ -1689,7 +1730,7 @@ function auditOutputs(
 
 
 /* ============================================================
-   AUDIT STATUS
+   OUTPUT AUDIT RENDER
    ============================================================ */
 
 function renderAuditStatus(
@@ -1697,7 +1738,7 @@ function renderAuditStatus(
 ) {
 
     const resultNode =
-        $("auditResult");
+        $("resultAudit");
 
 
     const statusNode =
@@ -1766,11 +1807,7 @@ function renderAuditStatus(
     resultNode.innerHTML = `
 
         <div class="kv">
-
-            <b>
-                Status
-            </b>
-
+            <b>Status</b>
             <span>
                 ${
                     audit.valid
@@ -1778,72 +1815,31 @@ function renderAuditStatus(
                         : "DITAHAN"
                 }
             </span>
-
         </div>
 
-
         <div class="kv">
-
-            <b>
-                Checks
-            </b>
-
-            <span>
-                ${audit.checks.length}
-            </span>
-
+            <b>Checks</b>
+            <span>${audit.checks.length}</span>
         </div>
 
-
         <div class="kv">
-
-            <b>
-                Passed
-            </b>
-
-            <span>
-                ${passed}
-            </span>
-
+            <b>Passed</b>
+            <span>${passed}</span>
         </div>
 
-
         <div class="kv">
-
-            <b>
-                Failed
-            </b>
-
-            <span>
-                ${failed}
-            </span>
-
+            <b>Failed</b>
+            <span>${failed}</span>
         </div>
 
-
         <div class="kv">
-
-            <b>
-                Warnings
-            </b>
-
-            <span>
-                ${warnings}
-            </span>
-
+            <b>Warnings</b>
+            <span>${warnings}</span>
         </div>
 
-
         <div class="kv">
-
-            <b>
-                Pieces
-            </b>
-
-            <span>
-                ${summary?.pieceCount ?? "-"}
-            </span>
-
+            <b>Pieces</b>
+            <span>${summary?.pieceCount ?? "-"}</span>
         </div>
 
     `;
@@ -1885,14 +1881,486 @@ function renderAuditStatus(
 
                             }
                         )
-                        .join(
-                            " • "
-                        )
+                        .join(" • ")
                 }
 
             </div>
 
         `;
+
+    }
+
+}
+
+
+/* ============================================================
+   NESTING CONFIGURATION
+   ============================================================ */
+
+function getNestingConfig() {
+
+    const fabricWidth =
+        Number(
+            $("fabricWidth")?.value ||
+            150
+        );
+
+
+    const fabricLength =
+        Number(
+            $("fabricLength")?.value ||
+            300
+        );
+
+
+    const gap =
+        Number(
+            $("nestingGap")?.value ||
+            1
+        );
+
+
+    const edgeMargin =
+        Number(
+            $("nestingMargin")?.value ||
+            1
+        );
+
+
+    const strategy =
+        $("nestingStrategy")?.value ||
+        "shelf";
+
+
+    const rotation =
+        $("nestingRotation")?.value ||
+        "180";
+
+
+    const respectGrainline =
+        $("nestingGrainline")?.value !==
+        "no";
+
+
+    const allowRotation =
+        rotation !==
+        "0";
+
+
+    return {
+
+        fabricWidth:
+            Number.isFinite(
+                fabricWidth
+            ) &&
+            fabricWidth > 0
+
+                ? fabricWidth
+
+                : 150,
+
+        fabricLength:
+            Number.isFinite(
+                fabricLength
+            ) &&
+            fabricLength > 0
+
+                ? fabricLength
+
+                : 300,
+
+        gap:
+            Number.isFinite(
+                gap
+            ) &&
+            gap >= 0
+
+                ? gap
+
+                : 1,
+
+        edgeMargin:
+            Number.isFinite(
+                edgeMargin
+            ) &&
+            edgeMargin >= 0
+
+                ? edgeMargin
+
+                : 1,
+
+        strategy,
+
+        allowRotation,
+
+        rotationStep:
+            180,
+
+        respectGrainline,
+
+        allowFlip:
+            false,
+
+        startX:
+            1,
+
+        startY:
+            1
+
+    };
+
+}
+
+
+/* ============================================================
+   NESTING RESULT RENDER
+   ============================================================ */
+
+function renderNestingResult(
+    nest
+) {
+
+    const container =
+        $("nestingResult");
+
+
+    if (
+        !container ||
+        !nest
+    ) {
+
+        return;
+
+    }
+
+
+    const summary =
+        NestingEngine.getSummary(
+            nest
+        );
+
+
+    container.innerHTML = `
+
+        <div class="kv">
+            <b>Status</b>
+            <span>
+                ${
+                    summary.complete
+                        ? "LENGKAP"
+                        : "BELUM LENGKAP"
+                }
+            </span>
+        </div>
+
+        <div class="kv">
+            <b>Pieces Terpasang</b>
+            <span>
+                ${summary.pieceCount}
+            </span>
+        </div>
+
+        <div class="kv">
+            <b>Belum Terpasang</b>
+            <span>
+                ${summary.unplacedCount}
+            </span>
+        </div>
+
+        <div class="kv">
+            <b>Lebar Kain</b>
+            <span>
+                ${summary.fabricWidth} cm
+            </span>
+        </div>
+
+        <div class="kv">
+            <b>Marker Length</b>
+            <span>
+                ${summary.usedLength} cm
+            </span>
+        </div>
+
+        <div class="kv">
+            <b>Utilization</b>
+            <span>
+                ${summary.utilization}%
+            </span>
+        </div>
+
+        <div class="kv">
+            <b>Unit</b>
+            <span>
+                ${summary.unit}
+            </span>
+        </div>
+
+    `;
+
+
+    if (
+        nest.unplaced?.length
+    ) {
+
+        resultNodeAppendText(
+
+            container,
+
+            "Ada piece yang belum masuk marker. " +
+            "Layout v1 menggunakan bounding-box placement."
+
+        );
+
+    }
+
+}
+
+
+/* ============================================================
+   NESTING NOTE APPEND
+   ============================================================ */
+
+function resultNodeAppendText(
+    container,
+    message
+) {
+
+    const note =
+        document.createElement(
+            "div"
+        );
+
+
+    note.className =
+        "measurement-note";
+
+
+    note.textContent =
+        message;
+
+
+    container.appendChild(
+        note
+    );
+
+}
+
+
+/* ============================================================
+   RUN NESTING
+   ============================================================ */
+
+function runNesting() {
+
+    if (
+        AppState.nesting
+    ) {
+
+        return;
+
+    }
+
+
+    AppState.nesting =
+        true;
+
+
+    try {
+
+        if (
+            !AppState.cuttingPattern
+        ) {
+
+            throw new Error(
+
+                "Cutting pattern belum tersedia. " +
+                "Buat pola terlebih dahulu."
+
+            );
+
+        }
+
+
+        /*
+         * Production quality gate.
+         */
+
+        const validation =
+            validateCuttingForProduction(
+
+                AppState.cuttingPattern
+
+            );
+
+
+        if (
+            !validation.valid
+        ) {
+
+            throw new Error(
+
+                "Nesting dihentikan karena " +
+                "cutting geometry belum valid."
+
+            );
+
+        }
+
+
+        /*
+         * Output audit.
+         */
+
+        const audit =
+            auditOutputs(
+                AppState.cuttingPattern
+            );
+
+
+        renderAuditStatus(
+            audit
+        );
+
+
+        if (
+            !audit.valid
+        ) {
+
+            throw new Error(
+
+                "Nesting dihentikan karena " +
+                "output audit gagal."
+
+            );
+
+        }
+
+
+        setNestingStatus(
+            "Membuat marker..."
+        );
+
+
+        const config =
+            getNestingConfig();
+
+
+        const nest =
+            NestingEngine.createNest(
+
+                AppState.cuttingPattern,
+
+                config
+
+            );
+
+
+        const nestValidation =
+            NestingEngine.validateNest(
+                nest
+            );
+
+
+        if (
+            !nestValidation.valid
+        ) {
+
+            throw new Error(
+
+                "Marker tidak valid: " +
+                nestValidation.errors.join(
+                    " | "
+                )
+
+            );
+
+        }
+
+
+        AppState.nestingResult =
+            nest;
+
+
+        renderNestingResult(
+            nest
+        );
+
+
+        const summary =
+            NestingEngine.getSummary(
+                nest
+            );
+
+
+        if (
+            summary.complete
+        ) {
+
+            setNestingStatus(
+
+                `Marker selesai • ` +
+                `${summary.pieceCount} pieces • ` +
+                `${summary.usedLength} cm • ` +
+                `${summary.utilization}% utilization`,
+
+                "ok"
+
+            );
+
+        }
+        else {
+
+            setNestingStatus(
+
+                `Marker parsial • ` +
+                `${summary.unplacedCount} pieces belum terpasang`,
+
+                "error"
+
+            );
+
+        }
+
+
+        return nest;
+
+    }
+    catch (
+        error
+    ) {
+
+        console.error(
+            "Nesting error:",
+            error
+        );
+
+
+        AppState.nestingResult =
+            null;
+
+
+        setNestingStatus(
+            error.message ||
+            "Nesting gagal.",
+            "error"
+        );
+
+
+        return {
+
+            success:
+                false,
+
+            error:
+                error.message
+
+        };
+
+    }
+    finally {
+
+        AppState.nesting =
+            false;
 
     }
 
@@ -2401,6 +2869,20 @@ function renderResultInfo() {
             : "-";
 
 
+    const nesting =
+        AppState.nestingResult;
+
+
+    const nestingText =
+        nesting
+            ? (
+                nesting.complete
+                    ? "LENGKAP"
+                    : "PARSIAL"
+            )
+            : "Belum dijalankan";
+
+
     container.innerHTML = `
 
         <div class="kv">
@@ -2441,6 +2923,11 @@ function renderResultInfo() {
         <div class="kv">
             <b>Production Validation</b>
             <span>${validationText}</span>
+        </div>
+
+        <div class="kv">
+            <b>Marker</b>
+            <span>${nestingText}</span>
         </div>
 
         <div class="kv">
@@ -2686,22 +3173,16 @@ function validateOutputAudit() {
     ) {
 
         throw new Error(
-
             "Belum ada cuttingPattern untuk audit."
-
         );
 
     }
 
 
     const audit =
-        OutputAudit.auditPattern(
+        auditOutputs(
             AppState.cuttingPattern
         );
-
-
-    AppState.outputAudit =
-        audit;
 
 
     renderAuditStatus(
@@ -2729,7 +3210,60 @@ function validateOutputAudit() {
 
 
 /* ============================================================
-   DXF
+   PREVIEW
+   ============================================================ */
+
+function fitPreview() {
+
+    const svg =
+        $("patternPreview");
+
+
+    if (
+        !svg
+    ) {
+
+        return;
+
+    }
+
+
+    svg.setAttribute(
+        "preserveAspectRatio",
+        "xMidYMid meet"
+    );
+
+}
+
+
+function openPreview() {
+
+    if (
+        !AppState.cuttingPattern
+    ) {
+
+        setPlotterStatus(
+            "Belum ada cutting geometry."
+        );
+
+
+        return;
+
+    }
+
+
+    renderPreview(
+        AppState.cuttingPattern
+    );
+
+
+    fitPreview();
+
+}
+
+
+/* ============================================================
+   DXF EXPORT
    ============================================================ */
 
 function exportDXF() {
@@ -2770,9 +3304,7 @@ function exportDXF() {
         ) {
 
             throw new Error(
-
                 "Konfigurasi DXF 1:1 tidak valid."
-
             );
 
         }
@@ -3048,7 +3580,7 @@ function updatePlotterInfo() {
 
 
 /* ============================================================
-   PLT
+   PLT EXPORT
    ============================================================ */
 
 function exportPLT() {
@@ -3187,7 +3719,7 @@ function exportPLT() {
 
 
 /* ============================================================
-   SVG
+   SVG EXPORT
    ============================================================ */
 
 function exportSVG() {
@@ -3320,7 +3852,7 @@ function exportSVG() {
 
 
 /* ============================================================
-   AUDIT MANUAL
+   OUTPUT AUDIT MANUAL
    ============================================================ */
 
 function runOutputAudit() {
@@ -3394,7 +3926,7 @@ function runOutputAudit() {
 
 
 /* ============================================================
-   INVALIDATE
+   INVALIDATE GENERATED PATTERN
    ============================================================ */
 
 function invalidateGeneratedPattern() {
@@ -3423,23 +3955,33 @@ function invalidateGeneratedPattern() {
     AppState.outputAudit =
         null;
 
+    AppState.nestingResult =
+        null;
+
     AppState.lastExport =
         null;
 
 
-    const auditStatus =
-        $("auditStatus");
+    setAuditStatus(
+        "Audit belum dijalankan."
+    );
+
+
+    setNestingStatus(
+        "Nesting belum dijalankan."
+    );
+
+
+    const result =
+        $("nestingResult");
 
 
     if (
-        auditStatus
+        result
     ) {
 
-        auditStatus.textContent =
-            "Audit belum dijalankan.";
-
-        auditStatus.className =
-            "status";
+        result.innerHTML =
+            "";
 
     }
 
@@ -3533,6 +4075,9 @@ function handleProductionSettingChange() {
     AppState.outputAudit =
         null;
 
+    AppState.nestingResult =
+        null;
+
     AppState.lastExport =
         null;
 
@@ -3560,288 +4105,64 @@ function handleProductionSettingChange() {
         "Audit perlu dijalankan ulang."
     );
 
-}
 
-
-/* ============================================================
-   PLOTTER SETTING CHANGE
-   ============================================================ */
-
-function handlePlotterSettingChange() {
-
-    updatePlotterInfo();
-
-
-    AppState.lastExport =
-        null;
-
-
-    setPlotterStatus(
-
-        "Pengaturan plotter berubah. " +
-        "PLT akan dibuat dengan konfigurasi baru."
-
+    setNestingStatus(
+        "Nesting perlu dijalankan ulang."
     );
 
-}
 
-
-/* ============================================================
-   FIT PREVIEW
-   ============================================================ */
-
-function fitPreview() {
-
-    const svg =
-        $("patternPreview");
+    const result =
+        $("nestingResult");
 
 
     if (
-        !svg
+        result
     ) {
 
-        return;
+        result.innerHTML =
+            "";
 
     }
-
-
-    svg.setAttribute(
-        "preserveAspectRatio",
-        "xMidYMid meet"
-    );
 
 }
 
 
 /* ============================================================
-   OPEN PREVIEW
+   NESTING SETTING CHANGE
    ============================================================ */
 
-function openPreview() {
+function handleNestingSettingChange() {
+
+    AppState.nestingResult =
+        null;
+
+
+    setNestingStatus(
+
+        "Pengaturan marker berubah. " +
+        "Jalankan nesting kembali."
+
+    );
+
+
+    const result =
+        $("nestingResult");
+
 
     if (
-        !AppState.cuttingPattern
+        result
     ) {
 
-        setPlotterStatus(
-            "Belum ada cutting geometry."
-        );
-
-
-        return;
+        result.innerHTML =
+            "";
 
     }
-
-
-    renderPreview(
-        AppState.cuttingPattern
-    );
-
-
-    fitPreview();
 
 }
 
 
 /* ============================================================
-   RESET
-   ============================================================ */
-
-function resetApplication() {
-
-    AppState.profile =
-        null;
-
-    AppState.measurements =
-        null;
-
-    AppState.fabric =
-        null;
-
-    AppState.engineResult =
-        null;
-
-    AppState.basePattern =
-        null;
-
-    AppState.productionPattern =
-        null;
-
-    AppState.cuttingPattern =
-        null;
-
-    AppState.productionValidation =
-        null;
-
-    AppState.outputAudit =
-        null;
-
-    AppState.lastExport =
-        null;
-
-    AppState.error =
-        null;
-
-
-    if ($("userMode"))
-        $("userMode").value =
-            "tailor";
-
-    if ($("category"))
-        $("category").value =
-            "child";
-
-    if ($("sizeSystem"))
-        $("sizeSystem").value =
-            "cm";
-
-    if ($("garmentType"))
-        $("garmentType").value =
-            "tshirt";
-
-    if ($("age"))
-        $("age").value =
-            "";
-
-    if ($("fabric"))
-        $("fabric").value =
-            "cotton";
-
-    if ($("fabricWidth"))
-        $("fabricWidth").value =
-            "150";
-
-    if ($("fabricLength"))
-        $("fabricLength").value =
-            "200";
-
-    if ($("stretch"))
-        $("stretch").value =
-            "medium";
-
-    if ($("stretchDirection"))
-        $("stretchDirection").value =
-            "crosswise";
-
-    if ($("ease"))
-        $("ease").value =
-            "2";
-
-    if ($("seam"))
-        $("seam").value =
-            "1";
-
-    if ($("patternTolerance"))
-        $("patternTolerance").value =
-            "0";
-
-    if ($("addSeam"))
-        $("addSeam").value =
-            "yes";
-
-    if ($("addNotches"))
-        $("addNotches").value =
-            "yes";
-
-    if ($("addGrainline"))
-        $("addGrainline").value =
-            "yes";
-
-    if ($("plotterUnitsPerMm"))
-        $("plotterUnitsPerMm").value =
-            "40";
-
-    if ($("plotterOriginX"))
-        $("plotterOriginX").value =
-            "0";
-
-    if ($("plotterOriginY"))
-        $("plotterOriginY").value =
-            "0";
-
-    if ($("plotterFlipY"))
-        $("plotterFlipY").value =
-            "no";
-
-    if ($("plotterCutPen"))
-        $("plotterCutPen").value =
-            "1";
-
-    if ($("plotterGrainPen"))
-        $("plotterGrainPen").value =
-            "2";
-
-    if ($("plotterNotchPen"))
-        $("plotterNotchPen").value =
-            "3";
-
-    if ($("plotterDrillPen"))
-        $("plotterDrillPen").value =
-            "4";
-
-
-    if ($("patternPreview")) {
-
-        $("patternPreview").innerHTML =
-            "";
-
-        $("patternPreview").setAttribute(
-            "viewBox",
-            "0 0 1000 620"
-        );
-
-    }
-
-
-    if ($("resultInfo"))
-        $("resultInfo").innerHTML =
-            "";
-
-    if ($("resultMeasurements"))
-        $("resultMeasurements").innerHTML =
-            "";
-
-    if ($("resultAudit"))
-        $("resultAudit").innerHTML =
-            "";
-
-
-    applyMode(
-        "tailor"
-    );
-
-
-    renderMeasurementFields();
-
-    updateGarmentInformation();
-
-    updatePlotterInfo();
-
-
-    setStatus(
-        "Masukkan ukuran kemudian tekan BUAT POLA."
-    );
-
-
-    setDraftStatus(
-        "Engine drafting siap."
-    );
-
-
-    setPlotterStatus(
-        "Output produksi belum dibuat."
-    );
-
-
-    setAuditStatus(
-        "Audit belum dijalankan."
-    );
-
-}
-
-
-/* ============================================================
-   GENERATE
+   GENERATE PATTERN
    ============================================================ */
 
 async function generatePattern() {
@@ -3864,6 +4185,10 @@ async function generatePattern() {
 
 
     AppState.lastExport =
+        null;
+
+
+    AppState.nestingResult =
         null;
 
 
@@ -4077,9 +4402,14 @@ async function generatePattern() {
         renderMeasurementsResult();
 
 
+        setNestingStatus(
+            "Cutting geometry siap untuk nesting."
+        );
+
+
         setPlotterStatus(
 
-            "Geometry dan seluruh output lulus audit.",
+            "Geometry dan output lulus audit.",
 
             "ok"
 
@@ -4152,6 +4482,229 @@ async function generatePattern() {
             false;
 
     }
+
+}
+
+
+/* ============================================================
+   RESET
+   ============================================================ */
+
+function resetApplication() {
+
+    AppState.profile =
+        null;
+
+    AppState.measurements =
+        null;
+
+    AppState.fabric =
+        null;
+
+    AppState.engineResult =
+        null;
+
+    AppState.basePattern =
+        null;
+
+    AppState.productionPattern =
+        null;
+
+    AppState.cuttingPattern =
+        null;
+
+    AppState.productionValidation =
+        null;
+
+    AppState.outputAudit =
+        null;
+
+    AppState.nestingResult =
+        null;
+
+    AppState.lastExport =
+        null;
+
+    AppState.error =
+        null;
+
+
+    if ($("userMode"))
+        $("userMode").value =
+            "tailor";
+
+    if ($("category"))
+        $("category").value =
+            "child";
+
+    if ($("sizeSystem"))
+        $("sizeSystem").value =
+            "cm";
+
+    if ($("garmentType"))
+        $("garmentType").value =
+            "tshirt";
+
+    if ($("age"))
+        $("age").value =
+            "";
+
+    if ($("fabric"))
+        $("fabric").value =
+            "cotton";
+
+    if ($("fabricWidth"))
+        $("fabricWidth").value =
+            "150";
+
+    if ($("fabricLength"))
+        $("fabricLength").value =
+            "200";
+
+    if ($("stretch"))
+        $("stretch").value =
+            "medium";
+
+    if ($("stretchDirection"))
+        $("stretchDirection").value =
+            "crosswise";
+
+    if ($("ease"))
+        $("ease").value =
+            "2";
+
+    if ($("seam"))
+        $("seam").value =
+            "1";
+
+    if ($("patternTolerance"))
+        $("patternTolerance").value =
+            "0";
+
+    if ($("addSeam"))
+        $("addSeam").value =
+            "yes";
+
+    if ($("addNotches"))
+        $("addNotches").value =
+            "yes";
+
+    if ($("addGrainline"))
+        $("addGrainline").value =
+            "yes";
+
+    if ($("nestingGap"))
+        $("nestingGap").value =
+            "1";
+
+    if ($("nestingMargin"))
+        $("nestingMargin").value =
+            "1";
+
+    if ($("nestingStrategy"))
+        $("nestingStrategy").value =
+            "shelf";
+
+    if ($("nestingRotation"))
+        $("nestingRotation").value =
+            "180";
+
+    if ($("nestingGrainline"))
+        $("nestingGrainline").value =
+            "yes";
+
+    if ($("patternPreview")) {
+
+        $("patternPreview").innerHTML =
+            "";
+
+        $("patternPreview").setAttribute(
+            "viewBox",
+            "0 0 1000 620"
+        );
+
+    }
+
+
+    if ($("resultInfo"))
+        $("resultInfo").innerHTML =
+            "";
+
+    if ($("resultMeasurements"))
+        $("resultMeasurements").innerHTML =
+            "";
+
+    if ($("resultAudit"))
+        $("resultAudit").innerHTML =
+            "";
+
+    if ($("nestingResult"))
+        $("nestingResult").innerHTML =
+            "";
+
+
+    applyMode(
+        "tailor"
+    );
+
+
+    renderMeasurementFields();
+
+    updateGarmentInformation();
+
+    updatePlotterInfo();
+
+
+    setStatus(
+        "Masukkan ukuran kemudian tekan BUAT POLA."
+    );
+
+
+    setDraftStatus(
+        "Engine drafting siap."
+    );
+
+
+    setPlotterStatus(
+        "Output produksi belum dibuat."
+    );
+
+
+    setAuditStatus(
+        "Audit belum dijalankan."
+    );
+
+
+    setNestingStatus(
+        "Nesting belum dijalankan."
+    );
+
+}
+
+
+/* ============================================================
+   FIT PREVIEW
+   ============================================================ */
+
+function fitPreview() {
+
+    const svg =
+        $("patternPreview");
+
+
+    if (
+        !svg
+    ) {
+
+        return;
+
+    }
+
+
+    svg.setAttribute(
+        "preserveAspectRatio",
+        "xMidYMid meet"
+    );
 
 }
 
@@ -4231,6 +4784,12 @@ function bindEvents() {
     );
 
 
+    $("runNestingBtn")?.addEventListener(
+        "click",
+        runNesting
+    );
+
+
     $("measurementFields")?.addEventListener(
         "input",
         event => {
@@ -4270,6 +4829,33 @@ function bindEvents() {
 
     [
 
+        "nestingGap",
+        "nestingMargin",
+        "nestingStrategy",
+        "nestingRotation",
+        "nestingGrainline"
+
+    ]
+    .forEach(
+        id => {
+
+            $(id)?.addEventListener(
+                "input",
+                handleNestingSettingChange
+            );
+
+
+            $(id)?.addEventListener(
+                "change",
+                handleNestingSettingChange
+            );
+
+        }
+    );
+
+
+    [
+
         "plotterUnitsPerMm",
         "plotterOriginX",
         "plotterOriginY",
@@ -4285,13 +4871,21 @@ function bindEvents() {
 
             $(id)?.addEventListener(
                 "input",
-                handlePlotterSettingChange
+                () => {
+
+                    updatePlotterInfo();
+
+                }
             );
 
 
             $(id)?.addEventListener(
                 "change",
-                handlePlotterSettingChange
+                () => {
+
+                    updatePlotterInfo();
+
+                }
             );
 
         }
@@ -4365,6 +4959,11 @@ function initializeApplication() {
     );
 
 
+    setNestingStatus(
+        "Nesting belum dijalankan."
+    );
+
+
     console.log(
         "PatternMaker Universal initialized.",
         AppState
@@ -4419,6 +5018,10 @@ window.PatternMakerApp = {
 
     runOutputAudit,
 
-    getPlotterConfig
+    runNesting,
+
+    getPlotterConfig,
+
+    getNestingConfig
 
 };
