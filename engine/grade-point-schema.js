@@ -1,16 +1,16 @@
 /**
  * ============================================================
- * PATTERNMAKER UNIVERSAL
+ * PATTERMAKER UNIVERSAL
  * BASELINE FINAL v1
- * KODE 62
+ * KODE 88
  *
  * FILE:
  *   engine/grade-point-schema.js
  * ============================================================
  *
- * CENTRAL GRADE-POINT SCHEMA
+ * GRADE-POINT CONTRACT
  *
- * Tujuan:
+ * Purpose:
  *
  *   Pattern Geometry
  *        ↓
@@ -18,20 +18,18 @@
  *        ↓
  *   Grading Engine
  *
- * Tidak membuat geometry.
- * Tidak mengubah pattern.
- * Tidak menangani UI.
- *
  * ============================================================
  *
- * Grade point menjelaskan:
+ * HARDENING FIX:
  *
- * - posisi titik
- * - measurement yang mengontrol X
- * - measurement yang mengontrol Y
- * - faktor perpindahan
- * - arah grading
- * - role titik
+ * KODE 88 memastikan public API berikut selalu tersedia:
+ *
+ *   normalizePoint()
+ *   createFromPointDefinitions()
+ *   validatePoint()
+ *   validatePieceGradePoints()
+ *   validatePatternGradePoints()
+ *   attachGradePoints()
  *
  * ============================================================
  */
@@ -46,11 +44,11 @@
        ======================================================== */
 
     const VERSION =
-        "FINAL-v1";
+        "FINAL-v1.1";
 
 
     /* ========================================================
-       AXES
+       CONSTANTS
        ======================================================== */
 
     const AXES = Object.freeze({
@@ -63,10 +61,6 @@
 
     });
 
-
-    /* ========================================================
-       DIRECTIONS
-       ======================================================== */
 
     const DIRECTIONS = Object.freeze({
 
@@ -82,10 +76,6 @@
     });
 
 
-    /* ========================================================
-       ALLOWED MEASUREMENT KEYS
-       ======================================================== */
-
     const MEASUREMENT_KEYS = Object.freeze([
 
         "chest",
@@ -98,9 +88,13 @@
 
         "shoulder",
 
+        "neck",
+
         "armhole",
 
         "upperArm",
+
+        "wrist",
 
         "length",
 
@@ -114,7 +108,11 @@
 
         "inseam",
 
-        "outseam"
+        "outseam",
+
+        "ankle",
+
+        "thigh"
 
     ]);
 
@@ -144,7 +142,7 @@
 
 
     /* ========================================================
-       AXIS NORMALIZER
+       AXIS
        ======================================================== */
 
     function normalizeAxis(
@@ -160,8 +158,13 @@
 
 
         if (
-            key === "x" ||
-            key === "width"
+            key ===
+            "x"
+
+            ||
+
+            key ===
+            "width"
         ) {
 
             return AXES.HORIZONTAL;
@@ -170,9 +173,18 @@
 
 
         if (
-            key === "y" ||
-            key === "height" ||
-            key === "depth"
+            key ===
+            "y"
+
+            ||
+
+            key ===
+            "height"
+
+            ||
+
+            key ===
+            "depth"
         ) {
 
             return AXES.VERTICAL;
@@ -181,8 +193,13 @@
 
 
         if (
-            key === AXES.HORIZONTAL ||
-            key === AXES.VERTICAL
+            key ===
+            AXES.HORIZONTAL
+
+            ||
+
+            key ===
+            AXES.VERTICAL
         ) {
 
             return key;
@@ -196,7 +213,7 @@
 
 
     /* ========================================================
-       DIRECTION NORMALIZER
+       DIRECTION
        ======================================================== */
 
     function normalizeDirection(
@@ -206,7 +223,9 @@
         const key =
             String(
                 value ||
+
                 DIRECTIONS.BOTH
+
             )
             .trim()
             .toLowerCase();
@@ -227,7 +246,7 @@
 
 
     /* ========================================================
-       MEASUREMENT KEY NORMALIZER
+       MEASUREMENT KEY
        ======================================================== */
 
     function normalizeMeasurementKey(
@@ -241,9 +260,10 @@
             .trim();
 
 
-        return MEASUREMENT_KEYS.includes(
-            key
-        )
+        return MEASUREMENT_KEYS
+            .includes(
+                key
+            )
 
             ? key
 
@@ -253,22 +273,13 @@
 
 
     /* ========================================================
-       POINT NORMALIZER
+       POINT NORMALIZATION
        ======================================================== */
 
     function normalizePoint(
         point,
         index = 0
     ) {
-
-        /*
-         * Array form:
-         *
-         * [x, y]
-         *
-         * This form is allowed for compatibility,
-         * but defaults to approximate mapping.
-         */
 
         if (
             Array.isArray(
@@ -282,16 +293,18 @@
 
                 x:
                     num(
-                        point[0]
+                        point[0],
+                        0
                     ),
 
                 y:
                     num(
-                        point[1]
+                        point[1],
+                        0
                     ),
 
                 horizontalMeasurement:
-                    "chest",
+                    "hip",
 
                 verticalMeasurement:
                     "length",
@@ -319,12 +332,14 @@
 
             x:
                 num(
-                    point?.x
+                    point?.x,
+                    0
                 ),
 
             y:
                 num(
-                    point?.y
+                    point?.y,
+                    0
                 ),
 
             horizontalMeasurement:
@@ -341,7 +356,7 @@
 
                 ||
 
-                "chest",
+                "hip",
 
 
             verticalMeasurement:
@@ -415,11 +430,18 @@
             );
 
 
+        /*
+         * Coordinate.
+         */
+
         if (
-            normalized.x ===
-            null ||
-            normalized.y ===
-            null
+            !Number.isFinite(
+                normalized.x
+            ) ||
+
+            !Number.isFinite(
+                normalized.y
+            )
         ) {
 
             errors.push(
@@ -432,14 +454,20 @@
         }
 
 
+        /*
+         * Measurement.
+         */
+
         if (
-            !normalized.horizontalMeasurement
+            !normalizeMeasurementKey(
+                normalized.horizontalMeasurement
+            )
         ) {
 
             errors.push(
 
                 `Grade point ${index + 1} ` +
-                "tidak memiliki horizontal measurement."
+                "horizontal measurement invalid."
 
             );
 
@@ -447,18 +475,24 @@
 
 
         if (
-            !normalized.verticalMeasurement
+            !normalizeMeasurementKey(
+                normalized.verticalMeasurement
+            )
         ) {
 
             errors.push(
 
                 `Grade point ${index + 1} ` +
-                "tidak memiliki vertical measurement."
+                "vertical measurement invalid."
 
             );
 
         }
 
+
+        /*
+         * Factors.
+         */
 
         if (
             !Number.isFinite(
@@ -494,11 +528,12 @@
 
         if (
             normalized.horizontalFactor ===
-            0 &&
+            0
+
+            &&
 
             normalized.verticalFactor ===
             0
-
         ) {
 
             warnings.push(
@@ -514,7 +549,8 @@
         return {
 
             valid:
-                errors.length === 0,
+                errors.length ===
+                0,
 
             errors,
 
@@ -541,8 +577,6 @@
 
             {
 
-                index,
-
                 x:
                     options.x ??
                     0,
@@ -555,11 +589,15 @@
 
                     options.horizontalMeasurement ||
 
-                    "chest",
+                    options.horizontal ||
+
+                    "hip",
 
                 verticalMeasurement:
 
                     options.verticalMeasurement ||
+
+                    options.vertical ||
 
                     "length",
 
@@ -597,317 +635,6 @@
 
 
     /* ========================================================
-       VALIDATE PIECE GRADE POINTS
-       ======================================================== */
-
-    function validatePieceGradePoints(
-        piece
-    ) {
-
-        const errors =
-            [];
-
-        const warnings =
-            [];
-
-
-        const points =
-            piece?.points ||
-            piece?.seamPoints ||
-            [];
-
-
-        const gradePoints =
-            piece?.gradePoints;
-
-
-        if (
-            !Array.isArray(
-                points
-            ) ||
-            points.length <
-            3
-        ) {
-
-            errors.push(
-
-                `Piece "${piece?.name || "unknown"}" ` +
-                "tidak memiliki minimal 3 geometry points."
-
-            );
-
-
-            return {
-
-                valid:
-                    false,
-
-                errors,
-
-                warnings
-
-            };
-
-        }
-
-
-        if (
-            !Array.isArray(
-                gradePoints
-            )
-        ) {
-
-            errors.push(
-
-                `Piece "${piece?.name || "unknown"}" ` +
-                "belum memiliki gradePoints."
-
-            );
-
-
-            return {
-
-                valid:
-                    false,
-
-                errors,
-
-                warnings
-
-            };
-
-        }
-
-
-        if (
-            gradePoints.length !==
-            points.length
-        ) {
-
-            errors.push(
-
-                `Piece "${piece?.name || "unknown"}" ` +
-                `memiliki ${gradePoints.length} gradePoints ` +
-                `untuk ${points.length} geometry points.`
-
-            );
-
-        }
-
-
-        gradePoints.forEach(
-            (
-                point,
-                index
-            ) => {
-
-                const result =
-                    validatePoint(
-                        point,
-                        index
-                    );
-
-
-                errors.push(
-                    ...result.errors
-                );
-
-
-                warnings.push(
-                    ...result.warnings
-                );
-
-            }
-        );
-
-
-        return {
-
-            valid:
-                errors.length === 0,
-
-            errors,
-
-            warnings
-
-        };
-
-    }
-
-
-    /* ========================================================
-       ATTACH GRADE POINTS
-       ======================================================== */
-
-    function attachGradePoints(
-        piece,
-        gradePoints
-    ) {
-
-        if (
-            !piece ||
-            !Array.isArray(
-                gradePoints
-            )
-        ) {
-
-            throw new Error(
-
-                "Piece dan gradePoints harus tersedia."
-
-            );
-
-        }
-
-
-        const candidate = {
-
-            ...piece,
-
-            gradePoints
-
-        };
-
-
-        const validation =
-            validatePieceGradePoints(
-                candidate
-            );
-
-
-        if (
-            !validation.valid
-        ) {
-
-            throw new Error(
-
-                validation.errors.join(
-                    " | "
-                )
-
-            );
-
-        }
-
-
-        return {
-
-            ...piece,
-
-            gradePoints:
-
-                gradePoints.map(
-                    (
-                        point,
-                        index
-                    ) =>
-                        normalizePoint(
-                            point,
-                            index
-                        )
-                )
-
-        };
-
-    }
-
-
-    /* ========================================================
-       VALIDATE PATTERN
-       ======================================================== */
-
-    function validatePatternGradePoints(
-        pattern
-    ) {
-
-        const errors =
-            [];
-
-        const warnings =
-            [];
-
-
-        if (
-            !pattern ||
-            !Array.isArray(
-                pattern.pieces
-            )
-        ) {
-
-            errors.push(
-                "Pattern tidak memiliki pieces."
-            );
-
-
-            return {
-
-                valid:
-                    false,
-
-                errors,
-
-                warnings
-
-            };
-
-        }
-
-
-        pattern.pieces.forEach(
-            (
-                piece,
-                index
-            ) => {
-
-                const result =
-                    validatePieceGradePoints(
-                        piece
-                    );
-
-
-                if (
-                    !result.valid
-                ) {
-
-                    result.errors.forEach(
-                        error => {
-
-                            errors.push(
-
-                                `Piece ${index + 1}: ` +
-                                error
-
-                            );
-
-                        }
-                    );
-
-                }
-
-
-                warnings.push(
-                    ...result.warnings
-                );
-
-            }
-        );
-
-
-        return {
-
-            valid:
-                errors.length === 0,
-
-            errors,
-
-            warnings
-
-        };
-
-    }
-
-
-    /* ========================================================
        CREATE FROM DEFINITIONS
        ======================================================== */
 
@@ -940,7 +667,7 @@
 
                     index,
 
-                    definition
+                    definition || {}
 
                 )
 
@@ -950,10 +677,308 @@
 
 
     /* ========================================================
-       PUBLIC API
+       VALIDATE PIECE
        ======================================================== */
 
-    window.PatternMakerGradePointSchema = {
+    function validatePieceGradePoints(
+        piece
+    ) {
+
+        const errors =
+            [];
+
+        const warnings =
+            [];
+
+
+        const points =
+            Array.isArray(
+                piece?.points
+            )
+
+                ? piece.points
+
+                : (
+
+                    Array.isArray(
+                        piece?.seamPoints
+                    )
+
+                        ? piece.seamPoints
+
+                        : []
+
+                );
+
+
+        const gradePoints =
+            Array.isArray(
+                piece?.gradePoints
+            )
+
+                ? piece.gradePoints
+
+                : [];
+
+
+        if (
+            points.length <
+            3
+        ) {
+
+            errors.push(
+
+                "Geometry harus memiliki " +
+                "minimal 3 points."
+
+            );
+
+        }
+
+
+        if (
+            gradePoints.length !==
+            points.length
+        ) {
+
+            errors.push(
+
+                `Grade-point count ` +
+
+                `${gradePoints.length} ` +
+
+                `!= geometry count ` +
+
+                `${points.length}.`
+
+            );
+
+        }
+
+
+        gradePoints.forEach(
+            (
+                gradePoint,
+                index
+            ) => {
+
+                const result =
+                    validatePoint(
+
+                        gradePoint,
+
+                        index
+
+                    );
+
+
+                errors.push(
+                    ...result.errors
+                );
+
+
+                warnings.push(
+                    ...result.warnings
+                );
+
+            }
+        );
+
+
+        return {
+
+            valid:
+                errors.length ===
+                0,
+
+            errors,
+
+            warnings
+
+        };
+
+    }
+
+
+    /* ========================================================
+       VALIDATE PATTERN
+       ======================================================== */
+
+    function validatePatternGradePoints(
+        pattern
+    ) {
+
+        const errors =
+            [];
+
+        const warnings =
+            [];
+
+
+        if (
+            !pattern ||
+            !Array.isArray(
+                pattern.pieces
+            )
+        ) {
+
+            return {
+
+                valid:
+                    false,
+
+                errors: [
+
+                    "Pattern tidak memiliki pieces."
+
+                ],
+
+                warnings: []
+
+            };
+
+        }
+
+
+        pattern.pieces.forEach(
+            (
+                piece,
+                index
+            ) => {
+
+                const result =
+                    validatePieceGradePoints(
+                        piece
+                    );
+
+
+                if (
+                    !result.valid
+                ) {
+
+                    errors.push(
+
+                        `Piece ${index + 1}: ` +
+
+                        result.errors.join(
+                            " | "
+                        )
+
+                    );
+
+                }
+
+
+                warnings.push(
+                    ...result.warnings
+                );
+
+            }
+        );
+
+
+        return {
+
+            valid:
+                errors.length ===
+                0,
+
+            errors,
+
+            warnings
+
+        };
+
+    }
+
+
+    /* ========================================================
+       ATTACH GRADE POINTS
+       ======================================================== */
+
+    function attachGradePoints(
+        piece,
+        gradePoints
+    ) {
+
+        if (
+            !piece
+        ) {
+
+            throw new Error(
+                "Piece tidak tersedia."
+            );
+
+        }
+
+
+        if (
+            !Array.isArray(
+                gradePoints
+            )
+        ) {
+
+            throw new Error(
+                "gradePoints harus berupa array."
+            );
+
+        }
+
+
+        const normalized =
+            gradePoints.map(
+                (
+                    point,
+                    index
+                ) =>
+                    normalizePoint(
+                        point,
+                        index
+                    )
+            );
+
+
+        const candidate = {
+
+            ...piece,
+
+            gradePoints:
+                normalized
+
+        };
+
+
+        const validation =
+            validatePieceGradePoints(
+                candidate
+            );
+
+
+        if (
+            !validation.valid
+        ) {
+
+            throw new Error(
+
+                validation.errors.join(
+                    " | "
+                )
+
+            );
+
+        }
+
+
+        return candidate;
+
+    }
+
+
+    /* ========================================================
+       HARDENED PUBLIC API
+       ======================================================== */
+
+    const API = {
 
         VERSION,
 
@@ -975,15 +1000,74 @@
 
         createDefaultPoint,
 
-        validatePieceGradePoints,
+        createFromPointDefinitions,
 
-        attachGradePoints,
+        validatePieceGradePoints,
 
         validatePatternGradePoints,
 
-        createFromPointDefinitions
+        attachGradePoints
 
     };
+
+
+    /*
+     * Preserve any pre-existing measurement APIs.
+     *
+     * This makes loading order safer in the current
+     * modular migration.
+     */
+
+    if (
+        !globalThis.PatternMakerMeasurementSchema
+    ) {
+
+        globalThis.PatternMakerMeasurementSchema = {
+
+            getCategoryLabel(
+                category
+            ) {
+
+                return (
+
+                    String(
+                        category ||
+                        "custom"
+                    )
+
+                );
+
+            }
+
+        };
+
+    }
+
+
+    if (
+        !globalThis.PatternMakerMeasurementMapper
+    ) {
+
+        globalThis.PatternMakerMeasurementMapper = {
+
+            getValue(
+                measurements,
+                key
+            ) {
+
+                return measurements?.[
+                    key
+                ];
+
+            }
+
+        };
+
+    }
+
+
+    globalThis.PatternMakerGradePointSchema =
+        API;
 
 
 })();
