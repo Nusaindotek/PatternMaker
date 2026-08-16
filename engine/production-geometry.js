@@ -1,33 +1,44 @@
+```javascript
 /**
  * ============================================================
- * PATTERMAKER UNIVERSAL
+ * PATTERNMAKER UNIVERSAL
  * BASELINE FINAL v1
- * KODE 57
+ * KODE 70
  *
  * FILE:
  *   engine/production-geometry.js
+ *
+ * PURPOSE:
+ *   TRUE POLYGON SEAM OFFSET
  * ============================================================
  *
- * RESPONSIBILITY:
+ * FLOW:
  *
- *   BASE PATTERN
- *        ↓
- *   PRODUCTION GEOMETRY
- *        ↓
- *   CUTTING GEOMETRY
+ * BASE PATTERN
+ *      ↓
+ * TRUE POLYGON OFFSET
+ *      ↓
+ * CUTTING GEOMETRY
  *
  * ============================================================
  *
- * CATATAN:
+ * IMPORTANT
  *
- * `applyLegacyOffset=true` hanya compatibility mode untuk
- * geometry V5 yang masih memakai radial seam.
+ * This replaces the old radial compatibility strategy
+ * for production geometry.
  *
- * Untuk pipeline final:
+ * The algorithm:
  *
- *   seam-production.js
+ * 1. Determine polygon orientation.
+ * 2. Offset every edge by the requested distance.
+ * 3. Intersect adjacent offset edges.
+ * 4. Use miter joins where possible.
+ * 5. Limit extreme miters with a configurable miter limit.
  *
- * akan menjadi pemilik seam allowance produksi.
+ * This implementation is designed for POLYGONAL geometry.
+ *
+ * Curved Bézier/SVG curves are not flattened here.
+ * They require a dedicated curve-offset stage.
  *
  * ============================================================
  */
@@ -42,7 +53,26 @@
        ======================================================== */
 
     const VERSION =
-        "FINAL-v1";
+        "FINAL-v1.1";
+
+
+    /* ========================================================
+       CONSTANTS
+       ======================================================== */
+
+    const EPSILON =
+        1e-9;
+
+
+    const DEFAULT_OPTIONS = {
+
+        miterLimit:
+            4,
+
+        minimumEdgeLength:
+            0.000001
+
+    };
 
 
     /* ========================================================
@@ -117,8 +147,11 @@
     ) {
 
         return (
+
             points ||
+
             []
+
         )
         .map(
             point => [
@@ -138,36 +171,6 @@
 
 
     /* ========================================================
-       DISTANCE
-       ======================================================== */
-
-    function distance(
-        a,
-        b
-    ) {
-
-        return Math.hypot(
-
-            num(
-                b?.[0]
-            ) -
-            num(
-                a?.[0]
-            ),
-
-            num(
-                b?.[1]
-            ) -
-            num(
-                a?.[1]
-            )
-
-        );
-
-    }
-
-
-    /* ========================================================
        SIGNED AREA
        ======================================================== */
 
@@ -179,7 +182,8 @@
             !Array.isArray(
                 points
             ) ||
-            points.length < 3
+            points.length <
+            3
         ) {
 
             return 0;
@@ -212,20 +216,24 @@
 
             area +=
 
-                num(
-                    a?.[0]
-                ) *
-                num(
-                    b?.[1]
+                (
+                    num(
+                        a?.[0]
+                    ) *
+                    num(
+                        b?.[1]
+                    )
                 )
 
                 -
 
-                num(
-                    b?.[0]
-                ) *
-                num(
-                    a?.[1]
+                (
+                    num(
+                        b?.[0]
+                    ) *
+                    num(
+                        a?.[1]
+                    )
                 );
 
         }
@@ -248,7 +256,8 @@
             !Array.isArray(
                 points
             ) ||
-            points.length === 0
+            points.length ===
+            0
         ) {
 
             return {
@@ -300,15 +309,15 @@
             );
 
 
-        const maxX =
-            Math.max(
-                ...xs
-            );
-
-
         const minY =
             Math.min(
                 ...ys
+            );
+
+
+        const maxX =
+            Math.max(
+                ...xs
             );
 
 
@@ -342,65 +351,35 @@
 
 
     /* ========================================================
-       FINITE POINT
+       POINT VALIDATION
        ======================================================== */
 
-    function isFinitePoint(
-        point
+    function validatePolygon(
+        points,
+        options = {}
     ) {
 
-        return (
+        const config = {
 
-            Array.isArray(
-                point
-            ) &&
+            ...DEFAULT_OPTIONS,
 
-            point.length >=
-            2 &&
+            ...options
 
-            Number.isFinite(
-                Number(
-                    point[0]
-                )
-            ) &&
+        };
 
-            Number.isFinite(
-                Number(
-                    point[1]
-                )
-            )
-
-        );
-
-    }
-
-
-    /* ========================================================
-       VALIDATE PIECE
-       ======================================================== */
-
-    function validatePiece(
-        piece,
-        index = 0
-    ) {
 
         const errors =
             [];
 
-        const warnings =
-            [];
-
 
         if (
-            !piece ||
-            typeof piece !==
-                "object"
+            !Array.isArray(
+                points
+            )
         ) {
 
             errors.push(
-
-                `Piece ${index + 1} bukan object.`
-
+                "Polygon points harus berupa array."
             );
 
 
@@ -409,59 +388,70 @@
                 valid:
                     false,
 
-                errors,
-
-                warnings
+                errors
 
             };
 
         }
 
 
-        const points =
-
-            piece.cutPoints ||
-            piece.points ||
-            [];
-
-
         if (
-            !Array.isArray(
-                points
-            ) ||
-            points.length < 3
+            points.length <
+            3
         ) {
 
             errors.push(
 
-                `Piece ${index + 1} membutuhkan ` +
-                "minimal 3 points."
+                "Polygon membutuhkan minimal 3 points."
 
             );
 
         }
 
 
-        (
-            points ||
-            []
-        )
-        .forEach(
+        points.forEach(
             (
                 point,
-                pointIndex
+                index
             ) => {
 
                 if (
-                    !isFinitePoint(
+                    !Array.isArray(
                         point
+                    ) ||
+                    point.length <
+                    2
+                ) {
+
+                    errors.push(
+
+                        `Point ${index + 1} tidak valid.`
+
+                    );
+
+
+                    return;
+
+                }
+
+
+                if (
+                    !Number.isFinite(
+                        Number(
+                            point[0]
+                        )
+                    ) ||
+                    !Number.isFinite(
+                        Number(
+                            point[1]
+                        )
                     )
                 ) {
 
                     errors.push(
 
-                        `Piece ${index + 1}, ` +
-                        `point ${pointIndex + 1} invalid.`
+                        `Point ${index + 1} ` +
+                        "mengandung coordinate non-numeric."
 
                     );
 
@@ -472,25 +462,68 @@
 
 
         if (
-            Array.isArray(
-                points
-            ) &&
-            points.length >= 3
+            errors.length
         ) {
 
-            if (
-                Math.abs(
-                    signedArea(
-                        points
+            return {
+
+                valid:
+                    false,
+
+                errors
+
+            };
+
+        }
+
+
+        for (
+            let i = 0;
+            i < points.length;
+            i++
+        ) {
+
+            const a =
+                points[i];
+
+
+            const b =
+                points[
+                    (
+                        i + 1
+                    ) %
+                    points.length
+                ];
+
+
+            const length =
+                Math.hypot(
+
+                    num(
+                        b[0]
+                    ) -
+                    num(
+                        a[0]
+                    ),
+
+                    num(
+                        b[1]
+                    ) -
+                    num(
+                        a[1]
                     )
-                ) <
-                1e-8
+
+                );
+
+
+            if (
+                length <
+                config.minimumEdgeLength
             ) {
 
-                warnings.push(
+                errors.push(
 
-                    `Piece ${index + 1} ` +
-                    "memiliki area mendekati nol."
+                    `Edge ${i} terlalu pendek atau zero-length.`
 
                 );
 
@@ -499,14 +532,29 @@
         }
 
 
+        if (
+            Math.abs(
+                signedArea(
+                    points
+                )
+            ) <
+            EPSILON
+        ) {
+
+            errors.push(
+                "Polygon memiliki area mendekati nol."
+            );
+
+        }
+
+
         return {
 
             valid:
-                errors.length === 0,
+                errors.length ===
+                0,
 
-            errors,
-
-            warnings
+            errors
 
         };
 
@@ -514,13 +562,342 @@
 
 
     /* ========================================================
-       LEGACY RADIAL OFFSET
+       LINE
        ======================================================== */
 
-    function offsetRadial(
-        points,
-        amount
+    function createOffsetLine(
+        a,
+        b,
+        side,
+        distance
     ) {
+
+        const dx =
+            num(
+                b[0]
+            ) -
+            num(
+                a[0]
+            );
+
+
+        const dy =
+            num(
+                b[1]
+            ) -
+            num(
+                a[1]
+            );
+
+
+        const length =
+            Math.hypot(
+                dx,
+                dy
+            );
+
+
+        if (
+            length <
+            EPSILON
+        ) {
+
+            throw new Error(
+                "Tidak dapat membuat offset dari zero-length edge."
+            );
+
+        }
+
+
+        /*
+         * Unit outward normal.
+         *
+         * side:
+         *
+         *   +1 = right side
+         *   -1 = left side
+         */
+
+        const nx =
+            side *
+            dy /
+            length;
+
+
+        const ny =
+            side *
+            -dx /
+            length;
+
+
+        return {
+
+            a: [
+
+                num(
+                    a[0]
+                ) +
+                nx *
+                distance,
+
+                num(
+                    a[1]
+                ) +
+                ny *
+                distance
+
+            ],
+
+            b: [
+
+                num(
+                    b[0]
+                ) +
+                nx *
+                distance,
+
+                num(
+                    b[1]
+                ) +
+                ny *
+                distance
+
+            ]
+
+        };
+
+    }
+
+
+    /* ========================================================
+       LINE INTERSECTION
+       ======================================================== */
+
+    function intersectInfiniteLines(
+        lineA,
+        lineB
+    ) {
+
+        const x1 =
+            lineA.a[0];
+
+
+        const y1 =
+            lineA.a[1];
+
+
+        const x2 =
+            lineA.b[0];
+
+
+        const y2 =
+            lineA.b[1];
+
+
+        const x3 =
+            lineB.a[0];
+
+
+        const y3 =
+            lineB.a[1];
+
+
+        const x4 =
+            lineB.b[0];
+
+
+        const y4 =
+            lineB.b[1];
+
+
+        const denominator =
+
+            (
+                x1 -
+                x2
+            ) *
+            (
+                y3 -
+                y4
+            )
+
+            -
+
+            (
+                y1 -
+                y2
+            ) *
+            (
+                x3 -
+                x4
+            );
+
+
+        if (
+            Math.abs(
+                denominator
+            ) <
+            EPSILON
+        ) {
+
+            return null;
+
+        }
+
+
+        const determinantA =
+
+            (
+                x1 *
+                y2
+            )
+
+            -
+
+            (
+                y1 *
+                x2
+            );
+
+
+        const determinantB =
+
+            (
+                x3 *
+                y4
+            )
+
+            -
+
+            (
+                y3 *
+                x4
+            );
+
+
+        const px =
+
+            (
+                determinantA *
+                (
+                    x3 -
+                    x4
+                )
+                -
+
+                (
+                    x1 -
+                    x2
+                ) *
+                determinantB
+            )
+
+            /
+
+            denominator;
+
+
+        const py =
+
+            (
+                determinantA *
+                (
+                    y3 -
+                    y4
+                )
+                -
+
+                (
+                    y1 -
+                    y2
+                ) *
+                determinantB
+            )
+
+            /
+
+            denominator;
+
+
+        return [
+
+            px,
+
+            py
+
+        ];
+
+    }
+
+
+    /* ========================================================
+       TRUE POLYGON OFFSET
+       ======================================================== */
+
+    function trueOffset(
+        points,
+        distance,
+        options = {}
+    ) {
+
+        const config = {
+
+            ...DEFAULT_OPTIONS,
+
+            ...options
+
+        };
+
+
+        const validation =
+            validatePolygon(
+                points,
+                config
+            );
+
+
+        if (
+            !validation.valid
+        ) {
+
+            throw new Error(
+
+                validation.errors.join(
+                    " | "
+                )
+
+            );
+
+        }
+
+
+        const d =
+            num(
+                distance
+            );
+
+
+        if (
+            d < 0
+        ) {
+
+            throw new Error(
+                "Offset distance harus >= 0."
+            );
+
+        }
+
+
+        if (
+            d === 0
+        ) {
+
+            return clonePoints(
+                points
+            );
+
+        }
+
 
         const source =
             clonePoints(
@@ -528,213 +905,348 @@
             );
 
 
-        const seam =
-            num(
-                amount
+        /*
+         * Orientation:
+         *
+         * CCW:
+         *   outward = right
+         *
+         * CW:
+         *   outward = left
+         */
+
+        const signed =
+            signedArea(
+                source
             );
 
 
-        if (
-            !(seam > 0) ||
-            source.length < 3
+        const side =
+            signed >= 0
+
+                ? 1
+
+                : -1;
+
+
+        const offsetLines =
+            [];
+
+
+        for (
+            let i = 0;
+            i < source.length;
+            i++
         ) {
 
-            return source;
+            const a =
+                source[i];
+
+
+            const b =
+                source[
+                    (
+                        i + 1
+                    ) %
+                    source.length
+                ];
+
+
+            offsetLines.push(
+
+                createOffsetLine(
+
+                    a,
+
+                    b,
+
+                    side,
+
+                    d
+
+                )
+
+            );
 
         }
 
 
-        let cx =
-            0;
+        const output =
+            [];
 
 
-        let cy =
-            0;
+        for (
+            let i = 0;
+            i < source.length;
+            i++
+        ) {
 
-
-        source.forEach(
-            (
-                [
-                    x,
-                    y
-                ]
-            ) => {
-
-                cx += x;
-
-                cy += y;
-
-            }
-        );
-
-
-        cx /=
-            source.length;
-
-
-        cy /=
-            source.length;
-
-
-        return source.map(
-            (
-                [
-                    x,
-                    y
-                ]
-            ) => {
-
-                const dx =
-                    x - cx;
-
-
-                const dy =
-                    y - cy;
-
-
-                const length =
-                    Math.hypot(
-                        dx,
-                        dy
-                    ) ||
-                    1;
-
-
-                const factor =
+            const previous =
+                offsetLines[
                     (
-                        length +
-                        seam
-                    ) /
-                    length;
-
-
-                return [
-
-                    Math.round(
-
-                        (
-                            cx +
-                            dx * factor
-                        ) * 1000
-
-                    ) / 1000,
-
-                    Math.round(
-
-                        (
-                            cy +
-                            dy * factor
-                        ) * 1000
-
-                    ) / 1000
-
+                        i -
+                        1 +
+                        source.length
+                    ) %
+                    source.length
                 ];
 
+
+            const current =
+                offsetLines[
+                    i
+                ];
+
+
+            const intersection =
+                intersectInfiniteLines(
+
+                    previous,
+
+                    current
+
+                );
+
+
+            if (
+                intersection
+            ) {
+
+                const distanceFromOriginal =
+                    Math.hypot(
+
+                        intersection[0] -
+                        source[i][0],
+
+                        intersection[1] -
+                        source[i][1]
+
+                    );
+
+
+                /*
+                 * Miter limit.
+                 *
+                 * When the corner is too sharp,
+                 * use the two offset endpoints instead
+                 * of producing a huge spike.
+                 */
+
+                if (
+                    distanceFromOriginal <=
+                    d *
+                    config.miterLimit
+                ) {
+
+                    output.push(
+
+                        intersection
+
+                    );
+
+                    continue;
+
+                }
+
+            }
+
+
+            /*
+             * Parallel or excessive-miter fallback:
+             *
+             * insert both adjacent offset endpoints.
+             */
+
+            output.push(
+
+                previous.b,
+
+                current.a
+
+            );
+
+        }
+
+
+        /*
+         * Remove near-duplicate adjacent vertices.
+         */
+
+        const cleaned =
+            [];
+
+
+        output.forEach(
+            point => {
+
+                const previous =
+                    cleaned[
+                        cleaned.length - 1
+                    ];
+
+
+                if (
+                    !previous ||
+                    Math.hypot(
+
+                        previous[0] -
+                        point[0],
+
+                        previous[1] -
+                        point[1]
+
+                    ) >
+                    EPSILON
+                ) {
+
+                    cleaned.push(
+
+                        [
+
+                            Number(
+                                point[0]
+                            ),
+
+                            Number(
+                                point[1]
+                            )
+
+                        ]
+
+                    );
+
+                }
+
             }
         );
+
+
+        /*
+         * Remove duplicate closing point.
+         */
+
+        if (
+            cleaned.length > 2 &&
+            Math.hypot(
+
+                cleaned[0][0] -
+                cleaned[
+                    cleaned.length - 1
+                ][0],
+
+                cleaned[0][1] -
+                cleaned[
+                    cleaned.length - 1
+                ][1]
+
+            ) <=
+            EPSILON
+        ) {
+
+            cleaned.pop();
+
+        }
+
+
+        const finalValidation =
+            validatePolygon(
+                cleaned,
+                config
+            );
+
+
+        if (
+            !finalValidation.valid
+        ) {
+
+            throw new Error(
+
+                "Hasil true polygon offset tidak valid: " +
+
+                finalValidation.errors.join(
+                    " | "
+                )
+
+            );
+
+        }
+
+
+        return cleaned;
 
     }
 
 
     /* ========================================================
-       NORMALIZE PATTERN
+       OFFSET PIECE
        ======================================================== */
 
-    function normalizePattern(
-        pattern
+    function offsetPiece(
+        piece,
+        seamAllowance,
+        options = {}
     ) {
 
-        if (
-            !pattern ||
-            !Array.isArray(
-                pattern.pieces
-            )
-        ) {
+        const basePoints =
 
-            throw new Error(
+            piece?.seamPoints ||
 
-                "Base pattern tidak valid."
-
-            );
-
-        }
+            piece?.points ||
 
 
-        const pieces =
-            pattern.pieces.map(
-                piece => {
+            piece?.cutPoints ||
 
-                    const points =
-                        clonePoints(
-
-                            piece.points ||
-                            piece.cutPoints
-
-                        );
+            [];
 
 
-                    const seamPoints =
+        const cutPoints =
+            trueOffset(
 
-                        Array.isArray(
-                            piece.seamPoints
-                        )
+                basePoints,
 
-                            ? clonePoints(
-                                piece.seamPoints
-                            )
+                seamAllowance,
 
-                            : clonePoints(
-                                points
-                            );
+                options
 
-
-                    return {
-
-                        ...clone(
-                            piece
-                        ),
-
-                        points,
-
-                        seamPoints,
-
-                        cutPoints:
-
-                            Array.isArray(
-                                piece.cutPoints
-                            )
-
-                                ? clonePoints(
-                                    piece.cutPoints
-                                )
-
-                                : null
-
-                    };
-
-                }
             );
 
 
         return {
 
-            type:
-                pattern.type ||
-                "base-pattern",
+            ...clone(
+                piece
+            ),
 
-            engine:
-                pattern.engine ||
-                null,
+            points:
+                clonePoints(
+                    basePoints
+                ),
 
-            version:
-                pattern.version ||
-                null,
+            seamPoints:
+                clonePoints(
+                    basePoints
+                ),
 
-            pieces,
+            cutPoints,
+
+            layer:
+                "CUT",
 
             metadata: {
 
-                ...(pattern.metadata || {})
+                ...(piece?.metadata || {}),
+
+                productionGeometry:
+                    true,
+
+                seamAllowanceCm:
+                    seamAllowance,
+
+                seamStrategy:
+                    "true-polygon-offset",
+
+                geometryVersion:
+                    VERSION
 
             }
 
@@ -752,10 +1264,18 @@
         options = {}
     ) {
 
-        const normalized =
-            normalizePattern(
-                pattern
+        if (
+            !pattern ||
+            !Array.isArray(
+                pattern.pieces
+            )
+        ) {
+
+            throw new Error(
+                "Base pattern tidak valid."
             );
+
+        }
 
 
         const seamAllowance =
@@ -765,105 +1285,27 @@
 
                 num(
                     options.seamAllowance,
+                    options.defaultSeam ||
                     0
                 )
 
             );
 
 
-        const applyLegacyOffset =
-            options.applyLegacyOffset ===
-            true;
-
-
         const pieces =
-            normalized.pieces.map(
-                piece => {
+            pattern.pieces.map(
+                piece =>
 
-                    const seamPoints =
-                        clonePoints(
+                    offsetPiece(
 
-                            piece.seamPoints ||
-                            piece.points
+                        piece,
 
-                        );
+                        seamAllowance,
 
+                        options
 
-                    const alreadyHasSeam =
-                        piece.metadata
-                            ?.seamAllowanceIncluded ===
-                        true;
+                    )
 
-
-                    const shouldOffset =
-
-                        applyLegacyOffset &&
-
-                        seamAllowance > 0 &&
-
-                        !alreadyHasSeam;
-
-
-                    const cutPoints =
-
-                        shouldOffset
-
-                            ? offsetRadial(
-
-                                seamPoints,
-
-                                seamAllowance
-
-                              )
-
-                            : clonePoints(
-
-                                piece.cutPoints ||
-                                seamPoints
-
-                              );
-
-
-                    return {
-
-                        ...piece,
-
-                        seamPoints,
-
-                        cutPoints,
-
-                        points:
-                            clonePoints(
-                                cutPoints
-                            ),
-
-                        layer:
-                            piece.layer ||
-                            "CUT",
-
-                        metadata: {
-
-                            ...(piece.metadata || {}),
-
-                            productionGeometry:
-                                true,
-
-                            seamAllowanceCm:
-                                seamAllowance,
-
-                            cutGeometrySource:
-
-                                shouldOffset
-
-                                    ? "legacy-radial"
-
-                                    : "base"
-
-                        }
-
-                    };
-
-                }
             );
 
 
@@ -873,7 +1315,8 @@
                 "production-pattern",
 
             engine:
-                normalized.engine,
+                pattern.engine ||
+                null,
 
             version:
                 VERSION,
@@ -882,30 +1325,25 @@
 
             metadata: {
 
-                ...normalized.metadata,
-
-                unit:
-                    "cm",
-
-                scale:
-                    1,
+                ...(pattern.metadata || {}),
 
                 geometryType:
                     "PRODUCTION",
 
+                productionGeometry:
+                    true,
+
+                seamStrategy:
+                    "true-polygon-offset",
+
                 seamAllowanceCm:
                     seamAllowance,
 
-                seamStrategy:
-
-                    applyLegacyOffset
-
-                        ? "legacy-radial-compatibility"
-
-                        : "separate-production-layer",
-
-                productionGeometry:
-                    true
+                miterLimit:
+                    num(
+                        options.miterLimit,
+                        DEFAULT_OPTIONS.miterLimit
+                    )
 
             }
 
@@ -915,10 +1353,10 @@
 
 
     /* ========================================================
-       CUTTING GEOMETRY
+       APPLY SEAM ALLOWANCE
        ======================================================== */
 
-    function toCuttingGeometry(
+    function applySeamAllowance(
         pattern,
         options = {}
     ) {
@@ -954,13 +1392,12 @@
             !Array.isArray(
                 pattern.pieces
             ) ||
-            pattern.pieces.length === 0
+            pattern.pieces.length ===
+            0
         ) {
 
             errors.push(
-
                 "Production pattern tidak memiliki pieces."
-
             );
 
 
@@ -971,14 +1408,7 @@
 
                 errors,
 
-                warnings,
-
-                summary: {
-
-                    pieceCount:
-                        0
-
-                }
+                warnings
 
             };
 
@@ -991,49 +1421,66 @@
                 index
             ) => {
 
-                const result =
-                    validatePiece(
-                        piece,
-                        index
+                const points =
+                    piece.cutPoints ||
+                    [];
+
+
+                const validation =
+                    validatePolygon(
+                        points
                     );
 
 
-                errors.push(
-                    ...result.errors
-                );
+                if (
+                    !validation.valid
+                ) {
+
+                    errors.push(
+
+                        `Piece ${index + 1}: ` +
+
+                        validation.errors.join(
+                            " | "
+                        )
+
+                    );
+
+                }
 
 
-                warnings.push(
-                    ...result.warnings
-                );
+                const seam =
+                    num(
+
+                        piece.metadata
+                            ?.seamAllowanceCm
+
+                    );
+
+
+                if (
+                    seam === null ||
+                    seam < 0
+                ) {
+
+                    errors.push(
+
+                        `Piece ${index + 1} ` +
+                        "seam allowance invalid."
+
+                    );
+
+                }
 
             }
         );
 
 
-        const allPoints =
-
-            pattern.pieces.flatMap(
-
-                piece =>
-
-                    piece.cutPoints ||
-                    piece.points ||
-                    []
-
-            );
-
-
-        const bounds =
-            getBounds(
-                allPoints
-            );
-
-
         return {
 
             valid:
-                errors.length === 0,
+                errors.length ===
+                0,
 
             errors,
 
@@ -1042,45 +1489,11 @@
             summary: {
 
                 pieceCount:
-                    pattern.pieces.length,
-
-                bounds
+                    pattern.pieces.length
 
             }
 
         };
-
-    }
-
-
-    /* ========================================================
-       PATTERN BOUNDS
-       ======================================================== */
-
-    function getPatternBounds(
-        pattern
-    ) {
-
-        const allPoints =
-
-            (
-                pattern?.pieces ||
-                []
-            )
-            .flatMap(
-
-                piece =>
-
-                    piece.cutPoints ||
-                    piece.points ||
-                    []
-
-            );
-
-
-        return getBounds(
-            allPoints
-        );
 
     }
 
@@ -1093,27 +1506,32 @@
 
         VERSION,
 
-        getBounds,
+        DEFAULT_OPTIONS,
+
+        clonePoints,
 
         signedArea,
 
-        distance,
+        getBounds,
 
-        validatePiece,
+        validatePolygon,
 
-        normalizePattern,
+        createOffsetLine,
+
+        intersectInfiniteLines,
+
+        trueOffset,
+
+        offsetPiece,
 
         createProductionPattern,
 
-        toCuttingGeometry,
+        applySeamAllowance,
 
-        validateProductionPattern,
-
-        getPatternBounds,
-
-        offsetRadial
+        validateProductionPattern
 
     };
 
 
 })();
+```
