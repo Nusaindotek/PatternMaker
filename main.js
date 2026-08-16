@@ -2,132 +2,131 @@
 /**
  * ============================================================
  * PATTERNMAKER UNIVERSAL
- * KODE 10 — main.js
+ * KODE 12 — main.js
  * ============================================================
  *
  * APPLICATION CONTROLLER
  *
- * Tugas utama:
- * - Membuat measurement fields dinamis
- * - Mengatur mode Newbie / Tailor / Expert
- * - Membaca Body Profile
- * - Menjalankan Pattern Registry
- * - Menghubungkan legacy bodice + sleeve
- * - Menampilkan preview Full / Open
- * - Menghubungkan Fabric Engine
- * - Menjalankan Nesting Engine
+ * Alur:
  *
- * Engine pattern tidak ditulis di sini.
- * Controller hanya mengatur alur data.
+ * UI
+ *  ↓
+ * Body Profile
+ *  ↓
+ * Garment
+ *  ↓
+ * Measurement Validation
+ *  ↓
+ * Pattern Engine
+ *  ↓
+ * Production Geometry
+ *  ↓
+ * Full / Open Preview
  *
  * ============================================================
  */
 
-
-/* ============================================================
-   IMPORT CORE
-   ============================================================ */
-
-import {
-    PatternMakerMeasurementSchema
-} from "./engine/measurement-schema.js";
-
-
-import {
-    PatternMakerProfile
-} from "./engine/profile.js";
-
-
-import {
-    PatternMakerGarment
-} from "./engine/garment.js";
-
-
-import {
-    PatternMakerMeasurements
-} from "./engine/measurements.js";
-
-
-import {
-    PatternMakerPatternRegistry
-} from "./engine/pattern-registry.js";
-
-
-import {
-    PatternMakerLegacyAdapters
-} from "./engine/legacy-pattern-adapter.js";
-
-
-/*
- * Legacy engines yang sudah memakai export ES Module.
- */
-
-import {
-    makeBodice
-} from "./engine/bodice.js";
-
-
-import {
-    makeSleeve
-} from "./engine/sleeve.js";
-
-
-import {
-    renderPattern
-} from "./engine/geometry.js";
-
-
-import {
-    createFabric
-} from "./engine/fabric.js";
-
-
-import {
-    nestPieces,
-    getNestingSummary,
-    validateNesting
-} from "./engine/nesting.js";
+"use strict";
 
 
 /* ============================================================
-   ALIAS
+   GLOBAL REFERENCES
    ============================================================ */
 
 const Schema =
-    window.PatternMakerMeasurementSchema ||
-    PatternMakerMeasurementSchema;
+    window.PatternMakerMeasurementSchema;
 
 
 const Profile =
-    window.PatternMakerProfile ||
-    PatternMakerProfile;
+    window.PatternMakerProfile;
 
 
 const Garment =
-    window.PatternMakerGarment ||
-    PatternMakerGarment;
+    window.PatternMakerGarment;
 
 
 const Measurements =
-    window.PatternMakerMeasurements ||
-    PatternMakerMeasurements;
+    window.PatternMakerMeasurements;
 
 
 const Registry =
-    window.PatternMakerPatternRegistry ||
-    PatternMakerPatternRegistry;
+    window.PatternMakerPatternRegistry;
 
 
-const Legacy =
-    window.PatternMakerLegacyAdapters ||
-    PatternMakerLegacyAdapters;
+const LegacyAdapters =
+    window.PatternMakerLegacyAdapters;
+
+
+const ProductionGeometry =
+    window.PatternMakerProductionGeometry;
 
 
 /* ============================================================
-   GLOBAL STATE
+   DEPENDENCY VALIDATION
+   ============================================================ */
+
+function validateDependencies() {
+
+    const dependencies = {
+
+        Schema,
+
+        Profile,
+
+        Garment,
+
+        Measurements,
+
+        Registry,
+
+        LegacyAdapters,
+
+        ProductionGeometry
+
+    };
+
+
+    const missing =
+        Object.entries(
+            dependencies
+        )
+        .filter(
+            ([, value]) =>
+                !value
+        )
+        .map(
+            ([key]) =>
+                key
+        );
+
+
+    if (
+        missing.length
+    ) {
+
+        throw new Error(
+
+            "PatternMaker dependency belum tersedia: " +
+            missing.join(", ")
+
+        );
+
+    }
+
+}
+
+
+/* ============================================================
+   STATE
    ============================================================ */
 
 const AppState = {
+
+    initialized:
+        false,
+
+    generating:
+        false,
 
     mode:
         "tailor",
@@ -141,58 +140,59 @@ const AppState = {
     measurements:
         null,
 
+    fabric:
+        null,
+
     bodice:
         null,
 
     sleeve:
         null,
 
-    patternResult:
+    pattern:
         null,
 
-    fabric:
+    productionPattern:
         null,
 
-    nesting:
+    productionGeometry:
         null,
 
-    svg:
-        "",
-
-    initialized:
-        false,
-
-    isGenerating:
-        false
+    error:
+        null
 
 };
 
 
 /* ============================================================
-   DOM HELPER
+   DOM
    ============================================================ */
 
-function el(id) {
+function $(id) {
 
-    return document.getElementById(id);
+    return document.getElementById(
+        id
+    );
 
 }
 
 
 /* ============================================================
-   SAFE NUMBER
+   NUMBER
    ============================================================ */
 
-function number(
+function getNumber(
     id,
     fallback = 0
 ) {
 
     const node =
-        el(id);
+        $(id);
 
 
-    if (!node) {
+    if (
+        !node
+    ) {
 
         return fallback;
 
@@ -205,8 +205,12 @@ function number(
         );
 
 
-    return Number.isFinite(value)
+    return Number.isFinite(
+        value
+    )
+
         ? value
+
         : fallback;
 
 }
@@ -222,10 +226,12 @@ function setStatus(
 ) {
 
     const node =
-        el("resultStatus");
+        $("resultStatus");
 
 
-    if (!node) {
+    if (
+        !node
+    ) {
 
         return;
 
@@ -240,7 +246,9 @@ function setStatus(
         "status";
 
 
-    if (type) {
+    if (
+        type
+    ) {
 
         node.classList.add(
             type
@@ -261,10 +269,12 @@ function setDraftStatus(
 ) {
 
     const node =
-        el("draftEngineStatus");
+        $("draftEngineStatus");
 
 
-    if (!node) {
+    if (
+        !node
+    ) {
 
         return;
 
@@ -279,7 +289,9 @@ function setDraftStatus(
         "status";
 
 
-    if (type) {
+    if (
+        type
+    ) {
 
         node.classList.add(
             type
@@ -302,7 +314,7 @@ const MODE_DEFINITIONS = {
             "Newbie — Mudah",
 
         description:
-            "Tampilan sederhana untuk pengguna yang baru belajar membuat pola."
+            "Workflow sederhana dengan parameter utama."
 
     },
 
@@ -313,7 +325,7 @@ const MODE_DEFINITIONS = {
             "Tailor — Lengkap",
 
         description:
-            "Kontrol ukuran, fitting dan konstruksi untuk penggunaan tailor."
+            "Kontrol fitting dan konstruksi untuk tailor."
 
     },
 
@@ -324,7 +336,7 @@ const MODE_DEFINITIONS = {
             "Expert / Garment — Profesional",
 
         description:
-            "Kontrol profesional untuk patternmaking, fabric dan produksi."
+            "Kontrol patternmaking dan produksi."
 
     }
 
@@ -354,19 +366,23 @@ function applyMode(
 
 
     document.body.classList.remove(
+
         "mode-newbie",
         "mode-tailor",
         "mode-expert"
+
     );
 
 
     document.body.classList.add(
+
         `mode-${mode}`
+
     );
 
 
     const description =
-        el("modeDescription");
+        $("modeDescription");
 
 
     if (
@@ -382,7 +398,7 @@ function applyMode(
 
 
     const result =
-        el("modeResult");
+        $("modeResult");
 
 
     if (
@@ -394,105 +410,118 @@ function applyMode(
 
     }
 
-
-    /*
-     * Newbie:
-     * lebih sedikit kontrol.
-     */
-
-    if (
-        mode === "newbie"
-    ) {
-
-        if (
-            el("fit")
-        ) {
-
-            el("fit").value =
-                "regular";
-
-        }
-
-
-        if (
-            el("dart")
-        ) {
-
-            el("dart").value =
-                "none";
-
-        }
-
-    }
-
-
-    return mode;
-
 }
 
 
 /* ============================================================
-   GARMENT
+   CURRENT UNIT
    ============================================================ */
 
-function getSelectedGarment() {
+function getUnit() {
 
     const node =
-        el("garmentType");
+        $("sizeSystem");
 
 
-    if (
-        !node ||
-        !node.value
-    ) {
+    return (
 
-        return "custom";
+        node &&
+        node.value
 
-    }
-
-
-    return node.value;
+    )
+        ? node.value
+        : "cm";
 
 }
 
 
 /* ============================================================
-   RENDER MEASUREMENT FIELD
+   CURRENT GARMENT
+   ============================================================ */
+
+function getCurrentGarment() {
+
+    const node =
+        $("garmentType");
+
+
+    return (
+
+        node &&
+        node.value
+
+    )
+        ? node.value
+        : "custom";
+
+}
+
+
+/* ============================================================
+   CURRENT CATEGORY
+   ============================================================ */
+
+function getCurrentCategory() {
+
+    const node =
+        $("category");
+
+
+    return (
+
+        node &&
+        node.value
+
+    )
+        ? node.value
+        : "custom";
+
+}
+
+
+/* ============================================================
+   RENDER MEASUREMENT FIELDS
    ============================================================ */
 
 function renderMeasurementFields() {
 
     const container =
-        el("measurementFields");
+        $("measurementFields");
 
 
-    if (!container) {
+    if (
+        !container
+    ) {
 
         return;
 
     }
 
 
-    AppState.garment =
-        getSelectedGarment();
+    const garmentId =
+        getCurrentGarment();
 
 
     const garment =
         Garment.getGarment(
-            AppState.garment
+            garmentId
         );
 
 
-    if (!garment) {
+    if (
+        !garment
+    ) {
 
-        container.innerHTML = "";
+        container.innerHTML =
+            "";
 
         return;
 
     }
 
 
-    const measurementIds = [
+    const ids = [
+
         ...new Set([
 
             ...garment.requiredMeasurements,
@@ -504,10 +533,15 @@ function renderMeasurementFields() {
     ];
 
 
-    let html = "";
+    const unit =
+        getUnit();
 
 
-    measurementIds.forEach(
+    let html =
+        "";
+
+
+    ids.forEach(
         measurementId => {
 
             const definition =
@@ -516,29 +550,49 @@ function renderMeasurementFields() {
                 );
 
 
-            if (!definition) {
+            if (
+                !definition
+            ) {
 
                 return;
 
             }
 
 
-            const existing =
+            let existing =
+                "";
+
+
+            if (
                 AppState.profile &&
                 AppState.profile.hasMeasurement(
                     measurementId
                 )
-                    ? AppState.profile.getMeasurement(
+            ) {
+
+                const value =
+                    AppState.profile.getMeasurement(
+
                         measurementId,
-                        getUnit()
-                    )
-                    : "";
+
+                        unit
+
+                    );
 
 
-            const value =
-                existing === null
-                    ? ""
-                    : existing;
+                if (
+                    value !== null
+                ) {
+
+                    existing =
+                        Number(
+                            value
+                        )
+                        .toFixed(2);
+
+                }
+
+            }
 
 
             const required =
@@ -550,29 +604,41 @@ function renderMeasurementFields() {
 
             html += `
 
-                <div class="measurement-field">
+                <div
+                    class="measurement-field"
+                >
 
                     <label
                         for="${measurementId}"
                     >
+
                         ${definition.label}
-                        ${required ? "*" : ""}
+
+                        ${required
+                            ? " *"
+                            : ""}
+
                     </label>
+
 
                     <input
                         id="${measurementId}"
                         data-measurement="${measurementId}"
                         type="number"
-                        min="${getDisplayMin(definition)}"
-                        max="${getDisplayMax(definition)}"
+                        min="0"
                         step="0.1"
-                        value="${value}"
-                        placeholder="${definition.label}"
+                        value="${existing}"
                     >
 
+
                     <small>
-                        ${definition.unit}
-                        ${required ? " • wajib" : " • opsional"}
+
+                        ${unit}
+
+                        ${required
+                            ? " • wajib"
+                            : " • opsional"}
+
                     </small>
 
                 </div>
@@ -593,77 +659,101 @@ function renderMeasurementFields() {
 
 
 /* ============================================================
-   DISPLAY MIN
+   MEASUREMENT STATUS
    ============================================================ */
 
-function getDisplayMin(
-    definition
-) {
-
-    const unit =
-        getUnit();
-
-
-    return Number(
-        Schema.measurementFromCm(
-            definition.min,
-            unit
-        ).toFixed(2)
-    );
-
-}
-
-
-/* ============================================================
-   DISPLAY MAX
-   ============================================================ */
-
-function getDisplayMax(
-    definition
-) {
-
-    const unit =
-        getUnit();
-
-
-    return Number(
-        Schema.measurementFromCm(
-            definition.max,
-            unit
-        ).toFixed(2)
-    );
-
-}
-
-
-/* ============================================================
-   UNIT
-   ============================================================ */
-
-function getUnit() {
+function updateMeasurementStatus() {
 
     const node =
-        el("sizeSystem");
+        $("measurementStatus");
 
 
-    return (
-        node &&
-        node.value
-    )
-        ? node.value
-        : "cm";
+    if (
+        !node
+    ) {
+
+        return;
+
+    }
+
+
+    const garment =
+        Garment.getGarment(
+            getCurrentGarment()
+        );
+
+
+    if (
+        !garment
+    ) {
+
+        node.className =
+            "status error";
+
+
+        node.textContent =
+            "Garment tidak ditemukan.";
+
+
+        return;
+
+    }
+
+
+    node.className =
+        "status";
+
+
+    node.textContent =
+
+        `${garment.requiredMeasurements.length} ` +
+        `ukuran wajib untuk ${garment.label}.`;
 
 }
 
 
 /* ============================================================
-   COLLECT MEASUREMENTS
+   GARMENT INFORMATION
    ============================================================ */
 
-function collectMeasurementInputs() {
+function updateGarmentInformation() {
+
+    const note =
+        $("garmentNote");
+
+
+    const garment =
+        Garment.getGarment(
+            getCurrentGarment()
+        );
+
+
+    if (
+        note &&
+        garment
+    ) {
+
+        note.textContent =
+
+            `${garment.label} • ` +
+            `Engine: ${garment.patternEngine}`;
+
+    }
+
+
+    updateMeasurementStatus();
+
+}
+
+
+/* ============================================================
+   COLLECT INPUT
+   ============================================================ */
+
+function collectMeasurementInput() {
 
     const garmentId =
-        getSelectedGarment();
+        getCurrentGarment();
 
 
     const garment =
@@ -672,10 +762,12 @@ function collectMeasurementInputs() {
         );
 
 
-    if (!garment) {
+    if (
+        !garment
+    ) {
 
         throw new Error(
-            "Jenis pakaian tidak ditemukan."
+            "Garment tidak ditemukan."
         );
 
     }
@@ -685,7 +777,8 @@ function collectMeasurementInputs() {
         getUnit();
 
 
-    const measurements = {};
+    const values =
+        {};
 
 
     const required =
@@ -694,10 +787,15 @@ function collectMeasurementInputs() {
 
     const all =
         [
+
             ...new Set([
+
                 ...garment.requiredMeasurements,
+
                 ...garment.optionalMeasurements
+
             ])
+
         ];
 
 
@@ -705,7 +803,7 @@ function collectMeasurementInputs() {
         measurementId => {
 
             const node =
-                el(
+                $(
                     measurementId
                 );
 
@@ -720,18 +818,22 @@ function collectMeasurementInputs() {
             }
 
 
-            const raw =
+            const value =
                 Number(
                     node.value
                 );
 
 
             if (
-                !Number.isFinite(raw)
+                !Number.isFinite(
+                    value
+                )
             ) {
 
                 throw new Error(
+
                     `${measurementId} harus berupa angka.`
+
                 );
 
             }
@@ -739,80 +841,77 @@ function collectMeasurementInputs() {
 
             const cm =
                 Schema.measurementToCm(
-                    raw,
+
+                    value,
+
                     unit
+
                 );
 
 
-            const validation =
+            const valid =
                 Schema.validateMeasurementValue(
+
                     measurementId,
+
                     cm
+
                 );
 
 
             if (
-                !validation.valid
+                !valid.valid
             ) {
 
                 throw new Error(
-                    validation.message
+                    valid.message
                 );
 
             }
 
 
-            measurements[
+            values[
                 measurementId
             ] =
-                raw;
+                value;
 
         }
     );
 
 
-    /*
-     * Required check.
-     */
-
-    const missing = [];
-
-
-    required.forEach(
-        measurementId => {
-
-            if (
-                measurements[
-                    measurementId
-                ] === undefined
-            ) {
-
-                const definition =
-                    Schema.getMeasurementDefinition(
-                        measurementId
-                    );
-
-
-                missing.push(
-                    definition
-                        ? definition.label
-                        : measurementId
-                );
-
-            }
-
-        }
-    );
+    const missing =
+        required.filter(
+            id =>
+                values[id] === undefined
+        );
 
 
     if (
         missing.length
     ) {
 
+        const labels =
+            missing.map(
+                id => {
+
+                    const definition =
+                        Schema.getMeasurementDefinition(
+                            id
+                        );
+
+
+                    return definition
+                        ? definition.label
+                        : id;
+
+                }
+            );
+
+
         throw new Error(
 
             "Ukuran wajib belum lengkap: " +
-            missing.join(", ")
+            labels.join(", ")
 
         );
 
@@ -821,9 +920,9 @@ function collectMeasurementInputs() {
 
     return {
 
-        unit,
+        values,
 
-        measurements
+        unit
 
     };
 
@@ -831,27 +930,28 @@ function collectMeasurementInputs() {
 
 
 /* ============================================================
-   BUILD BODY PROFILE
+   CREATE BODY PROFILE
    ============================================================ */
 
-function buildBodyProfile() {
+function createCurrentProfile() {
 
     const input =
-        collectMeasurementInputs();
+        collectMeasurementInput();
 
 
-    const category =
-        el("category")
-            ? el("category").value
-            : "custom";
+    const ageNode =
+        $("age");
 
 
     const age =
-        el("age") &&
-        el("age").value !== ""
+
+        ageNode &&
+        ageNode.value !== ""
+
             ? Number(
-                el("age").value
+                ageNode.value
             )
+
             : null;
 
 
@@ -859,9 +959,13 @@ function buildBodyProfile() {
         Profile.createBodyProfile({
 
             name:
-                `${Schema.getCategoryLabel(category)} Profile`,
 
-            category,
+                `${Schema.getCategoryLabel(
+                    getCurrentCategory()
+                )} Profile`,
+
+            category:
+                getCurrentCategory(),
 
             age,
 
@@ -875,15 +979,19 @@ function buildBodyProfile() {
 
 
     Object.entries(
-        input.measurements
+        input.values
     )
     .forEach(
         ([id, value]) => {
 
             profile.setMeasurement(
+
                 id,
+
                 value,
+
                 input.unit
+
             );
 
         }
@@ -895,12 +1003,12 @@ function buildBodyProfile() {
 
 
     AppState.measurements =
-        profile.measurements;
+        {
 
+            ...profile.measurements
 
-    /*
-     * Sinkronkan profile ke measurement bridge.
-     */
+        };
+
 
     Measurements.setProfile(
         profile
@@ -913,177 +1021,48 @@ function buildBodyProfile() {
 
 
 /* ============================================================
-   MEASUREMENT STATUS
+   FABRIC
    ============================================================ */
 
-function updateMeasurementStatus() {
+function getFabricInput() {
 
     const node =
-        el("measurementStatus");
-
-
-    if (!node) {
-
-        return;
-
-    }
-
-
-    try {
-
-        const garmentId =
-            getSelectedGarment();
-
-
-        const garment =
-            Garment.getGarment(
-                garmentId
-            );
-
-
-        if (!garment) {
-
-            node.textContent =
-                "Garment tidak ditemukan.";
-
-            node.className =
-                "status error";
-
-            return;
-
-        }
-
-
-        const count =
-            garment.requiredMeasurements.length;
-
-
-        node.textContent =
-            `${count} ukuran wajib untuk ${garment.label}.`;
-
-
-        node.className =
-            "status";
-
-    }
-    catch (
-        error
-    ) {
-
-        node.textContent =
-            error.message;
-
-
-        node.className =
-            "status error";
-
-    }
-
-}
-
-
-/* ============================================================
-   PROFILE / GARMENT NOTE
-   ============================================================ */
-
-function updateGarmentInformation() {
-
-    const garmentId =
-        getSelectedGarment();
-
-
-    const garment =
-        Garment.getGarment(
-            garmentId
-        );
-
-
-    const note =
-        el("garmentNote");
-
-
-    if (
-        note &&
-        garment
-    ) {
-
-        note.textContent =
-            `${garment.label} • Engine: ${garment.patternEngine}`;
-
-    }
-
-
-    updateMeasurementStatus();
-
-}
-
-
-/* ============================================================
-   FABRIC KEY NORMALIZER
-   ============================================================ */
-
-function normalizeFabricKey(
-    value
-) {
-
-    const key =
-        String(
-            value || ""
-        )
-        .trim()
-        .toLowerCase()
-        .replace(/\s+/g, "_")
-        .replace(/-/g, "_");
-
-
-    const map = {
-
-        "sublime_jersey":
-            "sublime_jersey",
-
-        "rib_knit":
-            "rib_knit",
-
-        "cotton":
-            "cotton",
-
-        "cotton_combed":
-            "cotton",
-
-        "jersey":
-            "sublime_jersey",
-
-        "french_terry":
-            "woven",
-
-        "fleece":
-            "woven",
-
-        "linen":
-            "woven",
-
-        "rayon":
-            "woven",
-
-        "denim":
-            "woven",
-
-        "polyester":
-            "woven",
-
-        "knit":
-            "rib_knit",
-
-        "custom":
-            "woven"
-
-    };
+        $("fabric");
 
 
     return (
-        map[key] ||
-        "woven"
-    );
+
+        node &&
+        node.value
+
+    )
+        ? node.value
+        : "cotton";
+
+}
+
+
+function normalizeFabricForLegacy(
+    value
+) {
+
+    const text =
+        String(
+            value || ""
+        )
+        .toLowerCase();
+
+
+    if (
+        text.includes("rib")
+    ) {
+
+        return "rib";
+
+    }
+
+
+    return "woven";
 
 }
 
@@ -1094,54 +1073,61 @@ function normalizeFabricKey(
 
 function buildFabric() {
 
-    const fabricValue =
-        el("fabric")
-            ? el("fabric").value
-            : "cotton";
+    if (
+        typeof window.createFabric !==
+        "function"
+    ) {
+
+        /*
+         * Fabric engine lama mungkin memakai
+         * export module dan belum diekspos global.
+         *
+         * Untuk sementara kita gunakan data
+         * fallback yang tidak merusak pattern flow.
+         */
+
+        AppState.fabric = {
+
+            material:
+                getFabricInput(),
+
+            width:
+                getNumber(
+                    "fabricWidth",
+                    150
+                ),
+
+            length:
+                getNumber(
+                    "fabricLength",
+                    200
+                )
+
+        };
 
 
-    const width =
-        Math.max(
-            0,
-            number(
-                "fabricWidth",
-                150
-            )
-        );
+        return AppState.fabric;
 
-
-    const length =
-        Math.max(
-            0,
-            number(
-                "fabricLength",
-                200
-            )
-        );
+    }
 
 
     const fabric =
-        createFabric({
+        window.createFabric({
 
             material:
-                normalizeFabricKey(
-                    fabricValue
+                getFabricInput(),
+
+            width:
+                getNumber(
+                    "fabricWidth",
+                    150
                 ),
 
-            width,
-
-            length,
-
-            /*
-             * UI universal versi pertama
-             * belum menyediakan selvedge field.
-             */
-
-            selvedgeLeft:
-                0,
-
-            selvedgeRight:
-                0
+            length:
+                getNumber(
+                    "fabricLength",
+                    200
+                )
 
         });
 
@@ -1164,7 +1150,7 @@ function renderFabricResult(
 ) {
 
     const container =
-        el("fabricResult");
+        $("fabricResult");
 
 
     if (
@@ -1177,6 +1163,23 @@ function renderFabricResult(
     }
 
 
+    const material =
+        fabric.materialName ||
+        fabric.material ||
+        "-";
+
+
+    const width =
+        fabric.effectiveWidth ||
+        fabric.width ||
+        "-";
+
+
+    const length =
+        fabric.length ||
+        "-";
+
+
     container.innerHTML = `
 
         <div class="kv">
@@ -1186,10 +1189,11 @@ function renderFabricResult(
             </b>
 
             <span>
-                ${fabric.materialName}
+                ${material}
             </span>
 
         </div>
+
 
         <div class="kv">
 
@@ -1198,22 +1202,11 @@ function renderFabricResult(
             </b>
 
             <span>
-                ${fabric.width} cm
+                ${width} cm
             </span>
 
         </div>
 
-        <div class="kv">
-
-            <b>
-                Lebar Efektif
-            </b>
-
-            <span>
-                ${fabric.effectiveWidth} cm
-            </span>
-
-        </div>
 
         <div class="kv">
 
@@ -1222,43 +1215,7 @@ function renderFabricResult(
             </b>
 
             <span>
-                ${fabric.length} cm
-            </span>
-
-        </div>
-
-        <div class="kv">
-
-            <b>
-                Stretch
-            </b>
-
-            <span>
-                ${fabric.stretch}
-            </span>
-
-        </div>
-
-        <div class="kv">
-
-            <b>
-                Arah Stretch
-            </b>
-
-            <span>
-                ${fabric.stretchDirection}
-            </span>
-
-        </div>
-
-        <div class="kv">
-
-            <b>
-                Rotasi
-            </b>
-
-            <span>
-                ${fabric.allowedRotation.join(", ")}°
+                ${length} cm
             </span>
 
         </div>
@@ -1269,187 +1226,62 @@ function renderFabricResult(
 
 
 /* ============================================================
-   PATTERN PIECE BOUNDS
+   LEGACY UPPER BODY
    ============================================================ */
 
-function getBounds(
-    points
+function generateLegacyUpperBody(
+    garment
 ) {
 
-    const xs =
-        points.map(
-            p => p[0]
+    const measurements =
+        Measurements.getLegacyMeasurements(
+            garment.id
         );
 
 
-    const ys =
-        points.map(
-            p => p[1]
-        );
+    /*
+     * Tambahkan parameter legacy yang
+     * dibutuhkan oleh sleeve.js.
+     */
 
+    const sleeveMeasurements = {
 
-    return {
+        ...measurements,
 
-        minX:
-            Math.min(
-                ...xs
+        fabric:
+            normalizeFabricForLegacy(
+                getFabricInput()
             ),
 
-        maxX:
-            Math.max(
-                ...xs
-            ),
-
-        minY:
-            Math.min(
-                ...ys
-            ),
-
-        maxY:
-            Math.max(
-                ...ys
+        negativeEase:
+            getNumber(
+                "negativeEase",
+                0
             )
 
     };
 
-}
-
-
-/* ============================================================
-   LEGACY PIECE EXTRACTION
-   ============================================================ */
-
-function extractLegacyPieces() {
-
-    const pieces = [];
-
-
-    if (
-        !AppState.bodice ||
-        !AppState.sleeve
-    ) {
-
-        return pieces;
-
-    }
-
-
-    const bodice =
-        AppState.bodice;
-
-
-    const sleeve =
-        AppState.sleeve;
-
 
     /*
-     * FRONT
+     * BODICE
      */
 
     if (
-        bodice.front
+        typeof window.makeBodice ===
+        "function"
     ) {
 
-        const points = [
-
-            bodice.front.A,
-            bodice.front.B,
-            bodice.front.C,
-            bodice.front.D,
-            bodice.front.E,
-            bodice.front.F
-
-        ];
-
-
-        const bounds =
-            getBounds(
-                points
+        AppState.bodice =
+            window.makeBodice(
+                measurements
             );
-
-
-        pieces.push({
-
-            name:
-                "Front",
-
-            type:
-                "bodice-front",
-
-            points,
-
-            width:
-                bounds.maxX -
-                bounds.minX,
-
-            height:
-                bounds.maxY -
-                bounds.minY,
-
-            quantity:
-                1,
-
-            allowedRotation:
-                AppState.fabric?.allowedRotation ||
-                [0]
-
-        });
 
     }
+    else {
 
-
-    /*
-     * BACK
-     */
-
-    if (
-        bodice.back
-    ) {
-
-        const points = [
-
-            bodice.back.A,
-            bodice.back.B,
-            bodice.back.C,
-            bodice.back.D,
-            bodice.back.E,
-            bodice.back.F
-
-        ];
-
-
-        const bounds =
-            getBounds(
-                points
-            );
-
-
-        pieces.push({
-
-            name:
-                "Back",
-
-            type:
-                "bodice-back",
-
-            points,
-
-            width:
-                bounds.maxX -
-                bounds.minX,
-
-            height:
-                bounds.maxY -
-                bounds.minY,
-
-            quantity:
-                1,
-
-            allowedRotation:
-                AppState.fabric?.allowedRotation ||
-                [0]
-
-        });
+        throw new Error(
+            "makeBodice tidak tersedia."
+        );
 
     }
 
@@ -1459,570 +1291,530 @@ function extractLegacyPieces() {
      */
 
     if (
-        sleeve
+        typeof window.makeSleeve ===
+        "function"
     ) {
 
-        const points = [
+        AppState.sleeve =
+            window.makeSleeve(
 
-            sleeve.left,
-            sleeve.leftCap,
-            sleeve.top,
-            sleeve.rightCap,
-            sleeve.right,
-            sleeve.bottomRight,
-            sleeve.bottomLeft
+                sleeveMeasurements,
 
-        ];
+                AppState.bodice
 
-
-        const bounds =
-            getBounds(
-                points
             );
 
+    }
+    else {
 
-        pieces.push({
-
-            name:
-                "Sleeve",
-
-            type:
-                "sleeve",
-
-            points,
-
-            width:
-                bounds.maxX -
-                bounds.minX,
-
-            height:
-                bounds.maxY -
-                bounds.minY,
-
-            quantity:
-                2,
-
-            allowedRotation:
-                AppState.fabric?.allowedRotation ||
-                [0]
-
-        });
+        throw new Error(
+            "makeSleeve tidak tersedia."
+        );
 
     }
 
 
-    return pieces;
+    return {
+
+        bodice:
+            AppState.bodice,
+
+        sleeve:
+            AppState.sleeve,
+
+        measurements
+
+    };
 
 }
 
 
 /* ============================================================
-   SVG FULL / OPEN PREVIEW
+   CREATE PRODUCTION GEOMETRY
    ============================================================ */
 
-/*
- * geometry.js lama menghasilkan preview yang:
- *
- * FRONT — FOLD
- * BACK  — FOLD
- *
- * Untuk PatternMaker Universal kita tidak ingin
- * hasil terlipat.
- *
- * Controller ini membuat SVG open-view tambahan
- * dari geometry hasil bodice/sleeve.
- *
- * Engine lama tetap dipertahankan.
- */
+function buildProductionGeometry() {
 
-function createOpenPreview(
-    bodice,
-    sleeve,
-    measurements
+    if (
+        !ProductionGeometry
+    ) {
+
+        throw new Error(
+            "Production Geometry engine belum tersedia."
+        );
+
+    }
+
+
+    if (
+        !AppState.bodice
+    ) {
+
+        throw new Error(
+            "Bodice belum dibuat."
+        );
+
+    }
+
+
+    const seam =
+        Math.max(
+            0,
+            getNumber(
+                "seam",
+                1
+            )
+        );
+
+
+    const grainline =
+        !$("addGrainline") ||
+        $("addGrainline").value !== "no";
+
+
+    const notches =
+        !$("addNotches") ||
+        $("addNotches").value !== "no";
+
+
+    const pattern =
+        ProductionGeometry.createProductionPattern({
+
+            bodice:
+                AppState.bodice,
+
+            sleeve:
+                AppState.sleeve,
+
+            seamAllowance:
+                seam,
+
+            grainline,
+
+            notches,
+
+            gap:
+                8
+
+        });
+
+
+    const validation =
+        ProductionGeometry.validateProductionPattern(
+            pattern
+        );
+
+
+    if (
+        !validation.valid
+    ) {
+
+        throw new Error(
+
+            "Production geometry tidak valid: " +
+            validation.errors.join("; ")
+
+        );
+
+    }
+
+
+    AppState.productionPattern =
+        pattern;
+
+
+    AppState.productionGeometry =
+        pattern.pieces;
+
+
+    return pattern;
+
+}
+
+
+/* ============================================================
+   FULL / OPEN PREVIEW
+   ============================================================ */
+
+function renderFullOpenPreview(
+    pattern
 ) {
 
+    const svg =
+        $("patternPreview");
+
+
     if (
-        !bodice ||
-        !sleeve
+        !svg ||
+        !pattern ||
+        !pattern.pieces
     ) {
 
-        return "";
+        return;
 
     }
 
 
-    const margin =
-        8;
+    svg.innerHTML =
+        "";
 
 
-    const pieces = [];
-
-
-    /*
-     * FRONT
-     */
-
-    if (
-        bodice.front
-    ) {
-
-        pieces.push({
-
-            name:
-                "FRONT",
-
-            type:
-                "front",
-
-            points: [
-
-                bodice.front.A,
-                bodice.front.B,
-                bodice.front.C,
-                bodice.front.D,
-                bodice.front.E,
-                bodice.front.F
-
-            ]
-
-        });
-
-    }
-
-
-    /*
-     * BACK
-     */
-
-    if (
-        bodice.back
-    ) {
-
-        pieces.push({
-
-            name:
-                "BACK",
-
-            type:
-                "back",
-
-            points: [
-
-                bodice.back.A,
-                bodice.back.B,
-                bodice.back.C,
-                bodice.back.D,
-                bodice.back.E,
-                bodice.back.F
-
-            ]
-
-        });
-
-    }
-
-
-    /*
-     * SLEEVE LEFT
-     */
-
-    pieces.push({
-
-        name:
-            "SLEEVE L",
-
-        type:
-            "sleeve",
-
-        points: [
-
-            sleeve.left,
-            sleeve.leftCap,
-            sleeve.top,
-            sleeve.rightCap,
-            sleeve.right,
-            sleeve.bottomRight,
-            sleeve.bottomLeft
-
-        ]
-
-    });
-
-
-    /*
-     * SLEEVE RIGHT
-     *
-     * Mirror sederhana terhadap sumbu lokal sleeve.
-     */
-
-    const sleevePoints = [
-
-        sleeve.left,
-        sleeve.leftCap,
-        sleeve.top,
-        sleeve.rightCap,
-        sleeve.right,
-        sleeve.bottomRight,
-        sleeve.bottomLeft
-
-    ];
-
-
-    const sleeveBounds =
-        getBounds(
-            sleevePoints
+    const summary =
+        ProductionGeometry.getPatternSummary(
+            pattern
         );
 
 
-    const center =
-        (
-            sleeveBounds.minX +
-            sleeveBounds.maxX
-        ) / 2;
+    const ns =
+        "http://www.w3.org/2000/svg";
 
 
-    const mirrored =
-        sleevePoints.map(
-            point => [
-
-                center -
-                    (
-                        point[0] -
-                        center
-                    ),
-
-                point[1]
-
-            ]
+    const viewWidth =
+        Math.max(
+            100,
+            summary.width + 20
         );
 
 
-    pieces.push({
-
-        name:
-            "SLEEVE R",
-
-        type:
-            "sleeve",
-
-        points:
-            mirrored
-
-    });
+    const viewHeight =
+        Math.max(
+            80,
+            summary.height + 20
+        );
 
 
-    /*
-     * CALCULATE GLOBAL BOUNDS
-     */
+    svg.setAttribute(
+        "viewBox",
 
-    let currentX =
-        0;
+        `0 0 ${viewWidth} ${viewHeight}`
 
-
-    const positioned = [];
+    );
 
 
-    pieces.forEach(
-        piece => {
-
-            const bounds =
-                getBounds(
-                    piece.points
-                );
-
-
-            const width =
-                bounds.maxX -
-                bounds.minX;
-
-
-            const height =
-                bounds.maxY -
-                bounds.minY;
-
-
-            const y =
-                margin;
-
-
-            const x =
-                currentX +
-                margin -
-                bounds.minX;
-
-
-            const transformed =
-                piece.points.map(
-                    point => [
-
-                        point[0] + x,
-
-                        point[1] + y -
-                            bounds.minY
-
-                    ]
-                );
-
-
-            positioned.push({
-
-                ...piece,
-
-                points:
-                    transformed,
-
-                width,
-
-                height
-
-            });
-
-
-            currentX +=
-                width +
-                12;
-
-        }
+    svg.setAttribute(
+        "preserveAspectRatio",
+        "xMidYMid meet"
     );
 
 
     /*
-     * GLOBAL VIEWBOX
+     * Background
      */
 
-    const all =
-        positioned.flatMap(
-            piece =>
-                piece.points
+    const background =
+        document.createElementNS(
+
+            ns,
+
+            "rect"
+
         );
 
 
-    const finalBounds =
-        getBounds(
-            all
-        );
+    background.setAttribute(
+        "x",
+        "0"
+    );
 
 
-    const width =
-        Math.max(
-            120,
-            finalBounds.maxX +
-            margin
-        );
+    background.setAttribute(
+        "y",
+        "0"
+    );
 
 
-    const height =
-        Math.max(
-            70,
-            finalBounds.maxY +
-            margin
-        );
+    background.setAttribute(
+        "width",
+        viewWidth
+    );
 
 
-    let svg = `
-
-        <svg
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 ${width} ${height}"
-            width="${width}cm"
-            height="${height}cm"
-            preserveAspectRatio="xMidYMid meet"
-        >
-
-        <rect
-            x="0"
-            y="0"
-            width="${width}"
-            height="${height}"
-            fill="#fafafa"
-        />
-
-    `;
+    background.setAttribute(
+        "height",
+        viewHeight
+    );
 
 
-    positioned.forEach(
+    background.setAttribute(
+        "fill",
+        "#fafafa"
+    );
+
+
+    svg.appendChild(
+        background
+    );
+
+
+    /*
+     * PIECES
+     */
+
+    pattern.pieces.forEach(
         piece => {
 
-            const points =
-                piece.points
-                    .map(
-                        point =>
-                            `${point[0]},${point[1]}`
-                    )
-                    .join(" ");
+            const polygon =
+                document.createElementNS(
 
+                    ns,
 
-            svg += `
+                    "polygon"
 
-                <polygon
-                    points="${points}"
-                    fill="white"
-                    stroke="#172033"
-                    stroke-width="0.35"
-                />
-
-            `;
-
-
-            const bounds =
-                getBounds(
-                    piece.points
                 );
 
 
-            const centerX =
+            polygon.setAttribute(
+
+                "points",
+
+                piece.points
+                    .map(
+                        point =>
+                            point.join(",")
+                    )
+                    .join(" ")
+
+            );
+
+
+            polygon.setAttribute(
+                "fill",
+                "#ffffff"
+            );
+
+
+            polygon.setAttribute(
+                "stroke",
+                "#172033"
+            );
+
+
+            polygon.setAttribute(
+                "stroke-width",
+                "0.4"
+            );
+
+
+            svg.appendChild(
+                polygon
+            );
+
+
+            /*
+             * LABEL
+             */
+
+            const bounds =
+                piece.bounds;
+
+
+            const label =
+                document.createElementNS(
+
+                    ns,
+
+                    "text"
+
+                );
+
+
+            label.setAttribute(
+
+                "x",
+
                 (
                     bounds.minX +
                     bounds.maxX
-                ) / 2;
+                ) / 2
+
+            );
 
 
-            svg += `
+            label.setAttribute(
 
-                <text
-                    x="${centerX}"
-                    y="${Math.max(3, bounds.minY - 1.5)}"
-                    text-anchor="middle"
-                    font-size="2.8"
-                    font-weight="700"
-                    fill="#172033"
-                >
-                    ${piece.name}
-                </text>
+                "y",
 
-            `;
+                Math.max(
+
+                    3,
+
+                    bounds.minY -
+
+                    2
+
+                )
+
+            );
+
+
+            label.setAttribute(
+                "text-anchor",
+                "middle"
+            );
+
+
+            label.setAttribute(
+                "font-size",
+                "2.8"
+            );
+
+
+            label.setAttribute(
+                "font-weight",
+                "700"
+            );
+
+
+            label.textContent =
+                piece.label;
+
+
+            svg.appendChild(
+                label
+            );
 
 
             /*
              * GRAINLINE
              */
 
-            const grainX =
-                centerX;
+            if (
+                piece.grainline &&
+                piece.grainline.length >= 2 &&
+                (
+                    !$("addGrainline") ||
+                    $("addGrainline").value !== "no"
+                )
+            ) {
+
+                const grain =
+                    document.createElementNS(
+
+                        ns,
+
+                        "line"
+
+                    );
 
 
-            svg += `
+                grain.setAttribute(
+                    "x1",
+                    piece.grainline[0][0]
+                );
 
-                <line
-                    x1="${grainX}"
-                    y1="${bounds.minY + 4}"
-                    x2="${grainX}"
-                    y2="${bounds.maxY - 4}"
-                    stroke="#667085"
-                    stroke-width="0.25"
-                    stroke-dasharray="2 1.5"
-                />
 
-            `;
+                grain.setAttribute(
+                    "y1",
+                    piece.grainline[0][1]
+                );
+
+
+                grain.setAttribute(
+                    "x2",
+                    piece.grainline[1][0]
+                );
+
+
+                grain.setAttribute(
+                    "y2",
+                    piece.grainline[1][1]
+                );
+
+
+                grain.setAttribute(
+                    "stroke",
+                    "#667085"
+                );
+
+
+                grain.setAttribute(
+                    "stroke-width",
+                    "0.3"
+                );
+
+
+                grain.setAttribute(
+                    "stroke-dasharray",
+                    "2 1"
+                );
+
+
+                svg.appendChild(
+                    grain
+                );
+
+            }
+
+
+            /*
+             * NOTCHES
+             */
+
+            if (
+                piece.notches &&
+                piece.notches.length
+            ) {
+
+                piece.notches.forEach(
+                    notch => {
+
+                        const n =
+                            document.createElementNS(
+
+                                ns,
+
+                                "line"
+
+                            );
+
+
+                        n.setAttribute(
+                            "x1",
+                            notch[0] - 1.2
+                        );
+
+
+                        n.setAttribute(
+                            "y1",
+                            notch[1] - 1.2
+                        );
+
+
+                        n.setAttribute(
+                            "x2",
+                            notch[0] + 1.2
+                        );
+
+
+                        n.setAttribute(
+                            "y2",
+                            notch[1] + 1.2
+                        );
+
+
+                        n.setAttribute(
+                            "stroke",
+                            "#b42318"
+                        );
+
+
+                        n.setAttribute(
+                            "stroke-width",
+                            "0.4"
+                        );
+
+
+                        svg.appendChild(
+                            n
+                        );
+
+                    }
+                );
+
+            }
 
         }
     );
-
-
-    svg += `
-
-        <text
-            x="${margin}"
-            y="${height - 2}"
-            font-size="2.5"
-            fill="#667085"
-        >
-            PatternMaker Universal • Full / Open • Unit: cm
-        </text>
-
-        </svg>
-
-    `;
-
-
-    return svg;
-
-}
-
-
-/* ============================================================
-   RENDER PREVIEW
-   ============================================================ */
-
-function renderPreview() {
-
-    if (
-        !AppState.bodice ||
-        !AppState.sleeve
-    ) {
-
-        return;
-
-    }
-
-
-    const svg =
-        createOpenPreview(
-
-            AppState.bodice,
-
-            AppState.sleeve,
-
-            AppState.measurements
-
-        );
-
-
-    AppState.svg =
-        svg;
-
-
-    const preview =
-        el("patternPreview");
-
-
-    if (
-        !preview
-    ) {
-
-        return;
-
-    }
-
-
-    preview.innerHTML =
-        svg;
-
-
-    /*
-     * SVG yang dimasukkan sebagai innerHTML
-     * mempunyai SVG root sendiri.
-     *
-     * Supaya tetap cocok dalam UI,
-     * gunakan object wrapper bila browser memerlukannya.
-     */
-
-    const svgNode =
-        preview.querySelector(
-            "svg"
-        );
-
-
-    if (
-        svgNode
-    ) {
-
-        svgNode.setAttribute(
-            "width",
-            "100%"
-        );
-
-        svgNode.setAttribute(
-            "height",
-            "100%"
-        );
-
-        svgNode.setAttribute(
-            "preserveAspectRatio",
-            "xMidYMid meet"
-        );
-
-    }
 
 }
 
@@ -2034,7 +1826,7 @@ function renderPreview() {
 function renderResultInformation() {
 
     const container =
-        el("resultInfo");
+        $("resultInfo");
 
 
     if (
@@ -2054,23 +1846,33 @@ function renderResultInformation() {
 
     const category =
         Schema.getCategoryLabel(
-            el("category")
-                ? el("category").value
-                : "custom"
+            getCurrentCategory()
         );
+
+
+    const profileAge =
+        AppState.profile &&
+        AppState.profile.age !== null
+
+            ? `${AppState.profile.age} tahun`
+
+            : "-";
 
 
     const material =
         AppState.fabric
-            ? AppState.fabric.materialName
+            ? (
+                AppState.fabric.materialName ||
+                AppState.fabric.material ||
+                "-"
+            )
             : "-";
 
 
-    const age =
-        el("age") &&
-        el("age").value !== ""
-            ? `${el("age").value} tahun`
-            : "-";
+    const pieceCount =
+        AppState.productionPattern
+            ? AppState.productionPattern.pieces.length
+            : 0;
 
 
     container.innerHTML = `
@@ -2108,7 +1910,7 @@ function renderResultInformation() {
             </b>
 
             <span>
-                ${age}
+                ${profileAge}
             </span>
 
         </div>
@@ -2130,11 +1932,11 @@ function renderResultInformation() {
         <div class="kv">
 
             <b>
-                Unit
+                Unit Internal
             </b>
 
             <span>
-                ${getUnit()}
+                cm
             </span>
 
         </div>
@@ -2147,7 +1949,20 @@ function renderResultInformation() {
             </b>
 
             <span>
-                ${number("seam", 1)} cm
+                ${getNumber("seam", 1)} cm
+            </span>
+
+        </div>
+
+
+        <div class="kv">
+
+            <b>
+                Pattern Pieces
+            </b>
+
+            <span>
+                ${pieceCount}
             </span>
 
         </div>
@@ -2164,7 +1979,7 @@ function renderResultInformation() {
 function renderResultMeasurements() {
 
     const container =
-        el("resultMeasurements");
+        $("resultMeasurements");
 
 
     if (
@@ -2192,7 +2007,12 @@ function renderResultMeasurements() {
     }
 
 
+    const unit =
+        getUnit();
+
+
     const ids = [
+
         ...new Set([
 
             ...garment.requiredMeasurements,
@@ -2200,14 +2020,11 @@ function renderResultMeasurements() {
             ...garment.optionalMeasurements
 
         ])
+
     ];
 
 
-    const unit =
-        getUnit();
-
-
-    container.innerHTML =
+    let html =
         "";
 
 
@@ -2233,175 +2050,37 @@ function renderResultMeasurements() {
 
             const value =
                 AppState.profile.getMeasurement(
+
                     measurementId,
+
                     unit
+
                 );
 
 
-            const row =
-                document.createElement(
-                    "div"
-                );
+            html += `
 
+                <div class="kv">
 
-            row.className =
-                "kv";
+                    <b>
+                        ${definition.label}
+                    </b>
 
+                    <span>
+                        ${Number(value).toFixed(1)}
+                        ${unit}
+                    </span>
 
-            row.innerHTML = `
-
-                <b>
-                    ${definition.label}
-                </b>
-
-                <span>
-                    ${Number(value).toFixed(1)}
-                    ${unit}
-                </span>
+                </div>
 
             `;
-
-
-            container.appendChild(
-                row
-            );
 
         }
     );
 
-}
 
-
-/* ============================================================
-   GENERATE BODICE + SLEEVE
-   ============================================================ */
-
-function generateLegacyUpperBody() {
-
-    /*
-     * Pattern Registry dulu.
-     *
-     * Ini memastikan garment + measurement validation
-     * berjalan melalui arsitektur Universal.
-     */
-
-    const registryResult =
-        Registry.generatePattern({
-
-            garmentId:
-                AppState.garment,
-
-            mode:
-                AppState.mode
-
-        });
-
-
-    if (
-        !registryResult.success
-    ) {
-
-        /*
-         * Untuk garment yang engine-nya belum dibuat,
-         * jangan berpura-pura berhasil.
-         */
-
-        throw new Error(
-            registryResult.message ||
-            "Pattern engine belum tersedia."
-        );
-
-    }
-
-
-    const measurements =
-        registryResult.context.measurements;
-
-
-    /*
-     * Legacy bodice engine
-     */
-
-    const bodice =
-        makeBodice(
-            measurements
-        );
-
-
-    /*
-     * Legacy sleeve engine
-     */
-
-    const fabricType =
-        normalizeFabricKey(
-            el("fabric")
-                ? el("fabric").value
-                : "cotton"
-        );
-
-
-    const sleeveMeasurements = {
-
-        ...measurements,
-
-        fabric:
-            fabricType,
-
-        /*
-         * Negative ease kompatibel dengan
-         * engine lama.
-         *
-         * Untuk sekarang mengikuti input bila ada.
-         */
-
-        negativeEase:
-            number(
-                "negativeEase",
-                0
-            )
-
-    };
-
-
-    /*
-     * Jika field negativeEase belum ada
-     * pada UI baru, gunakan 0.
-     */
-
-    const sleeve =
-        makeSleeve(
-
-            sleeveMeasurements,
-
-            bodice
-
-        );
-
-
-    AppState.bodice =
-        bodice;
-
-
-    AppState.sleeve =
-        sleeve;
-
-
-    AppState.patternResult =
-        {
-
-            engine:
-                "legacy-bodice-sleeve",
-
-            bodice,
-
-            sleeve,
-
-            measurements
-
-        };
-
-
-    return AppState.patternResult;
+    container.innerHTML =
+        html;
 
 }
 
@@ -2413,7 +2092,7 @@ function generateLegacyUpperBody() {
 async function generatePattern() {
 
     if (
-        AppState.isGenerating
+        AppState.generating
     ) {
 
         return;
@@ -2421,8 +2100,12 @@ async function generatePattern() {
     }
 
 
-    AppState.isGenerating =
+    AppState.generating =
         true;
+
+
+    AppState.error =
+        null;
 
 
     try {
@@ -2433,14 +2116,14 @@ async function generatePattern() {
 
 
         AppState.garment =
-            getSelectedGarment();
+            getCurrentGarment();
 
 
         /*
-         * PROFILE
+         * BODY PROFILE
          */
 
-        buildBodyProfile();
+        createCurrentProfile();
 
 
         /*
@@ -2453,10 +2136,46 @@ async function generatePattern() {
             );
 
 
-        if (!garment) {
+        if (
+            !garment
+        ) {
 
             throw new Error(
                 "Jenis pakaian tidak ditemukan."
+            );
+
+        }
+
+
+        /*
+         * PROFILE VALIDATION
+         */
+
+        const validation =
+            Garment.validateProfileForGarment(
+
+                AppState.profile,
+
+                AppState.garment
+
+            );
+
+
+        if (
+            !validation.valid
+        ) {
+
+            throw new Error(
+
+                "Ukuran belum lengkap: " +
+
+                validation.missing
+                    .map(
+                        item =>
+                            item.label
+                    )
+                    .join(", ")
+
             );
 
         }
@@ -2476,28 +2195,30 @@ async function generatePattern() {
 
 
         /*
-         * ENGINE ROUTING
-         *
-         * Baru bodice/sleeve yang sudah tersedia
-         * yang benar-benar dapat dipanggil.
+         * ENGINE AVAILABILITY
+         */
+
+        const engineInfo =
+            Registry.getGarmentEngineInfo(
+                AppState.garment
+            );
+
+
+        /*
+         * Saat ini engine nyata yang
+         * sudah kita sambungkan adalah bodice.
          */
 
         if (
-            garment.patternEngine ===
+            garment.patternEngine !==
             "bodice"
         ) {
 
-            generateLegacyUpperBody();
-
-        }
-        else {
-
             throw new Error(
 
-                `${garment.label} menggunakan ` +
-                `engine "${garment.patternEngine}", ` +
-                `tetapi engine tersebut belum diaktifkan ` +
-                `pada tahap ini.`
+                `${garment.label} sudah terdaftar, ` +
+                `tetapi engine "${garment.patternEngine}" ` +
+                `belum diimplementasikan.`
 
             );
 
@@ -2505,10 +2226,39 @@ async function generatePattern() {
 
 
         /*
+         * LEGACY BODICE/SLEEVE
+         */
+
+        setDraftStatus(
+            "Menjalankan bodice engine..."
+        );
+
+
+        generateLegacyUpperBody(
+            garment
+        );
+
+
+        /*
+         * PRODUCTION GEOMETRY
+         */
+
+        setDraftStatus(
+            "Membuat production geometry..."
+        );
+
+
+        const productionPattern =
+            buildProductionGeometry();
+
+
+        /*
          * PREVIEW
          */
 
-        renderPreview();
+        renderFullOpenPreview(
+            productionPattern
+        );
 
 
         /*
@@ -2520,68 +2270,32 @@ async function generatePattern() {
         renderResultMeasurements();
 
 
-        /*
-         * DRAFT STATUS
-         */
-
         setDraftStatus(
 
-            `Drafting berhasil • ` +
-            `${garment.label} • ` +
-            `Front + Back + Sleeve`,
+            `Drafting selesai • ` +
+
+            `${productionPattern.pieces.length} ` +
+
+            `potongan • Full / Open`,
 
             "ok"
 
         );
-
-
-        /*
-         * MAIN STATUS
-         */
-
-        const category =
-            Schema.getCategoryLabel(
-                el("category")
-                    ? el("category").value
-                    : "custom"
-            );
 
 
         setStatus(
 
             `Pola berhasil dibuat • ` +
-            `${category} • ` +
-            `${garment.label} • ` +
-            `${fabric.materialName}`,
+
+            `${Schema.getCategoryLabel(
+                getCurrentCategory()
+            )} • ` +
+
+            `${garment.label}`,
 
             "ok"
 
         );
-
-
-        /*
-         * AUTO SCROLL
-         */
-
-        const preview =
-            el("patternPreview");
-
-
-        if (
-            preview
-        ) {
-
-            preview.scrollIntoView({
-
-                behavior:
-                    "smooth",
-
-                block:
-                    "center"
-
-            });
-
-        }
 
 
     }
@@ -2590,9 +2304,13 @@ async function generatePattern() {
     ) {
 
         console.error(
-            "PatternMaker generate error:",
+            "PatternMaker Error:",
             error
         );
+
+
+        AppState.error =
+            error;
 
 
         setDraftStatus(
@@ -2604,14 +2322,14 @@ async function generatePattern() {
 
         setStatus(
             error.message ||
-            "Gagal membuat pola.",
+            "Pembuatan pola gagal.",
             "error"
         );
 
     }
     finally {
 
-        AppState.isGenerating =
+        AppState.generating =
             false;
 
     }
@@ -2620,245 +2338,25 @@ async function generatePattern() {
 
 
 /* ============================================================
-   NESTING
-   ============================================================ */
-
-function optimizeFabric() {
-
-    try {
-
-        if (
-            !AppState.fabric
-        ) {
-
-            buildFabric();
-
-        }
-
-
-        if (
-            !AppState.bodice ||
-            !AppState.sleeve
-        ) {
-
-            throw new Error(
-                "Buat pola terlebih dahulu."
-            );
-
-        }
-
-
-        const pieces =
-            extractLegacyPieces();
-
-
-        if (
-            !pieces.length
-        ) {
-
-            throw new Error(
-                "Pattern pieces belum tersedia."
-            );
-
-        }
-
-
-        const seam =
-            Math.max(
-                0,
-                number(
-                    "seam",
-                    AppState.fabric.defaultSeam
-                )
-            );
-
-
-        const quantity =
-            Math.max(
-                1,
-                number(
-                    "garmentQuantity",
-                    1
-                )
-            );
-
-
-        const nesting =
-            nestPieces(
-
-                pieces,
-
-                AppState.fabric,
-
-                {
-
-                    seam,
-
-                    quantity,
-
-                    strategy:
-                        "area"
-
-                }
-
-            );
-
-
-        const validation =
-            validateNesting(
-                nesting
-            );
-
-
-        AppState.nesting =
-            nesting;
-
-
-        renderNestingResult(
-            nesting,
-            validation
-        );
-
-
-        const summary =
-            getNestingSummary(
-                nesting
-            );
-
-
-        setStatus(
-
-            `Nesting selesai • ` +
-            `Kebutuhan kain ± ` +
-            `${Number(summary.usedLength || 0).toFixed(1)} cm • ` +
-            `Efisiensi ` +
-            `${Number(summary.efficiency || 0).toFixed(1)}%`,
-
-            validation.valid
-                ? "ok"
-                : "error"
-
-        );
-
-
-    }
-    catch (
-        error
-    ) {
-
-        console.error(
-            "PatternMaker nesting error:",
-            error
-        );
-
-
-        setStatus(
-            error.message ||
-            "Optimasi kain gagal.",
-            "error"
-        );
-
-    }
-
-}
-
-
-/* ============================================================
-   NESTING RESULT
-   ============================================================ */
-
-function renderNestingResult(
-    nesting,
-    validation
-) {
-
-    if (!nesting) {
-
-        return;
-
-    }
-
-
-    const summary =
-        getNestingSummary(
-            nesting
-        );
-
-
-    /*
-     * PatternMaker Universal belum menyediakan
-     * elemen khusus nesting di index.html.
-     *
-     * Kita tetap memperbarui plotterStatus
-     * agar data tidak hilang.
-     */
-
-    const status =
-        el("plotterStatus");
-
-
-    if (
-        status
-    ) {
-
-        status.textContent =
-
-            validation.valid
-
-                ? `Nesting OK • ` +
-                  `Panjang ± ${Number(summary.usedLength || 0).toFixed(1)} cm • ` +
-                  `Efisiensi ${Number(summary.efficiency || 0).toFixed(1)}%`
-
-                : "Nesting membutuhkan koreksi.";
-
-    }
-
-}
-
-
-/* ============================================================
-   FIT PREVIEW
+   PREVIEW FIT
    ============================================================ */
 
 function fitPreview() {
 
     const preview =
-        el("patternPreview");
+        $("patternPreview");
 
 
-    if (!preview) {
-
-        return;
-
-    }
-
-
-    const svg =
-        preview.querySelector(
-            "svg"
-        );
-
-
-    if (!svg) {
+    if (
+        !preview
+    ) {
 
         return;
 
     }
 
 
-    svg.setAttribute(
-        "width",
-        "100%"
-    );
-
-
-    svg.setAttribute(
-        "height",
-        "100%"
-    );
-
-
-    svg.setAttribute(
+    preview.setAttribute(
         "preserveAspectRatio",
         "xMidYMid meet"
     );
@@ -2873,8 +2371,7 @@ function fitPreview() {
 function openPreview() {
 
     if (
-        !AppState.bodice ||
-        !AppState.sleeve
+        !AppState.productionPattern
     ) {
 
         return;
@@ -2882,7 +2379,12 @@ function openPreview() {
     }
 
 
-    renderPreview();
+    renderFullOpenPreview(
+
+        AppState.productionPattern
+
+    );
+
 
     fitPreview();
 
@@ -2890,529 +2392,13 @@ function openPreview() {
 
 
 /* ============================================================
-   FABRIC INPUT BINDING
+   GARMENT CHANGE
    ============================================================ */
 
-function bindFabricInputs() {
-
-    const ids = [
-
-        "fabric",
-        "fabricWidth",
-        "fabricLength",
-        "stretch",
-        "stretchDirection",
-        "ease",
-        "seam"
-
-    ];
-
-
-    ids.forEach(
-        id => {
-
-            const node =
-                el(id);
-
-
-            if (!node) {
-
-                return;
-
-            }
-
-
-            node.addEventListener(
-                "input",
-                () => {
-
-                    if (
-                        AppState.fabric
-                    ) {
-
-                        try {
-
-                            const fabric =
-                                buildFabric();
-
-                            renderFabricResult(
-                                fabric
-                            );
-
-                        }
-                        catch (
-                            error
-                        ) {
-
-                            console.warn(
-                                error
-                            );
-
-                        }
-
-                    }
-
-                }
-            );
-
-
-            node.addEventListener(
-                "change",
-                () => {
-
-                    if (
-                        AppState.fabric
-                    ) {
-
-                        try {
-
-                            const fabric =
-                                buildFabric();
-
-                            renderFabricResult(
-                                fabric
-                            );
-
-                        }
-                        catch (
-                            error
-                        ) {
-
-                            console.warn(
-                                error
-                            );
-
-                        }
-
-                    }
-
-                }
-            );
-
-        }
-    );
-
-}
-
-
-/* ============================================================
-   MEASUREMENT INPUT BINDING
-   ============================================================ */
-
-function bindMeasurementEvents() {
-
-    document.addEventListener(
-        "input",
-        event => {
-
-            const target =
-                event.target;
-
-
-            if (
-                !target ||
-                !target.dataset
-            ) {
-
-                return;
-
-            }
-
-
-            if (
-                !target.dataset.measurement
-            ) {
-
-                return;
-
-            }
-
-
-            /*
-             * Profile yang lama harus invalid.
-             */
-
-            AppState.profile =
-                null;
-
-
-            AppState.measurements =
-                null;
-
-
-            AppState.bodice =
-                null;
-
-
-            AppState.sleeve =
-                null;
-
-
-            AppState.patternResult =
-                null;
-
-
-            setDraftStatus(
-                "Ukuran berubah • buat pola kembali."
-            );
-
-
-        }
-    );
-
-}
-
-
-/* ============================================================
-   MODE EVENTS
-   ============================================================ */
-
-function bindModeEvents() {
-
-    const node =
-        el("userMode");
-
-
-    if (!node) {
-
-        return;
-
-    }
-
-
-    node.addEventListener(
-        "change",
-        () => {
-
-            applyMode(
-                node.value
-            );
-
-        }
-    );
-
-}
-
-
-/* ============================================================
-   GARMENT EVENTS
-   ============================================================ */
-
-function bindGarmentEvents() {
-
-    const node =
-        el("garmentType");
-
-
-    if (!node) {
-
-        return;
-
-    }
-
-
-    node.addEventListener(
-        "change",
-        () => {
-
-            AppState.garment =
-                node.value;
-
-
-            /*
-             * Profile lama tidak boleh digunakan
-             * setelah schema garment berubah.
-             */
-
-            AppState.profile =
-                null;
-
-
-            AppState.measurements =
-                null;
-
-
-            AppState.bodice =
-                null;
-
-
-            AppState.sleeve =
-                null;
-
-
-            renderMeasurementFields();
-
-            updateGarmentInformation();
-
-
-            setDraftStatus(
-                "Jenis pakaian berubah • ukuran perlu diperiksa."
-            );
-
-        }
-    );
-
-}
-
-
-/* ============================================================
-   UNIT EVENTS
-   ============================================================ */
-
-function bindUnitEvents() {
-
-    const node =
-        el("sizeSystem");
-
-
-    if (!node) {
-
-        return;
-
-    }
-
-
-    node.addEventListener(
-        "change",
-        () => {
-
-            const previousProfile =
-                AppState.profile;
-
-
-            renderMeasurementFields();
-
-
-            /*
-             * Jika profile ada,
-             * renderMeasurementFields akan mengambil
-             * nilai dalam unit baru.
-             */
-
-            if (
-                previousProfile
-            ) {
-
-                AppState.profile =
-                    previousProfile;
-
-            }
-
-        }
-    );
-
-}
-
-
-/* ============================================================
-   GENERATE BUTTON
-   ============================================================ */
-
-function bindActionButtons() {
-
-    const generate =
-        el("generateBtn");
-
-
-    if (
-        generate
-    ) {
-
-        generate.addEventListener(
-            "click",
-            generatePattern
-        );
-
-    }
-
-
-    const optimize =
-        el("optimizeBtn");
-
-
-    if (
-        optimize
-    ) {
-
-        optimize.addEventListener(
-            "click",
-            optimizeFabric
-        );
-
-    }
-
-
-    const download =
-        el("downloadBtn");
-
-
-    if (
-        download
-    ) {
-
-        download.addEventListener(
-            "click",
-            downloadSVG
-        );
-
-    }
-
-
-    const reset =
-        el("resetBtn");
-
-
-    if (
-        reset
-    ) {
-
-        reset.addEventListener(
-            "click",
-            resetApplication
-        );
-
-    }
-
-
-    const fit =
-        el("fitPreviewBtn");
-
-
-    if (
-        fit
-    ) {
-
-        fit.addEventListener(
-            "click",
-            fitPreview
-        );
-
-    }
-
-
-    const open =
-        el("openPreviewBtn");
-
-
-    if (
-        open
-    ) {
-
-        open.addEventListener(
-            "click",
-            openPreview
-        );
-
-    }
-
-
-    /*
-     * Export button belum dijalankan di KODE 10.
-     *
-     * Akan ditangani oleh export modules.
-     */
-
-}
-
-
-/* ============================================================
-   DOWNLOAD SVG LEGACY
-   ============================================================ */
-
-function downloadSVG() {
-
-    if (
-        !AppState.svg
-    ) {
-
-        generatePattern();
-
-    }
-
-
-    if (
-        !AppState.svg
-    ) {
-
-        return;
-
-    }
-
-
-    const blob =
-        new Blob(
-
-            [
-                AppState.svg
-            ],
-
-            {
-                type:
-                    "image/svg+xml"
-            }
-
-        );
-
-
-    const url =
-        URL.createObjectURL(
-            blob
-        );
-
-
-    const link =
-        document.createElement(
-            "a"
-        );
-
-
-    link.href =
-        url;
-
-
-    link.download =
-        "PatternMaker-Universal-pattern.svg";
-
-
-    document.body.appendChild(
-        link
-    );
-
-
-    link.click();
-
-
-    document.body.removeChild(
-        link
-    );
-
-
-    setTimeout(
-        () => {
-
-            URL.revokeObjectURL(
-                url
-            );
-
-        },
-        500
-    );
-
-}
-
-
-/* ============================================================
-   RESET APPLICATION
-   ============================================================ */
-
-function resetApplication() {
-
-    AppState.mode =
-        "tailor";
-
+function handleGarmentChange() {
 
     AppState.garment =
-        "tshirt";
+        getCurrentGarment();
 
 
     AppState.profile =
@@ -3431,7 +2417,133 @@ function resetApplication() {
         null;
 
 
-    AppState.patternResult =
+    AppState.productionPattern =
+        null;
+
+
+    AppState.productionGeometry =
+        null;
+
+
+    renderMeasurementFields();
+
+    updateGarmentInformation();
+
+
+    setDraftStatus(
+        "Jenis pakaian berubah. Periksa ukuran kemudian buat pola kembali."
+    );
+
+}
+
+
+/* ============================================================
+   UNIT CHANGE
+   ============================================================ */
+
+function handleUnitChange() {
+
+    const oldProfile =
+        AppState.profile;
+
+
+    renderMeasurementFields();
+
+
+    /*
+     * Internal profile tetap CM.
+     * UI hanya berubah unit.
+     */
+
+    AppState.profile =
+        oldProfile;
+
+}
+
+
+/* ============================================================
+   MODE CHANGE
+   ============================================================ */
+
+function handleModeChange(
+    event
+) {
+
+    applyMode(
+        event.target.value
+    );
+
+}
+
+
+/* ============================================================
+   MEASUREMENT CHANGE
+   ============================================================ */
+
+function handleMeasurementChange() {
+
+    AppState.profile =
+        null;
+
+
+    AppState.measurements =
+        null;
+
+
+    AppState.bodice =
+        null;
+
+
+    AppState.sleeve =
+        null;
+
+
+    AppState.productionPattern =
+        null;
+
+
+    AppState.productionGeometry =
+        null;
+
+
+    setDraftStatus(
+        "Ukuran berubah. Buat pola kembali."
+    );
+
+}
+
+
+/* ============================================================
+   RESET
+   ============================================================ */
+
+function resetApplication() {
+
+    AppState.profile =
+        null;
+
+
+    AppState.measurements =
+        null;
+
+
+    AppState.bodice =
+        null;
+
+
+    AppState.sleeve =
+        null;
+
+
+    AppState.pattern =
+        null;
+
+
+    AppState.productionPattern =
+        null;
+
+
+    AppState.productionGeometry =
         null;
 
 
@@ -3439,368 +2551,106 @@ function resetApplication() {
         null;
 
 
-    AppState.nesting =
+    AppState.error =
         null;
 
 
-    AppState.svg =
-        "";
+    AppState.garment =
+        "tshirt";
 
-
-    /*
-     * DEFAULT MODE
-     */
 
     if (
-        el("userMode")
+        $("userMode")
     ) {
 
-        el("userMode").value =
+        $("userMode").value =
             "tailor";
 
     }
 
 
-    /*
-     * DEFAULT CATEGORY
-     */
-
     if (
-        el("category")
+        $("category")
     ) {
 
-        el("category").value =
+        $("category").value =
             "child";
 
     }
 
 
-    /*
-     * DEFAULT UNIT
-     */
-
     if (
-        el("sizeSystem")
+        $("sizeSystem")
     ) {
 
-        el("sizeSystem").value =
+        $("sizeSystem").value =
             "cm";
 
     }
 
 
-    /*
-     * DEFAULT GARMENT
-     */
-
     if (
-        el("garmentType")
+        $("garmentType")
     ) {
 
-        el("garmentType").value =
+        $("garmentType").value =
             "tshirt";
 
     }
 
 
-    /*
-     * CLEAR AGE
-     */
-
     if (
-        el("age")
+        $("age")
     ) {
 
-        el("age").value =
+        $("age").value =
             "";
 
     }
 
 
-    /*
-     * DEFAULT FABRIC
-     */
-
-    if (
-        el("fabric")
-    ) {
-
-        el("fabric").value =
-            "cotton";
-
-    }
+    renderMeasurementFields();
 
 
     if (
-        el("fabricWidth")
+        $("patternPreview")
     ) {
 
-        el("fabricWidth").value =
-            "150";
-
-    }
-
-
-    if (
-        el("fabricLength")
-    ) {
-
-        el("fabricLength").value =
-            "200";
-
-    }
-
-
-    if (
-        el("stretch")
-    ) {
-
-        el("stretch").value =
-            "medium";
-
-    }
-
-
-    if (
-        el("stretchDirection")
-    ) {
-
-        el("stretchDirection").value =
-            "crosswise";
-
-    }
-
-
-    if (
-        el("ease")
-    ) {
-
-        el("ease").value =
-            "2";
-
-    }
-
-
-    if (
-        el("seam")
-    ) {
-
-        el("seam").value =
-            "1";
-
-    }
-
-
-    /*
-     * TAILOR
-     */
-
-    if (
-        el("fit")
-    ) {
-
-        el("fit").value =
-            "regular";
-
-    }
-
-
-    if (
-        el("dart")
-    ) {
-
-        el("dart").value =
-            "none";
-
-    }
-
-
-    if (
-        el("hemExtra")
-    ) {
-
-        el("hemExtra").value =
-            "2";
-
-    }
-
-
-    if (
-        el("notch")
-    ) {
-
-        el("notch").value =
-            "standard";
-
-    }
-
-
-    /*
-     * EXPERT
-     */
-
-    if (
-        el("patternScale")
-    ) {
-
-        el("patternScale").value =
-            "1";
-
-    }
-
-
-    if (
-        el("grading")
-    ) {
-
-        el("grading").value =
-            "none";
-
-    }
-
-
-    if (
-        el("nesting")
-    ) {
-
-        el("nesting").value =
-            "off";
-
-    }
-
-
-    if (
-        el("markerEfficiency")
-    ) {
-
-        el("markerEfficiency").value =
-            "85";
-
-    }
-
-
-    if (
-        el("productionType")
-    ) {
-
-        el("productionType").value =
-            "sample";
-
-    }
-
-
-    if (
-        el("tolerance")
-    ) {
-
-        el("tolerance").value =
-            "2";
-
-    }
-
-
-    /*
-     * DRAFTING
-     */
-
-    if (
-        el("patternTolerance")
-    ) {
-
-        el("patternTolerance").value =
-            "0";
-
-    }
-
-
-    if (
-        el("addSeam")
-    ) {
-
-        el("addSeam").value =
-            "yes";
-
-    }
-
-
-    if (
-        el("addNotches")
-    ) {
-
-        el("addNotches").value =
-            "yes";
-
-    }
-
-
-    if (
-        el("addGrainline")
-    ) {
-
-        el("addGrainline").value =
-            "yes";
-
-    }
-
-
-    /*
-     * PREVIEW
-     */
-
-    if (
-        el("patternPreview")
-    ) {
-
-        el("patternPreview").innerHTML =
+        $("patternPreview").innerHTML =
             "";
 
+        $("patternPreview").setAttribute(
+            "viewBox",
+            "0 0 1000 620"
+        );
+
     }
 
 
-    /*
-     * RESULTS
-     */
-
     if (
-        el("resultInfo")
+        $("resultInfo")
     ) {
 
-        el("resultInfo").innerHTML =
+        $("resultInfo").innerHTML =
             "";
 
     }
 
 
     if (
-        el("resultMeasurements")
+        $("resultMeasurements")
     ) {
 
-        el("resultMeasurements").innerHTML =
+        $("resultMeasurements").innerHTML =
             "";
 
     }
 
-
-    if (
-        el("fabricResult")
-    ) {
-
-        el("fabricResult").innerHTML =
-            "";
-
-    }
-
-
-    /*
-     * UI
-     */
 
     applyMode(
         "tailor"
     );
 
-
-    renderMeasurementFields();
 
     updateGarmentInformation();
 
@@ -3811,8 +2661,184 @@ function resetApplication() {
 
 
     setDraftStatus(
-        "Engine drafting belum dijalankan."
+        "Engine drafting siap."
     );
+
+}
+
+
+/* ============================================================
+   BIND EVENTS
+   ============================================================ */
+
+function bindEvents() {
+
+    const mode =
+        $("userMode");
+
+
+    if (
+        mode
+    ) {
+
+        mode.addEventListener(
+
+            "change",
+
+            handleModeChange
+
+        );
+
+    }
+
+
+    const garment =
+        $("garmentType");
+
+
+    if (
+        garment
+    ) {
+
+        garment.addEventListener(
+
+            "change",
+
+            handleGarmentChange
+
+        );
+
+    }
+
+
+    const unit =
+        $("sizeSystem");
+
+
+    if (
+        unit
+    ) {
+
+        unit.addEventListener(
+
+            "change",
+
+            handleUnitChange
+
+        );
+
+    }
+
+
+    const generate =
+        $("generateBtn");
+
+
+    if (
+        generate
+    ) {
+
+        generate.addEventListener(
+
+            "click",
+
+            generatePattern
+
+        );
+
+    }
+
+
+    const reset =
+        $("resetBtn");
+
+
+    if (
+        reset
+    ) {
+
+        reset.addEventListener(
+
+            "click",
+
+            resetApplication
+
+        );
+
+    }
+
+
+    const fit =
+        $("fitPreviewBtn");
+
+
+    if (
+        fit
+    ) {
+
+        fit.addEventListener(
+
+            "click",
+
+            fitPreview
+
+        );
+
+    }
+
+
+    const open =
+        $("openPreviewBtn");
+
+
+    if (
+        open
+    ) {
+
+        open.addEventListener(
+
+            "click",
+
+            openPreview
+
+        );
+
+    }
+
+
+    /*
+     * Measurement inputs dinamis.
+     */
+
+    const measurementContainer =
+        $("measurementFields");
+
+
+    if (
+        measurementContainer
+    ) {
+
+        measurementContainer.addEventListener(
+
+            "input",
+
+            event => {
+
+                if (
+                    event.target &&
+                    event.target.dataset &&
+                    event.target.dataset.measurement
+                ) {
+
+                    handleMeasurementChange();
+
+                }
+
+            }
+
+        );
+
+    }
 
 }
 
@@ -3832,32 +2858,26 @@ function initializeApplication() {
     }
 
 
+    validateDependencies();
+
+
     AppState.initialized =
         true;
 
 
-    /*
-     * MODE
-     */
+    AppState.mode =
+        $("userMode")?.value ||
+        "tailor";
 
-    applyMode(
-        el("userMode")
-            ? el("userMode").value
-            : "tailor"
-    );
-
-
-    /*
-     * GARMENT
-     */
 
     AppState.garment =
-        getSelectedGarment();
+        getCurrentGarment();
 
 
-    /*
-     * MEASUREMENTS
-     */
+    applyMode(
+        AppState.mode
+    );
+
 
     renderMeasurementFields();
 
@@ -3865,43 +2885,7 @@ function initializeApplication() {
     updateGarmentInformation();
 
 
-    /*
-     * FABRIC
-     */
-
-    const fabric =
-        buildFabric();
-
-
-    renderFabricResult(
-        fabric
-    );
-
-
-    /*
-     * BINDINGS
-     */
-
-    bindModeEvents();
-
-    bindGarmentEvents();
-
-    bindUnitEvents();
-
-    bindMeasurementEvents();
-
-    bindFabricInputs();
-
-    bindActionButtons();
-
-
-    /*
-     * STATUS
-     */
-
-    setStatus(
-        "Masukkan ukuran kemudian tekan BUAT POLA."
-    );
+    bindEvents();
 
 
     setDraftStatus(
@@ -3909,45 +2893,50 @@ function initializeApplication() {
     );
 
 
-    console.log(
-        "PatternMaker Universal Controller initialized."
+    setStatus(
+        "Masukkan ukuran kemudian tekan BUAT POLA."
     );
 
+
+    console.log(
+        "PatternMaker Universal initialized.",
+        AppState
+    );
 
 }
 
 
 /* ============================================================
-   MODULE READY
+   STARTUP
    ============================================================ */
 
-window.addEventListener(
-
-    "PatternMakerModulesReady",
-
-    () => {
-
-        initializeApplication();
-
-    }
-
-);
+initializeApplication();
 
 
-/*
- * Safety:
- * jika main.js dijalankan setelah event sudah lewat.
- */
+/* ============================================================
+   EXPORT CONTROLLER API
+   ============================================================ */
 
-if (
-    window.PatternMakerMeasurementSchema &&
-    window.PatternMakerProfile &&
-    window.PatternMakerGarment &&
-    window.PatternMakerMeasurements &&
-    window.PatternMakerPatternRegistry
-) {
+window.PatternMakerApp = {
 
-    initializeApplication();
+    state:
+        AppState,
 
-}
+    initialize:
+        initializeApplication,
+
+    generatePattern,
+
+    renderMeasurementFields,
+
+    renderFullOpenPreview,
+
+    buildProductionGeometry,
+
+    reset:
+        resetApplication,
+
+    fitPreview
+
+};
 ```
