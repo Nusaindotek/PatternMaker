@@ -1,16 +1,16 @@
 /**
  * ============================================================
- * PATTERNMAKER UNIVERSAL
- * KODE 25 — main.js
+ * PATTERMAKER UNIVERSAL
+ * KODE 27 — main.js
  * ============================================================
  *
  * UNIVERSAL APPLICATION CONTROLLER
  *
- * Alur utama:
+ * QUALITY GATE:
  *
  * UI
  *  ↓
- * Body Profile
+ * Profile
  *  ↓
  * Garment
  *  ↓
@@ -21,6 +21,8 @@
  * Seam Production
  *  ↓
  * Cutting Geometry
+ *  ↓
+ * Production Validator
  *  ↓
  * Full / Open Preview
  *
@@ -55,6 +57,9 @@ const ProductionGeometry =
 const SeamProduction =
     window.PatternMakerSeamProduction;
 
+const ProductionValidator =
+    window.PatternMakerProductionValidator;
+
 
 /* ============================================================
    DEPENDENCY VALIDATION
@@ -76,7 +81,9 @@ function validateDependencies() {
 
         ProductionGeometry,
 
-        SeamProduction
+        SeamProduction,
+
+        ProductionValidator
 
     };
 
@@ -148,6 +155,9 @@ const AppState = {
         null,
 
     cuttingPattern:
+        null,
+
+    productionValidation:
         null,
 
     error:
@@ -835,9 +845,11 @@ function createCurrentProfile() {
     const age =
         $("age") &&
         $("age").value !== ""
+
             ? Number(
                 $("age").value
             )
+
             : null;
 
 
@@ -1171,7 +1183,7 @@ function createEngineContext(
 
 
 /* ============================================================
-   PATTERN ENGINE
+   ENGINE RESOLUTION
    ============================================================ */
 
 function resolveRegisteredEngine(
@@ -1345,7 +1357,7 @@ function generateBodiceFamily(
 
 
 /* ============================================================
-   RUN ENGINE
+   RUN PATTERN ENGINE
    ============================================================ */
 
 function runPatternEngine(
@@ -1416,7 +1428,7 @@ function runPatternEngine(
 
 
 /* ============================================================
-   NORMALIZE BASE PATTERN
+   BASE PATTERN
    ============================================================ */
 
 function normalizeBasePattern(
@@ -1501,36 +1513,17 @@ function normalizeBasePattern(
 
 
 /* ============================================================
-   APPLY SEAM PRODUCTION
+   SEAM PRODUCTION
    ============================================================ */
 
 function buildProductionPattern(
     basePattern
 ) {
 
-    if (
-        !SeamProduction
-    ) {
-
-        throw new Error(
-            "Seam Production engine belum tersedia."
-        );
-
-    }
-
-
-    /*
-     * Seam default dari UI.
-     */
-
     const defaultSeam =
         AppState.fabric?.seam ||
         0;
 
-
-    /*
-     * Proses offset.
-     */
 
     const seamPattern =
         SeamProduction.applySeamAllowance(
@@ -1546,10 +1539,6 @@ function buildProductionPattern(
         );
 
 
-    /*
-     * Validasi seam.
-     */
-
     const seamValidation =
         SeamProduction.validateSeamPattern(
             seamPattern
@@ -1562,10 +1551,7 @@ function buildProductionPattern(
 
         throw new Error(
 
-            "Seam allowance gagal dibuat: " +
-            JSON.stringify(
-                seamValidation.errors
-            )
+            "Seam allowance gagal dibuat."
 
         );
 
@@ -1582,7 +1568,7 @@ function buildProductionPattern(
 
 
 /* ============================================================
-   CONVERT TO CUTTING GEOMETRY
+   CUTTING GEOMETRY
    ============================================================ */
 
 function createCuttingPattern(
@@ -1594,10 +1580,6 @@ function createCuttingPattern(
             productionPattern
         );
 
-
-    /*
-     * Final validation.
-     */
 
     const validation =
         ProductionGeometry
@@ -1625,6 +1607,112 @@ function createCuttingPattern(
 
 
     return cuttingPattern;
+
+}
+
+
+/* ============================================================
+   PRODUCTION QUALITY GATE
+   ============================================================ */
+
+function validateCuttingForProduction(
+    cuttingPattern
+) {
+
+    const result =
+        ProductionValidator
+            .validateForProduction(
+
+                cuttingPattern,
+
+                {
+
+                    requireCutPoints:
+                        true,
+
+                    requireSeam:
+                        true
+
+                }
+
+            );
+
+
+    AppState.productionValidation =
+        result;
+
+
+    return result;
+
+}
+
+
+/* ============================================================
+   VALIDATION MESSAGE
+   ============================================================ */
+
+function getValidationErrorMessage(
+    validation
+) {
+
+    if (
+        !validation ||
+        !validation.errors ||
+        !validation.errors.length
+    ) {
+
+        return "Production geometry tidak valid.";
+
+    }
+
+
+    const messages =
+        validation.errors
+            .slice(
+                0,
+                5
+            )
+            .map(
+                error => {
+
+                    if (
+                        typeof error ===
+                        "string"
+                    ) {
+
+                        return error;
+
+                    }
+
+
+                    return (
+
+                        error.message ||
+                        error.check ||
+                        "Geometri tidak valid."
+
+                    );
+
+                }
+            );
+
+
+    const extra =
+        validation.errors.length >
+        5
+
+            ? ` +${validation.errors.length - 5} masalah lainnya.`
+
+            : "";
+
+
+    return (
+
+        "Pola ditahan sebelum produksi: " +
+        messages.join(" | ") +
+        extra
+
+    );
 
 }
 
@@ -1703,7 +1791,7 @@ function renderPreview(
 
 
     /*
-     * BACKGROUND
+     * Background
      */
 
     const background =
@@ -1752,17 +1840,66 @@ function renderPreview(
 
 
     /*
-     * PIECES
+     * Production status overlay.
+     */
+
+    const validation =
+        AppState.productionValidation;
+
+
+    if (
+        validation &&
+        !validation.valid
+    ) {
+
+        const warning =
+            document.createElementNS(
+                ns,
+                "text"
+            );
+
+
+        warning.setAttribute(
+            "x",
+            bounds.minX
+        );
+
+
+        warning.setAttribute(
+            "y",
+            bounds.minY
+        );
+
+
+        warning.setAttribute(
+            "font-size",
+            "3.5"
+        );
+
+
+        warning.setAttribute(
+            "font-weight",
+            "700"
+        );
+
+
+        warning.textContent =
+            "GEOMETRY INVALID — PRODUKSI DITAHAN";
+
+
+        svg.appendChild(
+            warning
+        );
+
+    }
+
+
+    /*
+     * Pieces.
      */
 
     pattern.pieces.forEach(
         piece => {
-
-            /*
-             * Untuk preview produksi:
-             *
-             * gunakan CUTTING BOUNDARY
-             */
 
             const points =
                 piece.cutPoints &&
@@ -1826,6 +1963,10 @@ function renderPreview(
             );
 
 
+            /*
+             * Bounds.
+             */
+
             const pieceBounds =
                 ProductionGeometry.getBounds(
                     points
@@ -1833,7 +1974,7 @@ function renderPreview(
 
 
             /*
-             * LABEL
+             * Label.
              */
 
             const label =
@@ -1896,7 +2037,7 @@ function renderPreview(
 
 
             /*
-             * GRAINLINE
+             * Grainline.
              */
 
             if (
@@ -1966,7 +2107,7 @@ function renderPreview(
 
 
             /*
-             * NOTCHES
+             * Notches.
              */
 
             if (
@@ -2036,7 +2177,7 @@ function renderPreview(
 
 
             /*
-             * DRILL POINTS
+             * Drill points.
              */
 
             if (
@@ -2165,6 +2306,22 @@ function renderResultInfo() {
         0;
 
 
+    const validation =
+        AppState.productionValidation;
+
+
+    const validationText =
+        !validation
+
+            ? "Belum divalidasi"
+
+            : validation.valid
+
+                ? "LULUS"
+
+                : "DITAHAN";
+
+
     container.innerHTML = `
 
         <div class="kv">
@@ -2261,11 +2418,11 @@ function renderResultInfo() {
         <div class="kv">
 
             <b>
-                Geometry
+                Production Validation
             </b>
 
             <span>
-                CUTTING BOUNDARY
+                ${validationText}
             </span>
 
         </div>
@@ -2367,8 +2524,11 @@ function renderMeasurementsResult() {
                     </b>
 
                     <span>
+
                         ${Number(value).toFixed(1)}
+
                         ${unit}
+
                     </span>
 
                 </div>
@@ -2433,7 +2593,6 @@ async function generatePattern() {
 
         /*
          * STEP 1
-         * Profile
          */
 
         setStatus(
@@ -2446,10 +2605,9 @@ async function generatePattern() {
 
         /*
          * STEP 2
-         * Validate garment
          */
 
-        const validation =
+        const profileValidation =
             Garment.validateProfileForGarment(
 
                 AppState.profile,
@@ -2460,14 +2618,14 @@ async function generatePattern() {
 
 
         if (
-            !validation.valid
+            !profileValidation.valid
         ) {
 
             throw new Error(
 
                 "Ukuran wajib belum lengkap: " +
 
-                validation.missing
+                profileValidation.missing
                     .map(
                         item =>
                             item.label
@@ -2481,7 +2639,6 @@ async function generatePattern() {
 
         /*
          * STEP 3
-         * Fabric
          */
 
         getFabricData();
@@ -2491,7 +2648,6 @@ async function generatePattern() {
 
         /*
          * STEP 4
-         * Pattern Engine
          */
 
         setDraftStatus(
@@ -2509,7 +2665,6 @@ async function generatePattern() {
 
         /*
          * STEP 5
-         * Base Pattern
          */
 
         setDraftStatus(
@@ -2525,7 +2680,6 @@ async function generatePattern() {
 
         /*
          * STEP 6
-         * Seam Production
          */
 
         setDraftStatus(
@@ -2541,7 +2695,6 @@ async function generatePattern() {
 
         /*
          * STEP 7
-         * CUTTING GEOMETRY
          */
 
         setDraftStatus(
@@ -2557,7 +2710,52 @@ async function generatePattern() {
 
         /*
          * STEP 8
-         * Preview
+         * QUALITY GATE
+         */
+
+        setDraftStatus(
+            "Memvalidasi geometri produksi..."
+        );
+
+
+        const productionValidation =
+            validateCuttingForProduction(
+                cuttingPattern
+            );
+
+
+        /*
+         * STOP ON ERROR
+         */
+
+        if (
+            !productionValidation.valid
+        ) {
+
+            renderPreview(
+                cuttingPattern
+            );
+
+
+            renderResultInfo();
+
+            renderMeasurementsResult();
+
+
+            throw new Error(
+
+                getValidationErrorMessage(
+                    productionValidation
+                )
+
+            );
+
+        }
+
+
+        /*
+         * STEP 9
+         * PREVIEW ONLY AFTER QUALITY GATE
          */
 
         renderPreview(
@@ -2566,8 +2764,7 @@ async function generatePattern() {
 
 
         /*
-         * STEP 9
-         * Results
+         * STEP 10
          */
 
         renderResultInfo();
@@ -2576,8 +2773,7 @@ async function generatePattern() {
 
 
         /*
-         * STEP 10
-         * Success
+         * STEP 11
          */
 
         const seamSummary =
@@ -2592,7 +2788,7 @@ async function generatePattern() {
             `${garment.label} • ` +
             `${cuttingPattern.pieces.length} potongan • ` +
             `Seam ${seamSummary.averageSeam} cm • ` +
-            `Full / Open`,
+            `VALIDATED`,
 
             "ok"
 
@@ -2601,7 +2797,8 @@ async function generatePattern() {
 
         setStatus(
 
-            `Pola berhasil dibuat • ` +
+            `Pola berhasil dibuat dan ` +
+            `lulus validasi produksi • ` +
             `${Schema.getCategoryLabel(
                 getCategory()
             )} • ` +
@@ -2666,28 +2863,7 @@ function handleGarmentChange() {
         getGarmentId();
 
 
-    AppState.profile =
-        null;
-
-
-    AppState.measurements =
-        null;
-
-
-    AppState.engineResult =
-        null;
-
-
-    AppState.basePattern =
-        null;
-
-
-    AppState.productionPattern =
-        null;
-
-
-    AppState.cuttingPattern =
-        null;
+    invalidateGeneratedPattern();
 
 
     renderMeasurementFields();
@@ -2712,6 +2888,9 @@ function handleGarmentChange() {
 
 function handleUnitChange() {
 
+    invalidateGeneratedPattern();
+
+
     renderMeasurementFields();
 
 }
@@ -2722,6 +2901,25 @@ function handleUnitChange() {
    ============================================================ */
 
 function handleMeasurementChange() {
+
+    invalidateGeneratedPattern();
+
+
+    setDraftStatus(
+
+        "Ukuran berubah. " +
+        "Buat pola kembali."
+
+    );
+
+}
+
+
+/* ============================================================
+   INVALIDATE GENERATED DATA
+   ============================================================ */
+
+function invalidateGeneratedPattern() {
 
     AppState.profile =
         null;
@@ -2747,32 +2945,27 @@ function handleMeasurementChange() {
         null;
 
 
-    setDraftStatus(
-
-        "Ukuran berubah. " +
-        "Buat pola kembali."
-
-    );
+    AppState.productionValidation =
+        null;
 
 }
 
 
 /* ============================================================
-   PRODUCTION SETTINGS CHANGE
+   PRODUCTION SETTING CHANGE
    ============================================================ */
 
 function handleProductionSettingChange() {
-
-    /*
-     * Base pattern tidak berubah.
-     * Tetapi production geometry lama menjadi stale.
-     */
 
     AppState.productionPattern =
         null;
 
 
     AppState.cuttingPattern =
+        null;
+
+
+    AppState.productionValidation =
         null;
 
 
@@ -2783,7 +2976,7 @@ function handleProductionSettingChange() {
         setDraftStatus(
 
             "Pengaturan produksi berubah. " +
-            "Buat pola kembali untuk memperbarui seam."
+            "Buat pola kembali untuk memperbarui geometry."
 
         );
 
@@ -2850,31 +3043,10 @@ function openPreview() {
 
 function resetApplication() {
 
-    AppState.profile =
-        null;
-
-
-    AppState.measurements =
-        null;
+    invalidateGeneratedPattern();
 
 
     AppState.fabric =
-        null;
-
-
-    AppState.engineResult =
-        null;
-
-
-    AppState.basePattern =
-        null;
-
-
-    AppState.productionPattern =
-        null;
-
-
-    AppState.cuttingPattern =
         null;
 
 
@@ -3049,6 +3221,7 @@ function resetApplication() {
         $("patternPreview").innerHTML =
             "";
 
+
         $("patternPreview").setAttribute(
             "viewBox",
             "0 0 1000 620"
@@ -3193,10 +3366,6 @@ function bindEvents() {
     );
 
 
-    /*
-     * Production settings
-     */
-
     [
 
         "seam",
@@ -3282,11 +3451,8 @@ function initializeApplication() {
 
 
     console.log(
-
         "PatternMaker Universal initialized.",
-
         AppState
-
     );
 
 }
@@ -3326,6 +3492,8 @@ window.PatternMakerApp = {
 
     buildProductionPattern,
 
-    createCuttingPattern
+    createCuttingPattern,
+
+    validateCuttingForProduction
 
 };
