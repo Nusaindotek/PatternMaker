@@ -2,7 +2,7 @@
  * ============================================================
  * PATTERNMAKER UNIVERSAL
  * BASELINE FINAL v1
- * KODE 54
+ * KODE 67
  *
  * FILE:
  *   engine/dress.js
@@ -12,6 +12,23 @@
  *
  * EXTRACTED:
  *   makeDressPieces()
+ *
+ * ADDED:
+ *   Grade-point metadata
+ *
+ * ============================================================
+ *
+ * FLOW:
+ *
+ * Canonical Profile
+ *       ↓
+ * Bodice Base
+ *       ↓
+ * Dress Length Extension
+ *       ↓
+ * Grade Points
+ *       ↓
+ * Strict Grading
  *
  * ============================================================
  */
@@ -31,6 +48,9 @@
     const Bodice =
         window.PatternMakerBodice;
 
+    const GradePointSchema =
+        window.PatternMakerGradePointSchema;
+
 
     if (
         !Schema ||
@@ -38,7 +58,25 @@
     ) {
 
         throw new Error(
-            "Dress Engine membutuhkan measurement-schema.js dan bodice.js."
+
+            "Dress Engine membutuhkan " +
+            "measurement-schema.js dan " +
+            "bodice.js."
+
+        );
+
+    }
+
+
+    if (
+        !GradePointSchema
+    ) {
+
+        throw new Error(
+
+            "grade-point-schema.js harus dimuat " +
+            "sebelum dress.js."
+
         );
 
     }
@@ -49,7 +87,7 @@
        ======================================================== */
 
     const VERSION =
-        "V5-MIGRATED-v1";
+        "V5-MIGRATED-v1.2";
 
 
     /* ========================================================
@@ -62,10 +100,14 @@
     ) {
 
         const n =
-            Number(value);
+            Number(
+                value
+            );
 
 
-        return Number.isFinite(n)
+        return Number.isFinite(
+            n
+        )
             ? n
             : fallback;
 
@@ -73,31 +115,63 @@
 
 
     /* ========================================================
-       MEASUREMENT
+       CLONE POINTS
+       ======================================================== */
+
+    function clonePoints(
+        points
+    ) {
+
+        return (
+
+            points ||
+
+            []
+
+        )
+        .map(
+            point => [
+
+                num(
+                    point[0]
+                ),
+
+                num(
+                    point[1]
+                )
+
+            ]
+        );
+
+    }
+
+
+    /* ========================================================
+       GET MEASUREMENT
        ======================================================== */
 
     function getMeasurement(
-        context,
-        id,
+        measurements,
+        canonicalId,
         fallback,
         aliases = []
     ) {
 
-        const source =
-            context?.profile?.measurements ||
-            context?.measurements ||
-            {};
-
-
         const direct =
-            source[id];
+            measurements?.[
+                canonicalId
+            ];
 
 
         if (
             Number.isFinite(
-                Number(direct)
+                Number(
+                    direct
+                )
             ) &&
-            Number(direct) > 0
+            Number(
+                direct
+            ) > 0
         ) {
 
             return Number(
@@ -108,19 +182,25 @@
 
 
         for (
-            const key
+            const alias
             of aliases
         ) {
 
             const value =
-                source[key];
+                measurements?.[
+                    alias
+                ];
 
 
             if (
                 Number.isFinite(
-                    Number(value)
+                    Number(
+                        value
+                    )
                 ) &&
-                Number(value) > 0
+                Number(
+                    value
+                ) > 0
             ) {
 
                 return Number(
@@ -140,6 +220,450 @@
 
 
     /* ========================================================
+       GRADE POINT DEFINITIONS
+       ======================================================== */
+
+    function createDressBodyGradePoints() {
+
+        /*
+         * Dress FRONT/BACK inherit the body construction
+         * points from Bodice, but their vertical grading
+         * is tied to the dress length.
+         *
+         * Geometry:
+         *
+         * 0 = center neckline
+         * 1 = neck edge
+         * 2 = shoulder
+         * 3 = armhole
+         * 4 = side hem
+         * 5 = center hem
+         */
+
+        return [
+
+            {
+
+                horizontalMeasurement:
+                    "shoulder",
+
+                verticalMeasurement:
+                    "length",
+
+                horizontalFactor:
+                    0,
+
+                verticalFactor:
+                    0,
+
+                role:
+                    "center-neck"
+
+            },
+
+            {
+
+                horizontalMeasurement:
+                    "shoulder",
+
+                verticalMeasurement:
+                    "length",
+
+                horizontalFactor:
+                    0,
+
+                verticalFactor:
+                    0,
+
+                role:
+                    "neck-edge"
+
+            },
+
+            {
+
+                horizontalMeasurement:
+                    "shoulder",
+
+                verticalMeasurement:
+                    "length",
+
+                horizontalFactor:
+                    0.5,
+
+                verticalFactor:
+                    0,
+
+                role:
+                    "shoulder"
+
+            },
+
+            {
+
+                horizontalMeasurement:
+                    "chest",
+
+                verticalMeasurement:
+                    "length",
+
+                horizontalFactor:
+                    0.25,
+
+                verticalFactor:
+                    0.35,
+
+                role:
+                    "armhole"
+
+            },
+
+            {
+
+                horizontalMeasurement:
+                    "hip",
+
+                verticalMeasurement:
+                    "length",
+
+                horizontalFactor:
+                    0.25,
+
+                verticalFactor:
+                    1,
+
+                role:
+                    "dress-side-hem"
+
+            },
+
+            {
+
+                horizontalMeasurement:
+                    "hip",
+
+                verticalMeasurement:
+                    "length",
+
+                horizontalFactor:
+                    0,
+
+                verticalFactor:
+                    1,
+
+                role:
+                    "dress-center-hem"
+
+            }
+
+        ];
+
+    }
+
+
+    /* ========================================================
+       SLEEVE GRADE POINT DEFINITIONS
+       ======================================================== */
+
+    function createDressSleeveGradePoints() {
+
+        /*
+         * Dress uses the same sleeve geometry as Bodice.
+         *
+         * This is intentionally kept separate from the
+         * dress-body grade points so dress length does not
+         * accidentally affect sleeve grading.
+         */
+
+        return [
+
+            {
+
+                horizontalMeasurement:
+                    "upperArm",
+
+                verticalMeasurement:
+                    "sleeveLength",
+
+                horizontalFactor:
+                    0,
+
+                verticalFactor:
+                    0,
+
+                role:
+                    "sleeve-cap-center"
+
+            },
+
+            {
+
+                horizontalMeasurement:
+                    "upperArm",
+
+                verticalMeasurement:
+                    "sleeveLength",
+
+                horizontalFactor:
+                    0.5,
+
+                verticalFactor:
+                    0,
+
+                role:
+                    "sleeve-cap-edge"
+
+            },
+
+            {
+
+                horizontalMeasurement:
+                    "upperArm",
+
+                verticalMeasurement:
+                    "sleeveLength",
+
+                horizontalFactor:
+                    0.5,
+
+                verticalFactor:
+                    0.5,
+
+                role:
+                    "sleeve-side"
+
+            },
+
+            {
+
+                horizontalMeasurement:
+                    "upperArm",
+
+                verticalMeasurement:
+                    "sleeveLength",
+
+                horizontalFactor:
+                    0.5,
+
+                verticalFactor:
+                    1,
+
+                role:
+                    "sleeve-hem-edge"
+
+            },
+
+            {
+
+                horizontalMeasurement:
+                    "upperArm",
+
+                verticalMeasurement:
+                    "sleeveLength",
+
+                horizontalFactor:
+                    0,
+
+                verticalFactor:
+                    1,
+
+                role:
+                    "sleeve-hem-center"
+
+            }
+
+        ];
+
+    }
+
+
+    /* ========================================================
+       ATTACH GRADE POINTS
+       ======================================================== */
+
+    function attachGradePoints(
+        piece,
+        definitions
+    ) {
+
+        const gradePoints =
+            GradePointSchema
+                .createFromPointDefinitions(
+                    definitions
+                );
+
+
+        if (
+            gradePoints.length !==
+            piece.points.length
+        ) {
+
+            throw new Error(
+
+                `Dress piece "${piece.name}" ` +
+                "memiliki jumlah grade points " +
+                "yang tidak sama dengan geometry."
+
+            );
+
+        }
+
+
+        const validation =
+            GradePointSchema
+                .validatePieceGradePoints({
+
+                    ...piece,
+
+                    gradePoints
+
+                });
+
+
+        if (
+            !validation.valid
+        ) {
+
+            throw new Error(
+
+                `Grade point validation failed ` +
+                `for "${piece.name}": ` +
+
+                validation.errors.join(
+                    " | "
+                )
+
+            );
+
+        }
+
+
+        return {
+
+            ...piece,
+
+            gradePoints
+
+        };
+
+    }
+
+
+    /* ========================================================
+       EXTEND BODY PIECE
+       ======================================================== */
+
+    function extendBodyPiece(
+        piece,
+        extraLength
+    ) {
+
+        const output = {
+
+            ...piece
+
+        };
+
+
+        const points =
+            clonePoints(
+                piece.points
+            );
+
+
+        if (
+            points.length <
+            3
+        ) {
+
+            throw new Error(
+
+                `Dress piece "${piece.name}" ` +
+                "tidak memiliki geometry valid."
+
+            );
+
+        }
+
+
+        /*
+         * V5 behavior:
+         *
+         * find maximum Y,
+         * then extend bottom points only.
+         */
+
+        const maxY =
+            Math.max(
+
+                ...points.map(
+                    point =>
+                        Number(
+                            point[1]
+                        )
+                )
+
+            );
+
+
+        output.points =
+            points.map(
+                (
+                    [
+                        x,
+                        y
+                    ]
+                ) => [
+
+                    x,
+
+                    y === maxY
+
+                        ? y +
+                          extraLength
+
+                        : y
+
+                ]
+            );
+
+
+        /*
+         * Extend grainline endpoint.
+         */
+
+        if (
+            Array.isArray(
+                output.grainline
+            ) &&
+            output.grainline.length >=
+            2
+        ) {
+
+            const grainline =
+                clonePoints(
+                    output.grainline
+                );
+
+
+            grainline[
+                grainline.length - 1
+            ][1] +=
+                extraLength;
+
+
+            output.grainline =
+                grainline;
+
+        }
+
+
+        return output;
+
+    }
+
+
+    /* ========================================================
        DRESS PIECES
        ======================================================== */
 
@@ -147,17 +671,22 @@
         context = {}
     ) {
 
+        const measurements =
+            context?.profile?.measurements ||
+            context?.measurements ||
+            {};
+
+
         /*
-         * V5:
+         * V5 dependency:
          *
          * makeDressPieces()
-         *      ↓
-         * makeUpperPieces("dress")
+         * uses makeUpperPieces()
          *
-         * We preserve that dependency.
+         * We preserve that architecture.
          */
 
-        const baseContext = {
+        const dressContext = {
 
             ...context,
 
@@ -177,133 +706,83 @@
 
 
         /*
-         * IMPORTANT:
-         *
-         * Normal modular mode:
-         * seam stays outside the pattern engine.
-         *
-         * Legacy comparison:
-         * caller can explicitly set
-         *
-         * includeLegacySeam: true
-         *
-         * in the Bodice engine.
+         * Generate base bodice.
          */
 
         const baseResult =
-            Bodice.generate({
-
-                ...baseContext,
-
-                options: {
-
-                    ...(context.options || {})
-
-                }
-
-            });
-
-
-        const pieces =
-            baseResult.pieces;
+            Bodice.generate(
+                dressContext
+            );
 
 
         if (
+            !baseResult ||
             !Array.isArray(
-                pieces
+                baseResult.pieces
             )
         ) {
 
             throw new Error(
-                "Bodice Engine tidak menghasilkan pieces untuk Dress."
+
+                "Bodice Engine tidak menghasilkan " +
+                "pieces untuk Dress."
+
             );
 
         }
 
 
-        /* ====================================================
-           SOURCE MEASUREMENTS
-           ==================================================== */
-
-        const source =
-            context?.profile?.measurements ||
-            context?.measurements ||
-            {};
-
-
         /*
-         * V5 uses:
+         * V5:
          *
-         * dressLength
-         * bodyLength
+         * dressLength - bodyLength
          *
-         * They are legacy names.
+         * bodyLength compatibility:
+         *   bodyLength
          *
-         * Canonical fallback:
-         *
-         * garmentLength
+         * canonical:
+         *   garmentLength
          */
 
         const targetLength =
+            getMeasurement(
 
-            Number.isFinite(
-                Number(
-                    source.dressLength
-                )
-            ) &&
-            Number(
-                source.dressLength
-            ) > 0
+                measurements,
 
-                ? Number(
-                    source.dressLength
-                )
+                "garmentLength",
 
-                : getMeasurement(
+                110,
 
-                    context,
+                [
+                    "dressLength"
+                ]
 
-                    "garmentLength",
-
-                    110
-
-                );
+            );
 
 
         const baseBodyLength =
+            getMeasurement(
 
-            Number.isFinite(
-                Number(
-                    source.bodyLength
-                )
-            ) &&
-            Number(
-                source.bodyLength
-            ) > 0
+                measurements,
 
-                ? Number(
-                    source.bodyLength
-                )
+                "garmentLength",
 
-                : getMeasurement(
+                60,
 
-                    context,
+                [
+                    "bodyLength"
+                ]
 
-                    "garmentLength",
-
-                    60
-
-                );
+            );
 
 
         /*
-         * Equivalent to V5:
-         *
-         * extra =
-         *   max(0, dressLength - bodyLength)
+         * Avoid extending if the supplied base garment
+         * length is already equal to or greater than
+         * requested dress length.
          */
 
-        const extra =
+        const extraLength =
             Math.max(
 
                 0,
@@ -314,122 +793,132 @@
             );
 
 
-        /* ====================================================
-           EXTEND FRONT / BACK
-           ==================================================== */
+        /*
+         * Start from Bodice pieces.
+         *
+         * We intentionally rebuild grade metadata afterward
+         * so Dress owns its own grading definition.
+         */
 
-        pieces.forEach(
-            piece => {
+        const pieces =
+            baseResult.pieces
+                .map(
+                    piece => ({
+                        ...piece,
 
-                if (
-                    piece.name !==
-                        "FRONT" &&
-
-                    piece.name !==
-                        "BACK"
-                ) {
-
-                    return;
-
-                }
-
-
-                const points =
-                    piece.points ||
-                    [];
+                        gradePoints:
+                            undefined
+                    })
+                );
 
 
-                if (
-                    !points.length
-                ) {
+        /*
+         * Extend FRONT/BACK only.
+         */
 
-                    return;
-
-                }
-
-
-                const maxY =
-                    Math.max(
-
-                        ...points.map(
-
-                            point =>
-                                Number(
-                                    point[1]
-                                )
-
-                        )
-
-                    );
-
-
-                /*
-                 * Match V5 behavior:
-                 *
-                 * Only points on the bottom edge
-                 * are extended.
-                 */
-
-                piece.points =
-                    points.map(
-                        (
-                            [
-                                x,
-                                y
-                            ]
-                        ) => [
-
-                            Number(x),
-
-                            Number(y) ===
-                                maxY
-
-                                ? Number(y) +
-                                  extra
-
-                                : Number(y)
-
-                        ]
-                    );
-
-
-                /*
-                 * Extend grainline endpoint.
-                 */
-
-                if (
-                    piece.grainline
-                ) {
-
-                    const grainline =
-                        piece.grainline.map(
-                            point => [
-
-                                Number(
-                                    point[0]
-                                ),
-
-                                Number(
-                                    point[1]
-                                )
-
-                            ]
-                        );
-
+        const bodyPieces =
+            pieces.map(
+                piece => {
 
                     if (
-                        grainline.length >=
-                        2
+                        piece.name !==
+                            "FRONT" &&
+
+                        piece.name !==
+                            "BACK"
                     ) {
 
-                        grainline[1][1] +=
-                            extra;
+                        return piece;
 
                     }
 
 
-                    piece.grainline =
-                        grainline;
+                    return extendBodyPiece(
+
+                        piece,
+
+                        extraLength
+
+                    );
+
+                }
+            );
+
+
+        /* ====================================================
+           RE-ATTACH DRESS GRADE POINTS
+           ==================================================== */
+
+        const bodyDefinitions =
+            createDressBodyGradePoints();
+
+
+        const sleeveDefinitions =
+            createDressSleeveGradePoints();
+
+
+        const finalPieces =
+            bodyPieces.map(
+                piece => {
+
+                    if (
+                        piece.name ===
+                            "FRONT" ||
+
+                        piece.name ===
+                            "BACK"
+                    ) {
+
+                        return attachGradePoints(
+
+                            piece,
+
+                            bodyDefinitions
+
+                        );
+
+                    }
+
+
+                    if (
+                        piece.name ===
+                            "SLEEVE_L" ||
+
+                        piece.name ===
+                            "SLEEVE_R"
+                    ) {
+
+                        return attachGradePoints(
+
+                            piece,
+
+                            sleeveDefinitions
+
+                        );
+
+                    }
+
+
+                    return piece;
+
+                }
+            );
+
+
+        /*
+         * Remove undefined gradePoints from any unexpected
+         * piece that might be returned by a future engine.
+         */
+
+        finalPieces.forEach(
+            piece => {
+
+                if (
+                    piece.gradePoints ===
+                    undefined
+                ) {
+
+                    delete piece.gradePoints;
 
                 }
 
@@ -468,7 +957,8 @@
             version:
                 VERSION,
 
-            pieces,
+            pieces:
+                finalPieces,
 
             metadata: {
 
@@ -491,6 +981,13 @@
                 fullOpen:
                     true,
 
+                dressLength:
+                    targetLength,
+
+                baseBodyLength,
+
+                extraLength,
+
                 seamAllowanceIncluded:
 
                     Boolean(
@@ -501,12 +998,41 @@
                 productionGeometry:
                     false,
 
+                grading: {
+
+                    supported:
+                        true,
+
+                    strict:
+                        true,
+
+                    gradePointSchema:
+                        GradePointSchema.VERSION
+
+                },
+
                 formula:
                     "V5 makeDressPieces extraction"
 
             }
 
         };
+
+    }
+
+
+    /* ========================================================
+       VALIDATE GRADE POINTS
+       ======================================================== */
+
+    function validateGradePoints(
+        pattern
+    ) {
+
+        return GradePointSchema
+            .validatePatternGradePoints(
+                pattern
+            );
 
     }
 
@@ -526,10 +1052,19 @@
         version:
             VERSION,
 
-        generate:
-            makeDressPieces,
+        generate(
+            context = {}
+        ) {
 
-        makeDressPieces
+            return makeDressPieces(
+                context
+            );
+
+        },
+
+        makeDressPieces,
+
+        validateGradePoints
 
     };
 
