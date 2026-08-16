@@ -1,29 +1,28 @@
 /**
  * ============================================================
  * PATTERNMAKER UNIVERSAL
- * KODE 21 — main.js
+ * KODE 25 — main.js
  * ============================================================
  *
- * UNIVERSAL GARMENT CONTROLLER v3
+ * UNIVERSAL APPLICATION CONTROLLER
  *
- * Prinsip:
+ * Alur utama:
  *
  * UI
  *  ↓
- * Profile
+ * Body Profile
  *  ↓
  * Garment
  *  ↓
- * Measurements
+ * Pattern Engine
  *  ↓
- * Pattern Registry / Engine
+ * Base Pattern
  *  ↓
- * Production Geometry
+ * Seam Production
+ *  ↓
+ * Cutting Geometry
  *  ↓
  * Full / Open Preview
- *
- * Controller tidak membuat formula pola.
- * Controller hanya mengatur data dan engine.
  *
  * ============================================================
  */
@@ -53,6 +52,9 @@ const Registry =
 const ProductionGeometry =
     window.PatternMakerProductionGeometry;
 
+const SeamProduction =
+    window.PatternMakerSeamProduction;
+
 
 /* ============================================================
    DEPENDENCY VALIDATION
@@ -72,7 +74,9 @@ function validateDependencies() {
 
         Registry,
 
-        ProductionGeometry
+        ProductionGeometry,
+
+        SeamProduction
 
     };
 
@@ -137,7 +141,13 @@ const AppState = {
     engineResult:
         null,
 
+    basePattern:
+        null,
+
     productionPattern:
+        null,
+
+    cuttingPattern:
         null,
 
     error:
@@ -152,7 +162,9 @@ const AppState = {
 
 function $(id) {
 
-    return document.getElementById(id);
+    return document.getElementById(
+        id
+    );
 
 }
 
@@ -499,8 +511,11 @@ function renderMeasurementFields() {
                     <label
                         for="${measurementId}"
                     >
+
                         ${definition.label}
+
                         ${required ? "*" : ""}
+
                     </label>
 
 
@@ -889,7 +904,7 @@ function createCurrentProfile() {
 
 
 /* ============================================================
-   FABRIC DATA
+   FABRIC
    ============================================================ */
 
 function getFabricData() {
@@ -938,7 +953,9 @@ function getFabricData() {
 
     const seam =
         $("addSeam")?.value === "no"
+
             ? 0
+
             : Number(
                 $("seam")?.value ||
                 0
@@ -1154,35 +1171,12 @@ function createEngineContext(
 
 
 /* ============================================================
-   GENERIC ENGINE RESOLVER
+   PATTERN ENGINE
    ============================================================ */
-
-/*
- * Tidak membuat dependency terhadap variable engine
- * satu per satu. Engine dicari melalui Registry.
- *
- * Ini membuat sistem siap menerima:
- *
- *   dress
- *   skirt
- *   pants
- *   shirt
- *   future engines
- *
- */
 
 function resolveRegisteredEngine(
     engineId
 ) {
-
-    if (
-        !Registry
-    ) {
-
-        return null;
-
-    }
-
 
     const engine =
         Registry.getEngine(
@@ -1207,7 +1201,7 @@ function resolveRegisteredEngine(
 
 
 /* ============================================================
-   BODICE FAMILY ENGINE
+   BODICE FAMILY
    ============================================================ */
 
 function generateBodiceFamily(
@@ -1247,22 +1241,12 @@ function generateBodiceFamily(
     }
 
 
-    /*
-     * Sleeve hanya diperlukan untuk garment
-     * yang memang memiliki sleeve.
-     */
-
-    const garment =
-        context.garment;
-
-
     let sleeve =
         null;
 
 
     if (
-        garment.features &&
-        garment.features.sleeve
+        context.garment.features?.sleeve
     ) {
 
         if (
@@ -1282,7 +1266,6 @@ function generateBodiceFamily(
             ...measurements,
 
             fabric:
-
                 String(
                     context.fabric?.material ||
                     ""
@@ -1311,10 +1294,6 @@ function generateBodiceFamily(
 
     }
 
-
-    /*
-     * Production Geometry.
-     */
 
     const pattern =
         ProductionGeometry
@@ -1353,7 +1332,7 @@ function generateBodiceFamily(
         metadata: {
 
             garment:
-                garment.id,
+                context.garment.id,
 
             fullOpen:
                 true
@@ -1366,7 +1345,7 @@ function generateBodiceFamily(
 
 
 /* ============================================================
-   RUN PATTERN ENGINE
+   RUN ENGINE
    ============================================================ */
 
 function runPatternEngine(
@@ -1379,17 +1358,8 @@ function runPatternEngine(
         );
 
 
-    const engineId =
-        garment.patternEngine;
-
-
-    /*
-     * Bodice family masih memakai
-     * legacy engine.
-     */
-
     if (
-        engineId ===
+        garment.patternEngine ===
         "bodice"
     ) {
 
@@ -1400,13 +1370,9 @@ function runPatternEngine(
     }
 
 
-    /*
-     * Semua engine baru masuk Registry.
-     */
-
     const engine =
         resolveRegisteredEngine(
-            engineId
+            garment.patternEngine
         );
 
 
@@ -1417,7 +1383,8 @@ function runPatternEngine(
         throw new Error(
 
             `${garment.label} menggunakan engine ` +
-            `"${engineId}", tetapi engine belum terdaftar.`
+            `"${garment.patternEngine}", ` +
+            `tetapi engine belum terdaftar.`
 
         );
 
@@ -1449,10 +1416,10 @@ function runPatternEngine(
 
 
 /* ============================================================
-   NORMALIZE PATTERN
+   NORMALIZE BASE PATTERN
    ============================================================ */
 
-function normalizePattern(
+function normalizeBasePattern(
     result
 ) {
 
@@ -1495,9 +1462,8 @@ function normalizePattern(
             fullOpen:
                 true,
 
-            engine:
-                result.engine ||
-                "unknown"
+            geometryType:
+                "BASE_PATTERN"
 
         }
 
@@ -1517,7 +1483,7 @@ function normalizePattern(
 
         throw new Error(
 
-            "Production Geometry tidak valid: " +
+            "Base pattern tidak valid: " +
             validation.errors.join("; ")
 
         );
@@ -1525,11 +1491,140 @@ function normalizePattern(
     }
 
 
-    AppState.productionPattern =
+    AppState.basePattern =
         pattern;
 
 
     return pattern;
+
+}
+
+
+/* ============================================================
+   APPLY SEAM PRODUCTION
+   ============================================================ */
+
+function buildProductionPattern(
+    basePattern
+) {
+
+    if (
+        !SeamProduction
+    ) {
+
+        throw new Error(
+            "Seam Production engine belum tersedia."
+        );
+
+    }
+
+
+    /*
+     * Seam default dari UI.
+     */
+
+    const defaultSeam =
+        AppState.fabric?.seam ||
+        0;
+
+
+    /*
+     * Proses offset.
+     */
+
+    const seamPattern =
+        SeamProduction.applySeamAllowance(
+
+            basePattern,
+
+            {
+
+                defaultSeam
+
+            }
+
+        );
+
+
+    /*
+     * Validasi seam.
+     */
+
+    const seamValidation =
+        SeamProduction.validateSeamPattern(
+            seamPattern
+        );
+
+
+    if (
+        !seamValidation.valid
+    ) {
+
+        throw new Error(
+
+            "Seam allowance gagal dibuat: " +
+            JSON.stringify(
+                seamValidation.errors
+            )
+
+        );
+
+    }
+
+
+    AppState.productionPattern =
+        seamPattern;
+
+
+    return seamPattern;
+
+}
+
+
+/* ============================================================
+   CONVERT TO CUTTING GEOMETRY
+   ============================================================ */
+
+function createCuttingPattern(
+    productionPattern
+) {
+
+    const cuttingPattern =
+        SeamProduction.toCuttingGeometry(
+            productionPattern
+        );
+
+
+    /*
+     * Final validation.
+     */
+
+    const validation =
+        ProductionGeometry
+            .validateProductionPattern(
+                cuttingPattern
+            );
+
+
+    if (
+        !validation.valid
+    ) {
+
+        throw new Error(
+
+            "Cutting geometry tidak valid: " +
+            validation.errors.join("; ")
+
+        );
+
+    }
+
+
+    AppState.cuttingPattern =
+        cuttingPattern;
+
+
+    return cuttingPattern;
 
 }
 
@@ -1613,8 +1708,11 @@ function renderPreview(
 
     const background =
         document.createElementNS(
+
             ns,
+
             "rect"
+
         );
 
 
@@ -1660,22 +1758,42 @@ function renderPreview(
     pattern.pieces.forEach(
         piece => {
 
+            /*
+             * Untuk preview produksi:
+             *
+             * gunakan CUTTING BOUNDARY
+             */
+
+            const points =
+                piece.cutPoints &&
+                piece.cutPoints.length >= 3
+
+                    ? piece.cutPoints
+
+                    : piece.points;
+
+
             const polygon =
                 document.createElementNS(
+
                     ns,
+
                     "polygon"
+
                 );
 
 
             polygon.setAttribute(
+
                 "points",
 
-                piece.points
+                points
                     .map(
                         point =>
                             `${point[0]},${point[1]}`
                     )
                     .join(" ")
+
             );
 
 
@@ -1708,10 +1826,9 @@ function renderPreview(
             );
 
 
-            const bounds =
-                piece.bounds ||
+            const pieceBounds =
                 ProductionGeometry.getBounds(
-                    piece.points
+                    points
                 );
 
 
@@ -1721,24 +1838,32 @@ function renderPreview(
 
             const label =
                 document.createElementNS(
+
                     ns,
+
                     "text"
+
                 );
 
 
             label.setAttribute(
+
                 "x",
 
                 (
-                    bounds.minX +
-                    bounds.maxX
+                    pieceBounds.minX +
+                    pieceBounds.maxX
                 ) / 2
+
             );
 
 
             label.setAttribute(
+
                 "y",
-                bounds.minY - 2
+
+                pieceBounds.minY - 2
+
             );
 
 
@@ -1783,8 +1908,11 @@ function renderPreview(
 
                 const grain =
                     document.createElementNS(
+
                         ns,
+
                         "line"
+
                     );
 
 
@@ -1853,8 +1981,11 @@ function renderPreview(
 
                         const mark =
                             document.createElementNS(
+
                                 ns,
+
                                 "line"
+
                             );
 
 
@@ -1918,8 +2049,11 @@ function renderPreview(
 
                         const circle =
                             document.createElementNS(
+
                                 ns,
+
                                 "circle"
+
                             );
 
 
@@ -2014,17 +2148,21 @@ function renderResultInfo() {
             : "-";
 
 
-    const pieceCount =
-        AppState.productionPattern
-            ? AppState.productionPattern.pieces.length
+    const basePieces =
+        AppState.basePattern
+            ? AppState.basePattern.pieces.length
             : 0;
 
 
-    const engine =
-        AppState.productionPattern
-            ?.metadata?.engine ||
-        garment?.patternEngine ||
-        "-";
+    const productionPieces =
+        AppState.cuttingPattern
+            ? AppState.cuttingPattern.pieces.length
+            : 0;
+
+
+    const seam =
+        AppState.fabric?.seam ??
+        0;
 
 
     container.innerHTML = `
@@ -2084,11 +2222,11 @@ function renderResultInfo() {
         <div class="kv">
 
             <b>
-                Pattern Engine
+                Base Pieces
             </b>
 
             <span>
-                ${engine}
+                ${basePieces}
             </span>
 
         </div>
@@ -2097,11 +2235,11 @@ function renderResultInfo() {
         <div class="kv">
 
             <b>
-                Pattern Pieces
+                Cutting Pieces
             </b>
 
             <span>
-                ${pieceCount}
+                ${productionPieces}
             </span>
 
         </div>
@@ -2110,11 +2248,24 @@ function renderResultInfo() {
         <div class="kv">
 
             <b>
-                Internal Unit
+                Seam Allowance
             </b>
 
             <span>
-                cm
+                ${seam} cm
+            </span>
+
+        </div>
+
+
+        <div class="kv">
+
+            <b>
+                Geometry
+            </b>
+
+            <span>
+                CUTTING BOUNDARY
             </span>
 
         </div>
@@ -2235,7 +2386,7 @@ function renderMeasurementsResult() {
 
 
 /* ============================================================
-   GENERATE PATTERN
+   GENERATE
    ============================================================ */
 
 async function generatePattern() {
@@ -2280,20 +2431,22 @@ async function generatePattern() {
         }
 
 
+        /*
+         * STEP 1
+         * Profile
+         */
+
         setStatus(
             "Memvalidasi ukuran..."
         );
 
 
-        /*
-         * BODY PROFILE
-         */
-
         createCurrentProfile();
 
 
         /*
-         * PROFILE VALIDATION
+         * STEP 2
+         * Validate garment
          */
 
         const validation =
@@ -2327,7 +2480,8 @@ async function generatePattern() {
 
 
         /*
-         * FABRIC
+         * STEP 3
+         * Fabric
          */
 
         getFabricData();
@@ -2336,7 +2490,8 @@ async function generatePattern() {
 
 
         /*
-         * ENGINE
+         * STEP 4
+         * Pattern Engine
          */
 
         setDraftStatus(
@@ -2346,33 +2501,73 @@ async function generatePattern() {
         );
 
 
-        const result =
+        const engineResult =
             runPatternEngine(
                 garment
             );
 
 
         /*
-         * NORMALIZE
+         * STEP 5
+         * Base Pattern
          */
 
-        const pattern =
-            normalizePattern(
-                result
+        setDraftStatus(
+            "Memvalidasi base pattern..."
+        );
+
+
+        const basePattern =
+            normalizeBasePattern(
+                engineResult
             );
 
 
         /*
-         * PREVIEW
+         * STEP 6
+         * Seam Production
+         */
+
+        setDraftStatus(
+            "Menerapkan seam allowance..."
+        );
+
+
+        const productionPattern =
+            buildProductionPattern(
+                basePattern
+            );
+
+
+        /*
+         * STEP 7
+         * CUTTING GEOMETRY
+         */
+
+        setDraftStatus(
+            "Membentuk cutting boundary..."
+        );
+
+
+        const cuttingPattern =
+            createCuttingPattern(
+                productionPattern
+            );
+
+
+        /*
+         * STEP 8
+         * Preview
          */
 
         renderPreview(
-            pattern
+            cuttingPattern
         );
 
 
         /*
-         * RESULT
+         * STEP 9
+         * Results
          */
 
         renderResultInfo();
@@ -2380,11 +2575,23 @@ async function generatePattern() {
         renderMeasurementsResult();
 
 
+        /*
+         * STEP 10
+         * Success
+         */
+
+        const seamSummary =
+            SeamProduction.getSeamSummary(
+                productionPattern
+            );
+
+
         setDraftStatus(
 
             `Drafting selesai • ` +
             `${garment.label} • ` +
-            `${pattern.pieces.length} potongan • ` +
+            `${cuttingPattern.pieces.length} potongan • ` +
+            `Seam ${seamSummary.averageSeam} cm • ` +
             `Full / Open`,
 
             "ok"
@@ -2410,7 +2617,7 @@ async function generatePattern() {
     ) {
 
         console.error(
-            "PatternMaker generate error:",
+            "PatternMaker error:",
             error
         );
 
@@ -2471,7 +2678,15 @@ function handleGarmentChange() {
         null;
 
 
+    AppState.basePattern =
+        null;
+
+
     AppState.productionPattern =
+        null;
+
+
+    AppState.cuttingPattern =
         null;
 
 
@@ -2520,13 +2735,59 @@ function handleMeasurementChange() {
         null;
 
 
+    AppState.basePattern =
+        null;
+
+
     AppState.productionPattern =
         null;
 
 
+    AppState.cuttingPattern =
+        null;
+
+
     setDraftStatus(
-        "Ukuran berubah. Buat pola kembali."
+
+        "Ukuran berubah. " +
+        "Buat pola kembali."
+
     );
+
+}
+
+
+/* ============================================================
+   PRODUCTION SETTINGS CHANGE
+   ============================================================ */
+
+function handleProductionSettingChange() {
+
+    /*
+     * Base pattern tidak berubah.
+     * Tetapi production geometry lama menjadi stale.
+     */
+
+    AppState.productionPattern =
+        null;
+
+
+    AppState.cuttingPattern =
+        null;
+
+
+    if (
+        AppState.basePattern
+    ) {
+
+        setDraftStatus(
+
+            "Pengaturan produksi berubah. " +
+            "Buat pola kembali untuk memperbarui seam."
+
+        );
+
+    }
 
 }
 
@@ -2565,7 +2826,7 @@ function fitPreview() {
 function openPreview() {
 
     if (
-        !AppState.productionPattern
+        !AppState.cuttingPattern
     ) {
 
         return;
@@ -2574,7 +2835,7 @@ function openPreview() {
 
 
     renderPreview(
-        AppState.productionPattern
+        AppState.cuttingPattern
     );
 
 
@@ -2605,7 +2866,15 @@ function resetApplication() {
         null;
 
 
+    AppState.basePattern =
+        null;
+
+
     AppState.productionPattern =
+        null;
+
+
+    AppState.cuttingPattern =
         null;
 
 
@@ -2780,6 +3049,11 @@ function resetApplication() {
         $("patternPreview").innerHTML =
             "";
 
+        $("patternPreview").setAttribute(
+            "viewBox",
+            "0 0 1000 620"
+        );
+
     }
 
 
@@ -2918,6 +3192,34 @@ function bindEvents() {
 
     );
 
+
+    /*
+     * Production settings
+     */
+
+    [
+
+        "seam",
+        "addSeam",
+        "addNotches",
+        "addGrainline",
+        "patternTolerance"
+
+    ]
+    .forEach(
+        id => {
+
+            $(id)?.addEventListener(
+
+                "change",
+
+                handleProductionSettingChange
+
+            );
+
+        }
+    );
+
 }
 
 
@@ -3020,6 +3322,10 @@ window.PatternMakerApp = {
 
     fitPreview,
 
-    openPreview
+    openPreview,
+
+    buildProductionPattern,
+
+    createCuttingPattern
 
 };
