@@ -1,23 +1,23 @@
-```javascript id="j5k3qv"
 /**
  * ============================================================
  * PATTERNMAKER UNIVERSAL
- * KODE 14 — engine/shirt.js
+ * BASELINE FINAL v1
+ * KODE 55
+ * FILE: engine/shirt.js
  * ============================================================
  *
- * SHIRT PATTERN ENGINE
+ * SOURCE:
+ *   PatternMaker_Universal_v5_Production_Drafting.html
  *
- * Fungsi:
- * - Menggunakan bodice engine sebagai base block.
- * - Menghasilkan FRONT + BACK + SLEEVE.
- * - Menambahkan PLACKET.
- * - Menambahkan COLLAR BASE.
- * - Menyediakan geometry yang kompatibel dengan
- *   Production Geometry.
+ * V5 source behavior:
+ *   makeUpperPieces("shirt")
  *
- * STATUS:
- * Base shirt construction.
+ * Shirt is intentionally built on the migrated Bodice engine.
+ * The V5-specific addition is the PLACKET piece.
  *
+ * Seam allowance remains outside the normal base-pattern path.
+ * Legacy radial seam can explicitly be requested through
+ * context.options.includeLegacySeam=true.
  * ============================================================
  */
 
@@ -27,52 +27,47 @@
 
 
     /* ========================================================
-       DEPENDENCY
+       DEPENDENCIES
        ======================================================== */
 
-    if (
-        !window.PatternMakerProductionGeometry
-    ) {
+    const Schema =
+        window.PatternMakerMeasurementSchema;
 
-        throw new Error(
-            "production-geometry.js belum tersedia."
-        );
-
-    }
+    const Bodice =
+        window.PatternMakerBodice;
 
 
     if (
-        !window.PatternMakerLegacyAdapters
+        !Schema ||
+        !Bodice
     ) {
 
         throw new Error(
-            "legacy-pattern-adapter.js belum tersedia."
+            "Shirt Engine membutuhkan measurement-schema.js dan bodice.js."
         );
 
     }
-
-
-    const ProductionGeometry =
-        window.PatternMakerProductionGeometry;
-
-
-    const Legacy =
-        window.PatternMakerLegacyAdapters;
 
 
     /* ========================================================
-       HELPERS
+       VERSION
        ======================================================== */
 
-    function safeNumber(
+    const VERSION =
+        "V5-MIGRATED-v1";
+
+
+    /* ========================================================
+       NUMBER
+       ======================================================== */
+
+    function num(
         value,
         fallback = 0
     ) {
 
         const n =
-            Number(
-                value
-            );
+            Number(value);
 
 
         return Number.isFinite(n)
@@ -82,138 +77,167 @@
     }
 
 
-    function round(
-        value
-    ) {
-
-        return Math.round(
-            Number(value) * 100
-        ) / 100;
-
-    }
-
-
-    function getBounds(
-        points
-    ) {
-
-        const xs =
-            points.map(
-                p => p[0]
-            );
-
-
-        const ys =
-            points.map(
-                p => p[1]
-            );
-
-
-        return {
-
-            minX:
-                Math.min(...xs),
-
-            maxX:
-                Math.max(...xs),
-
-            minY:
-                Math.min(...ys),
-
-            maxY:
-                Math.max(...ys),
-
-            width:
-                Math.max(...xs) -
-                Math.min(...xs),
-
-            height:
-                Math.max(...ys) -
-                Math.min(...ys)
-
-        };
-
-    }
-
-
-    function translate(
-        points,
-        dx,
-        dy
-    ) {
-
-        return points.map(
-            p => [
-
-                round(
-                    p[0] + dx
-                ),
-
-                round(
-                    p[1] + dy
-                )
-
-            ]
-        );
-
-    }
-
-
     /* ========================================================
        PLACKET
        ======================================================== */
 
-    function createPlacket(
-        front,
-        options = {}
+    function makePlacket(
+        context,
+        pieces
     ) {
 
-        const bounds =
-            getBounds(
-                front.points
+        const front =
+            pieces.find(
+                piece =>
+                    piece.name === "FRONT"
             );
 
 
-        const width =
+        if (
+            !front ||
+            !Array.isArray(front.points) ||
+            front.points.length < 2
+        ) {
+
+            throw new Error(
+
+                "Shirt Engine tidak dapat menentukan " +
+                "posisi PLACKET dari FRONT."
+
+            );
+
+        }
+
+
+        const points =
+            front.points;
+
+
+        const minX =
+            Math.min(
+                ...points.map(
+                    point =>
+                        Number(point[0])
+                )
+            );
+
+
+        const maxX =
+            Math.max(
+                ...points.map(
+                    point =>
+                        Number(point[0])
+                )
+            );
+
+
+        const minY =
+            Math.min(
+                ...points.map(
+                    point =>
+                        Number(point[1])
+                )
+            );
+
+
+        const maxY =
+            Math.max(
+                ...points.map(
+                    point =>
+                        Number(point[1])
+                )
+            );
+
+
+        const qHip =
             Math.max(
 
-                2.5,
+                0,
 
-                safeNumber(
-                    options.width,
-                    3
-                )
+                (
+                    num(
+                        context?.profile
+                            ?.measurements
+                            ?.hip,
+
+                        96
+
+                    )
+                    +
+
+                    num(
+                        context?.fabric?.ease,
+                        0
+                    )
+
+                ) / 4
 
             );
 
 
-        const height =
-            bounds.height;
+        const seam =
+            num(
+                context?.options?.seam,
+                0
+            )
+
+            +
+
+            num(
+                context?.options?.tolerance,
+                0
+            );
+
+
+        const placketWidth =
+            Math.max(
+
+                3,
+
+                seam + 1.5
+
+            );
+
+
+        /*
+         * V5:
+         *
+         * x =
+         *     frontX +
+         *     qHip +
+         *     7
+         *
+         * frontX = 15
+         *
+         * In the migrated bodice engine FRONT starts
+         * from the same open-preview reference.
+         *
+         * We derive it from actual geometry rather
+         * than DOM/state.
+         */
+
+        const frontX =
+            minX;
 
 
         const x =
-            bounds.minX +
-            Math.max(
-                2,
-                bounds.width * 0.65
-            );
+            frontX +
+            qHip +
+            7;
 
 
-        const y =
-            bounds.minY;
+        const top =
+            minY + 4;
 
 
-        const points = [
+        const bottom =
+            maxY - 4;
 
-            [x, y],
 
-            [x + width, y],
-
-            [x + width, y + height],
-
-            [x, y + height]
-
-        ];
+        const category =
+            context?.profile?.category ||
+            context?.category ||
+            "custom";
 
 
         return {
@@ -221,570 +245,66 @@
             name:
                 "PLACKET",
 
-            type:
-                "shirt-placket",
+            layer:
+                "OUTLINE",
 
-            side:
-                "front",
+            points: [
 
-            points,
+                [
+                    x,
+                    top
+                ],
+
+                [
+                    x +
+                    placketWidth,
+
+                    top
+                ],
+
+                [
+                    x +
+                    placketWidth,
+
+                    bottom
+                ],
+
+                [
+                    x,
+                    bottom
+                ]
+
+            ],
 
             closed:
                 true,
 
-            quantity:
-                1,
+            grainline:
+                null,
+
+            notches:
+                [],
 
             label:
-                "PLACKET"
 
-        };
+                `PLACKET • ${
 
-    }
+                    Schema.getCategoryLabel(
+                        category
+                    )
 
-
-    /* ========================================================
-       COLLAR
-       ======================================================== */
-
-    function createCollar(
-        measurements,
-        options = {}
-    ) {
-
-        const neck =
-            safeNumber(
-                measurements.neck,
-                38
-            );
-
-
-        /*
-         * Base collar dimensions.
-         *
-         * Ini sengaja dibuat parametrik sederhana.
-         * Formula collar produksi detail akan dikembangkan
-         * terpisah.
-         */
-
-        const collarLength =
-            Math.max(
-                22,
-                neck * 0.5
-            );
-
-
-        const collarWidth =
-            Math.max(
-                4,
-                safeNumber(
-                    options.width,
-                    5
-                )
-            );
-
-
-        const x =
-            10;
-
-
-        const y =
-            0;
-
-
-        const points = [
-
-            [x, y],
-
-            [
-                x + collarLength,
-                y
-            ],
-
-            [
-                x + collarLength - 2,
-                y + collarWidth
-            ],
-
-            [
-                x + 2,
-                y + collarWidth
-            ]
-
-        ];
-
-
-        return {
-
-            name:
-                "COLLAR",
-
-            type:
-                "shirt-collar",
-
-            side:
-                "neck",
-
-            points,
-
-            closed:
-                true,
-
-            quantity:
-                1,
-
-            label:
-                "COLLAR"
-
-        };
-
-    }
-
-
-    /* ========================================================
-       CREATE SHIRT PIECES
-       ======================================================== */
-
-    function createShirtPieces(
-        context
-    ) {
-
-        const measurements =
-            context.measurements ||
-            {};
-
-
-        const bodice =
-            Legacy.BodiceAdapter
-                ? Legacy.BodiceAdapter.generate(
-                    context
-                )
-                : null;
-
-
-        if (
-            !bodice ||
-            !bodice.geometry
-        ) {
-
-            throw new Error(
-                "Bodice engine tidak dapat menghasilkan base shirt."
-            );
-
-        }
-
-
-        const bodiceResult =
-            bodice.geometry;
-
-
-        /*
-         * Sleeve menggunakan base bodice.
-         */
-
-        let sleeveResult =
-            null;
-
-
-        if (
-            Legacy.SleeveAdapter
-        ) {
-
-            sleeveResult =
-                Legacy.SleeveAdapter.generate(
-                    context
-                );
-
-        }
-
-
-        /*
-         * FRONT
-         */
-
-        const frontPiece =
-            ProductionGeometry.createFrontFromBodice(
-
-                bodiceResult,
-
-                {
-
-                    label:
-                        "SHIRT FRONT",
-
-                    seamAllowance:
-                        safeNumber(
-                            context.options?.seamAllowance,
-                            0
-                        )
-
-                }
-
-            );
-
-
-        frontPiece.name =
-            "SHIRT FRONT";
-
-
-        frontPiece.type =
-            "shirt-front";
-
-
-        /*
-         * BACK
-         */
-
-        const backPiece =
-            ProductionGeometry.createBackFromBodice(
-
-                bodiceResult,
-
-                {
-
-                    label:
-                        "SHIRT BACK",
-
-                    seamAllowance:
-                        safeNumber(
-                            context.options?.seamAllowance,
-                            0
-                        )
-
-                }
-
-            );
-
-
-        backPiece.name =
-            "SHIRT BACK";
-
-
-        backPiece.type =
-            "shirt-back";
-
-
-        /*
-         * PLACKET
-         */
-
-        const placket =
-            createPlacket(
-
-                frontPiece,
-
-                {
-
-                    width:
-                        safeNumber(
-                            context.options?.placketWidth,
-                            3
-                        )
-
-                }
-
-            );
-
-
-        const placketPiece =
-            ProductionGeometry.createProductionPiece({
-
-                name:
-                    placket.name,
-
-                type:
-                    placket.type,
-
-                side:
-                    placket.side,
-
-                points:
-                    placket.points,
-
-                quantity:
-                    1,
-
-                label:
-                    placket.label,
-
-                source:
-                    "engine/shirt.js"
-
-            });
-
-
-        /*
-         * COLLAR
-         */
-
-        const collar =
-            createCollar(
-
-                measurements,
-
-                {
-
-                    width:
-                        safeNumber(
-                            context.options?.collarWidth,
-                            5
-                        )
-
-                }
-
-            );
-
-
-        const collarPiece =
-            ProductionGeometry.createProductionPiece({
-
-                name:
-                    collar.name,
-
-                type:
-                    collar.type,
-
-                side:
-                    collar.side,
-
-                points:
-                    collar.points,
-
-                quantity:
-                    1,
-
-                label:
-                    collar.label,
-
-                source:
-                    "engine/shirt.js"
-
-            });
-
-
-        /*
-         * SLEEVE
-         */
-
-        const pieces = [
-
-            frontPiece,
-
-            backPiece,
-
-            placketPiece,
-
-            collarPiece
-
-        ];
-
-
-        if (
-            sleeveResult &&
-            sleeveResult.geometry
-        ) {
-
-            const sleevePiece =
-                ProductionGeometry.createSleeveFromLegacy(
-
-                    sleeveResult.geometry,
-
-                    {
-
-                        name:
-                            "SHIRT SLEEVE L",
-
-                        side:
-                            "left",
-
-                        quantity:
-                            1,
-
-                        label:
-                            "SHIRT SLEEVE L"
-
-                    }
-
-                );
-
-
-            pieces.push(
-                sleevePiece
-            );
-
-
-            /*
-             * Sleeve kanan.
-             */
-
-            const bounds =
-                ProductionGeometry.getBounds(
-
-                    sleevePiece.points
-
-                );
-
-
-            const axis =
-                (
-                    bounds.minX +
-                    bounds.maxX
-                ) / 2;
-
-
-            let sleeveRight =
-                ProductionGeometry
-                    .mirrorPieceX(
-
-                        sleevePiece,
-
-                        axis
-
-                    );
-
-
-            sleeveRight = {
-
-                ...sleeveRight,
-
-                name:
-                    "SHIRT SLEEVE R",
-
-                side:
-                    "right",
-
-                label:
-                    "SHIRT SLEEVE R"
-
-            };
-
-
-            pieces.push(
-                sleeveRight
-            );
-
-        }
-
-
-        return {
-
-            pieces,
-
-            bodice:
-                bodiceResult,
-
-            sleeve:
-                sleeveResult
-                    ? sleeveResult.geometry
-                    : null
-
-        };
-
-    }
-
-
-    /* ========================================================
-       GENERATE SHIRT
-       ======================================================== */
-
-    function generate(
-        context = {}
-    ) {
-
-        if (
-            !context.measurements
-        ) {
-
-            throw new Error(
-                "Shirt Engine membutuhkan measurements."
-            );
-
-        }
-
-
-        const result =
-            createShirtPieces(
-                context
-            );
-
-
-        /*
-         * Layout Full / Open.
-         *
-         * Semua piece diletakkan terpisah.
-         */
-
-        const laidOut =
-            ProductionGeometry.layoutOpenPieces(
-
-                result.pieces,
-
-                {
-
-                    gap:
-                        safeNumber(
-                            context.options?.gap,
-                            8
-                        ),
-
-                    grainline:
-                        context.options?.grainline !== false,
-
-                    notches:
-                        context.options?.notches !== false
-
-                }
-
-            );
-
-
-        return {
-
-            type:
-                "shirt",
-
-            engine:
-                "shirt",
-
-            version:
-                "1.0",
-
-            pieces:
-                laidOut,
-
-            source:
-                "engine/shirt.js",
+                }`,
 
             metadata: {
 
-                garment:
+                engine:
                     "shirt",
 
-                unit:
-                    "cm",
+                source:
+                    "V5-migration",
 
-                fullOpen:
-                    true,
-
-                hasFront:
-                    true,
-
-                hasBack:
-                    true,
-
-                hasSleeve:
-                    Boolean(
-                        result.sleeve
-                    ),
-
-                hasPlacket:
-                    true,
-
-                hasCollar:
-                    true,
-
-                note:
-                    "Base shirt pattern. Fitting sample required before production."
+                version:
+                    VERSION
 
             }
 
@@ -794,7 +314,173 @@
 
 
     /* ========================================================
-       REGISTER ENGINE
+       SHIRT PIECES
+       ======================================================== */
+
+    function makeShirtPieces(
+        context = {}
+    ) {
+
+        const shirtContext = {
+
+            ...context,
+
+            garment: {
+
+                ...(context.garment || {}),
+
+                id:
+                    "shirt"
+
+            },
+
+            garmentId:
+                "shirt"
+
+        };
+
+
+        /*
+         * Use migrated Bodice engine.
+         */
+
+        const bodiceResult =
+            Bodice.generate(
+                shirtContext
+            );
+
+
+        if (
+            !bodiceResult ||
+            !Array.isArray(
+                bodiceResult.pieces
+            )
+        ) {
+
+            throw new Error(
+
+                "Bodice Engine tidak menghasilkan " +
+                "pieces untuk Shirt."
+
+            );
+
+        }
+
+
+        /*
+         * Convert base-piece metadata to shirt.
+         */
+
+        const basePieces =
+            bodiceResult.pieces.map(
+
+                piece => ({
+
+                    ...piece,
+
+                    metadata: {
+
+                        ...(piece.metadata || {}),
+
+                        engine:
+                            "shirt",
+
+                        source:
+                            "V5-migration",
+
+                        version:
+                            VERSION
+
+                    }
+
+                })
+
+            );
+
+
+        /*
+         * Add V5 PLACKET.
+         */
+
+        basePieces.push(
+
+            makePlacket(
+
+                shirtContext,
+
+                basePieces
+
+            )
+
+        );
+
+
+        const category =
+            context?.profile?.category ||
+            context?.category ||
+            "custom";
+
+
+        return {
+
+            type:
+                "base-pattern",
+
+            engine:
+                "shirt",
+
+            version:
+                VERSION,
+
+            pieces:
+                basePieces,
+
+            metadata: {
+
+                source:
+                    "PatternMaker V5",
+
+                migration:
+                    true,
+
+                category,
+
+                categoryLabel:
+                    Schema.getCategoryLabel(
+                        category
+                    ),
+
+                unit:
+                    "cm",
+
+                scale:
+                    1,
+
+                fullOpen:
+                    true,
+
+                seamAllowanceIncluded:
+
+                    Boolean(
+                        context?.options
+                            ?.includeLegacySeam
+                    ),
+
+                productionGeometry:
+                    false,
+
+                formula:
+                    'V5 makeUpperPieces("shirt") extraction'
+
+            }
+
+        };
+
+    }
+
+
+    /* ========================================================
+       ENGINE CONTRACT
        ======================================================== */
 
     const ShirtEngine = {
@@ -806,48 +492,22 @@
             "Shirt Pattern Engine",
 
         version:
-            "1.0",
+            VERSION,
 
-        generate
+        generate:
+            makeShirtPieces,
+
+        makeShirtPieces
 
     };
-
-
-    /*
-     * Registry baru.
-     */
-
-    if (
-        window.PatternMakerPatternRegistry
-    ) {
-
-        window.PatternMakerPatternRegistry
-            .registerEngine(
-                "shirt",
-                ShirtEngine
-            );
-
-    }
 
 
     /* ========================================================
-       GLOBAL API
+       GLOBAL
        ======================================================== */
 
-    window.PatternMakerShirtEngine = {
-
-        ShirtEngine,
-
-        generate,
-
-        createShirtPieces,
-
-        createPlacket,
-
-        createCollar
-
-    };
+    window.PatternMakerShirt =
+        ShirtEngine;
 
 
 })();
-```
