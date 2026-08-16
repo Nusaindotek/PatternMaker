@@ -1,29 +1,17 @@
-```javascript id="q7n4mx"
 /**
  * ============================================================
  * PATTERNMAKER UNIVERSAL
- * KODE 17 — engine/skirt.js
- * ============================================================
+ * BASELINE FINAL v1
+ * KODE 52
  *
- * SKIRT PATTERN ENGINE
+ * FILE:
+ *   engine/skirt.js
  *
- * Output:
- *   SKIRT FRONT
- *   SKIRT BACK
+ * SOURCE:
+ *   PatternMaker_Universal_v5_Production_Drafting.html
  *
- * Parameter:
- *   waist
- *   hip
- *   skirtLength
- *   ease
- *   seam allowance
- *
- * Fitur:
- *   - Full / Open
- *   - Waist shaping
- *   - Basic dart
- *   - Grainline
- *   - Notch
+ * EXTRACTED:
+ *   makeSkirtPieces()
  *
  * ============================================================
  */
@@ -34,30 +22,38 @@
 
 
     /* ========================================================
-       DEPENDENCY
+       DEPENDENCIES
        ======================================================== */
 
-    const ProductionGeometry =
-        window.PatternMakerProductionGeometry;
+    const Schema =
+        window.PatternMakerMeasurementSchema;
 
-
-    const Registry =
-        window.PatternMakerPatternRegistry;
+    const Mapper =
+        window.PatternMakerMeasurementMapper;
 
 
     if (
-        !ProductionGeometry
+        !Schema ||
+        !Mapper
     ) {
 
         throw new Error(
-            "production-geometry.js belum tersedia."
+            "Skirt Engine membutuhkan measurement schema + mapper."
         );
 
     }
 
 
     /* ========================================================
-       HELPERS
+       VERSION
+       ======================================================== */
+
+    const VERSION =
+        "V5-MIGRATED-v1";
+
+
+    /* ========================================================
+       NUMBER
        ======================================================== */
 
     function num(
@@ -76,929 +72,340 @@
     }
 
 
-    function round(
+    /* ========================================================
+       ROUND
+       ======================================================== */
+
+    function round1(
         value
     ) {
 
         return Math.round(
-            value * 100
-        ) / 100;
-
-    }
-
-
-    function getBounds(
-        points
-    ) {
-
-        const xs =
-            points.map(
-                point => point[0]
-            );
-
-
-        const ys =
-            points.map(
-                point => point[1]
-            );
-
-
-        return {
-
-            minX:
-                Math.min(
-                    ...xs
-                ),
-
-            maxX:
-                Math.max(
-                    ...xs
-                ),
-
-            minY:
-                Math.min(
-                    ...ys
-                ),
-
-            maxY:
-                Math.max(
-                    ...ys
-                ),
-
-            width:
-                Math.max(
-                    ...xs
-                ) -
-                Math.min(
-                    ...xs
-                ),
-
-            height:
-                Math.max(
-                    ...ys
-                ) -
-                Math.min(
-                    ...ys
-                )
-
-        };
+            num(value) * 10
+        ) / 10;
 
     }
 
 
     /* ========================================================
-       DART DISTRIBUTION
+       CLONE POINTS
        ======================================================== */
 
-    function calculateDart(
-        waistQuarter,
-        hipQuarter,
-        options = {}
+    function clonePoints(
+        points
     ) {
 
-        /*
-         * Selisih pinggul dan pinggang menentukan
-         * kebutuhan shaping.
-         */
+        return (
+            points ||
+            []
+        )
+        .map(
+            point => [
 
-        const shaping =
-            Math.max(
-                0,
-                hipQuarter -
-                waistQuarter
-            );
+                num(point[0]),
 
+                num(point[1])
 
-        /*
-         * Total shaping yang diletakkan
-         * pada dart dasar.
-         *
-         * Ini bukan satu-satunya metode patternmaking,
-         * tetapi menjadi base parametrik yang stabil.
-         */
-
-        const totalDart =
-            Math.max(
-                1.5,
-                shaping *
-                0.55
-            );
-
-
-        const requested =
-            num(
-                options.dart,
-                totalDart
-            );
-
-
-        return Math.min(
-            Math.max(
-                1,
-                requested
-            ),
-            Math.max(
-                1,
-                totalDart * 1.5
-            )
+            ]
         );
 
     }
 
 
     /* ========================================================
-       FRONT SKIRT
+       GET MEASUREMENT
        ======================================================== */
 
-    function createFront(
+    function getMeasurement(
         measurements,
-        options = {}
+        canonicalId,
+        fallback
     ) {
 
-        const waist =
-            num(
-                measurements.waist,
-                72
+        const direct =
+            measurements?.[
+                canonicalId
+            ];
+
+
+        if (
+            Number.isFinite(
+                Number(direct)
+            ) &&
+            Number(direct) > 0
+        ) {
+
+            return Number(
+                direct
+            );
+
+        }
+
+
+        const mapped =
+            Mapper.getValue(
+
+                measurements || {},
+
+                canonicalId
+
             );
 
 
-        const hip =
-            num(
-                measurements.hip,
-                96
+        if (
+            Number.isFinite(
+                Number(mapped)
+            ) &&
+            Number(mapped) > 0
+        ) {
+
+            return Number(
+                mapped
             );
 
+        }
 
-        const length =
-            Math.max(
-                20,
-                num(
-                    measurements.skirtLength,
-                    55
-                )
-            );
 
-
-        const ease =
-            num(
-                options.ease,
-                2
-            );
-
-
-        const seam =
-            Math.max(
-                0,
-                num(
-                    options.seamAllowance,
-                    1
-                )
-            );
-
-
-        /*
-         * Quarter measurement.
-         */
-
-        const waistQuarter =
-            (
-                waist +
-                ease
-            ) / 4;
-
-
-        const hipQuarter =
-            (
-                hip +
-                ease
-            ) / 4;
-
-
-        const dart =
-            calculateDart(
-                waistQuarter,
-                hipQuarter,
-                options
-            );
-
-
-        /*
-         * Front center.
-         */
-
-        const centerX =
-            0;
-
-
-        const topY =
-            0;
-
-
-        const hipY =
-            Math.max(
-                18,
-                length * 0.42
-            );
-
-
-        const hemY =
-            length;
-
-
-        /*
-         * Basic front shape.
-         *
-         * A = center waist
-         * B = side waist
-         * C = side hip
-         * D = side hem
-         * E = center hem
-         */
-
-        const points = [
-
-            [
-                centerX,
-                topY
-            ],
-
-            [
-                waistQuarter +
-                dart,
-                topY
-            ],
-
-            [
-                hipQuarter,
-                hipY
-            ],
-
-            [
-                hipQuarter,
-                hemY
-            ],
-
-            [
-                centerX,
-                hemY
-            ]
-
-        ];
-
-
-        /*
-         * Seam allowance sederhana.
-         *
-         * Production Geometry akan menerima
-         * nilai seam sebagai metadata.
-         */
-
-        const piece =
-            ProductionGeometry
-                .createProductionPiece({
-
-                    name:
-                        "SKIRT FRONT",
-
-                    type:
-                        "skirt-front",
-
-                    side:
-                        "front",
-
-                    points,
-
-                    quantity:
-                        1,
-
-                    label:
-                        "SKIRT FRONT",
-
-                    seamAllowance:
-                        seam,
-
-                    source:
-                        "engine/skirt.js"
-
-                });
-
-
-        /*
-         * Grainline.
-         */
-
-        const bounds =
-            getBounds(
-                points
-            );
-
-
-        piece.grainline = [
-
-            [
-
-                round(
-                    (
-                        bounds.minX +
-                        bounds.maxX
-                    ) / 2
-                ),
-
-                round(
-                    bounds.minY +
-                    5
-                )
-
-            ],
-
-            [
-
-                round(
-                    (
-                        bounds.minX +
-                        bounds.maxX
-                    ) / 2
-                ),
-
-                round(
-                    bounds.maxY -
-                    5
-                )
-
-            ]
-
-        ];
-
-
-        /*
-         * Notch pada garis hip.
-         */
-
-        piece.notches = [
-
-            [
-
-                round(
-                    bounds.maxX
-                ),
-
-                round(
-                    hipY
-                )
-
-            ]
-
-        ];
-
-
-        piece.metadata = {
-
-            ...(piece.metadata || {}),
-
-            dartWidth:
-                round(
-                    dart
-                ),
-
-            hipLine:
-                round(
-                    hipY
-                )
-
-        };
-
-
-        return piece;
+        return num(
+            fallback
+        );
 
     }
 
 
     /* ========================================================
-       BACK SKIRT
+       MEASUREMENTS
        ======================================================== */
 
-    function createBack(
-        measurements,
-        options = {}
-    ) {
-
-        const waist =
-            num(
-                measurements.waist,
-                72
-            );
-
-
-        const hip =
-            num(
-                measurements.hip,
-                96
-            );
-
-
-        const length =
-            Math.max(
-                20,
-                num(
-                    measurements.skirtLength,
-                    55
-                )
-            );
-
-
-        const ease =
-            num(
-                options.ease,
-                2
-            );
-
-
-        const seam =
-            Math.max(
-                0,
-                num(
-                    options.seamAllowance,
-                    1
-                )
-            );
-
-
-        const waistQuarter =
-            (
-                waist +
-                ease
-            ) / 4;
-
-
-        const hipQuarter =
-            (
-                hip +
-                ease
-            ) / 4;
-
-
-        /*
-         * Back dart sedikit lebih besar
-         * daripada front.
-         */
-
-        const dart =
-            calculateDart(
-
-                waistQuarter,
-
-                hipQuarter,
-
-                {
-
-                    dart:
-                        num(
-                            options.backDart,
-                            (
-                                hipQuarter -
-                                waistQuarter
-                            ) * 0.75
-                        )
-
-                }
-
-            );
-
-
-        const centerX =
-            0;
-
-
-        const topY =
-            0;
-
-
-        const hipY =
-            Math.max(
-                18,
-                length * 0.42
-            );
-
-
-        const hemY =
-            length;
-
-
-        const points = [
-
-            [
-                centerX,
-                topY
-            ],
-
-            [
-                waistQuarter +
-                dart,
-                topY
-            ],
-
-            [
-                hipQuarter,
-                hipY
-            ],
-
-            [
-                hipQuarter,
-                hemY
-            ],
-
-            [
-                centerX,
-                hemY
-            ]
-
-        ];
-
-
-        const piece =
-            ProductionGeometry
-                .createProductionPiece({
-
-                    name:
-                        "SKIRT BACK",
-
-                    type:
-                        "skirt-back",
-
-                    side:
-                        "back",
-
-                    points,
-
-                    quantity:
-                        1,
-
-                    label:
-                        "SKIRT BACK",
-
-                    seamAllowance:
-                        seam,
-
-                    source:
-                        "engine/skirt.js"
-
-                });
-
-
-        const bounds =
-            getBounds(
-                points
-            );
-
-
-        piece.grainline = [
-
-            [
-
-                round(
-                    (
-                        bounds.minX +
-                        bounds.maxX
-                    ) / 2
-                ),
-
-                round(
-                    bounds.minY +
-                    5
-                )
-
-            ],
-
-            [
-
-                round(
-                    (
-                        bounds.minX +
-                        bounds.maxX
-                    ) / 2
-                ),
-
-                round(
-                    bounds.maxY -
-                    5
-                )
-
-            ]
-
-        ];
-
-
-        piece.notches = [
-
-            [
-
-                round(
-                    bounds.maxX
-                ),
-
-                round(
-                    hipY
-                )
-
-            ]
-
-        ];
-
-
-        piece.metadata = {
-
-            ...(piece.metadata || {}),
-
-            dartWidth:
-                round(
-                    dart
-                ),
-
-            hipLine:
-                round(
-                    hipY
-                )
-
-        };
-
-
-        return piece;
-
-    }
-
-
-    /* ========================================================
-       CREATE WAISTBAND
-       ======================================================== */
-
-    function createWaistband(
-        measurements,
-        options = {}
-    ) {
-
-        const waist =
-            num(
-                measurements.waist,
-                72
-            );
-
-
-        const seam =
-            Math.max(
-                0,
-                num(
-                    options.seamAllowance,
-                    1
-                )
-            );
-
-
-        const waistbandHeight =
-            Math.max(
-                3,
-                num(
-                    options.waistbandHeight,
-                    4
-                )
-            );
-
-
-        const width =
-            waist +
-            num(
-                options.ease,
-                0
-            );
-
-
-        const points = [
-
-            [0, 0],
-
-            [
-                width,
-                0
-            ],
-
-            [
-                width,
-                waistbandHeight
-            ],
-
-            [
-                0,
-                waistbandHeight
-            ]
-
-        ];
-
-
-        return ProductionGeometry
-            .createProductionPiece({
-
-                name:
-                    "WAISTBAND",
-
-                type:
-                    "skirt-waistband",
-
-                side:
-                    "waist",
-
-                points,
-
-                quantity:
-                    1,
-
-                label:
-                    "WAISTBAND",
-
-                seamAllowance:
-                    seam,
-
-                source:
-                    "engine/skirt.js"
-
-            });
-
-    }
-
-
-    /* ========================================================
-       CREATE SKIRT PIECES
-       ======================================================== */
-
-    function createSkirtPieces(
+    function getMeasurements(
         context
     ) {
 
-        const measurements =
-            context.measurements ||
+        const profile =
+            context?.profile;
+
+
+        const source =
+            profile?.measurements ||
+            context?.measurements ||
             {};
-
-
-        const options =
-            context.options ||
-            {};
-
-
-        const front =
-            createFront(
-                measurements,
-                {
-
-                    ...options,
-
-                    ease:
-                        num(
-                            context.fabric?.ease,
-                            2
-                        )
-
-                }
-
-            );
-
-
-        const back =
-            createBack(
-                measurements,
-                {
-
-                    ...options,
-
-                    ease:
-                        num(
-                            context.fabric?.ease,
-                            2
-                        )
-
-                }
-
-            );
-
-
-        const pieces = [
-
-            front,
-
-            back
-
-        ];
-
-
-        /*
-         * Waistband hanya dibuat jika
-         * fitur waistband diaktifkan.
-         */
-
-        if (
-            options.waistband !== false
-        ) {
-
-            pieces.push(
-
-                createWaistband(
-
-                    measurements,
-
-                    options
-
-                )
-
-            );
-
-        }
-
-
-        return pieces;
-
-    }
-
-
-    /* ========================================================
-       GENERATE SKIRT
-       ======================================================== */
-
-    function generate(
-        context = {}
-    ) {
-
-        if (
-            !context.measurements
-        ) {
-
-            throw new Error(
-                "Skirt Engine membutuhkan measurements."
-            );
-
-        }
-
-
-        const pieces =
-            createSkirtPieces(
-                context
-            );
-
-
-        const layout =
-            ProductionGeometry
-                .layoutOpenPieces(
-
-                    pieces,
-
-                    {
-
-                        gap:
-                            num(
-                                context.options?.gap,
-                                8
-                            ),
-
-                        grainline:
-                            context.options?.grainline !== false,
-
-                        notches:
-                            context.options?.notches !== false
-
-                    }
-
-                );
 
 
         return {
 
-            type:
-                "skirt",
+            waist:
+                getMeasurement(
+                    source,
+                    "waist",
+                    72
+                ),
 
-            engine:
-                "skirt",
+            hip:
+                getMeasurement(
+                    source,
+                    "hip",
+                    96
+                ),
 
-            version:
-                "1.0",
+            garmentLength:
+                getMeasurement(
+                    source,
+                    "garmentLength",
+                    55
+                )
 
-            pieces:
-                layout,
+        };
 
-            source:
-                "engine/skirt.js",
+    }
+
+
+    /* ========================================================
+       EASE
+       ======================================================== */
+
+    function getEase(
+        context
+    ) {
+
+        return Math.max(
+
+            0,
+
+            num(
+
+                context?.fabric?.ease,
+
+                num(
+                    context?.options?.ease,
+                    0
+                )
+
+            )
+
+        );
+
+    }
+
+
+    /* ========================================================
+       RADIAL SEAM
+       ======================================================== */
+
+    function addRadialSeam(
+        points,
+        seam
+    ) {
+
+        if (
+            !(seam > 0) ||
+            points.length < 3
+        ) {
+
+            return clonePoints(
+                points
+            );
+
+        }
+
+
+        let cx =
+            0;
+
+        let cy =
+            0;
+
+
+        for (
+            const [
+                x,
+                y
+            ]
+            of points
+        ) {
+
+            cx += x;
+            cy += y;
+
+        }
+
+
+        cx /=
+            points.length;
+
+
+        cy /=
+            points.length;
+
+
+        return points.map(
+            (
+                [
+                    x,
+                    y
+                ]
+            ) => {
+
+                const dx =
+                    x - cx;
+
+
+                const dy =
+                    y - cy;
+
+
+                const len =
+                    Math.hypot(
+                        dx,
+                        dy
+                    ) ||
+                    1;
+
+
+                const factor =
+                    (
+                        len +
+                        seam
+                    ) /
+                    len;
+
+
+                return [
+
+                    round1(
+                        cx +
+                        dx *
+                        factor
+                    ),
+
+                    round1(
+                        cy +
+                        dy *
+                        factor
+                    )
+
+                ];
+
+            }
+        );
+
+    }
+
+
+    /* ========================================================
+       PIECE
+       ======================================================== */
+
+    function makePiece(
+        name,
+        points,
+        options = {}
+    ) {
+
+        return {
+
+            name,
+
+            layer:
+                options.layer ||
+                "OUTLINE",
+
+            points:
+                clonePoints(
+                    points
+                ),
+
+            closed:
+                options.closed !==
+                false,
+
+            grainline:
+                options.grainline
+                    ? clonePoints(
+                        options.grainline
+                    )
+                    : null,
+
+            notches:
+                options.notches
+                    ? clonePoints(
+                        options.notches
+                    )
+                    : [],
+
+            label:
+                options.label ||
+                name,
 
             metadata: {
 
-                garment:
+                engine:
                     "skirt",
 
-                unit:
-                    "cm",
+                source:
+                    "V5-migration",
 
-                fullOpen:
-                    true,
-
-                waistband:
-                    context.options?.waistband !== false,
-
-                note:
-                    "Base skirt pattern. Fitting sample required before mass production."
+                version:
+                    VERSION
 
             }
 
@@ -1008,7 +415,326 @@
 
 
     /* ========================================================
-       ENGINE OBJECT
+       SKIRT ENGINE
+       ======================================================== */
+
+    function makeSkirtPieces(
+        context = {}
+    ) {
+
+        const measurements =
+            getMeasurements(
+                context
+            );
+
+
+        const waist =
+            measurements.waist +
+            getEase(
+                context
+            );
+
+
+        const hip =
+            measurements.hip +
+            getEase(
+                context
+            );
+
+
+        const length =
+            measurements.garmentLength;
+
+
+        const seam =
+            num(
+                context?.options?.seam,
+                0
+            ) +
+
+            num(
+                context?.options?.tolerance,
+                0
+            );
+
+
+        const qW =
+            waist /
+            4;
+
+
+        const qH =
+            hip /
+            4;
+
+
+        const dart =
+            Math.max(
+
+                2,
+
+                (
+                    qH -
+                    qW
+                ) *
+                0.7
+
+            );
+
+
+        /* ====================================================
+           FRONT
+           ==================================================== */
+
+        const front = [
+
+            [
+                20,
+                20
+            ],
+
+            [
+                20 +
+                qW +
+                dart,
+
+                20
+
+            ],
+
+            [
+                20 +
+                qH +
+                2,
+
+                20 +
+                length
+
+            ],
+
+            [
+                20,
+
+                20 +
+                length
+
+            ]
+
+        ];
+
+
+        /* ====================================================
+           BACK
+           ==================================================== */
+
+        const backX =
+            50 +
+            qH +
+            qW;
+
+
+        const back = [
+
+            [
+                backX,
+                20
+            ],
+
+            [
+                backX +
+                qW +
+                dart,
+
+                20
+
+            ],
+
+            [
+                backX +
+                qW +
+                qH +
+                2,
+
+                20 +
+                length
+
+            ],
+
+            [
+                backX,
+
+                20 +
+                length
+
+            ]
+
+        ];
+
+
+        const category =
+            context?.profile?.category ||
+            context?.category ||
+            "custom";
+
+
+        const categoryLabel =
+            Schema.getCategoryLabel(
+                category
+            );
+
+
+        const includeNotches =
+            context?.options?.notches !==
+            false;
+
+
+        /* ====================================================
+           FRONT PIECE
+           ==================================================== */
+
+        const frontPiece =
+            makePiece(
+
+                "SKIRT_FRONT",
+
+                addRadialSeam(
+                    front,
+                    seam
+                ),
+
+                {
+
+                    grainline: [
+
+                        [
+                            20 +
+                            qH / 2,
+
+                            30
+                        ],
+
+                        [
+                            20 +
+                            qH / 2,
+
+                            20 +
+                            length -
+                            8
+
+                        ]
+
+                    ],
+
+                    notches:
+
+                        includeNotches
+
+                            ? [
+
+                                [
+                                    20 +
+                                    qH +
+                                    2,
+
+                                    20 +
+                                    length /
+                                    2
+
+                                ]
+
+                            ]
+
+                            : [],
+
+                    label:
+                        `SKIRT FRONT • ${categoryLabel}`
+
+                }
+
+            );
+
+
+        /* ====================================================
+           BACK PIECE
+           ==================================================== */
+
+        const backPiece =
+            makePiece(
+
+                "SKIRT_BACK",
+
+                addRadialSeam(
+                    back,
+                    seam
+                ),
+
+                {
+
+                    grainline: [
+
+                        [
+                            backX +
+                            qH / 2,
+
+                            30
+
+                        ],
+
+                        [
+                            backX +
+                            qH / 2,
+
+                            20 +
+                            length -
+                            8
+
+                        ]
+
+                    ],
+
+                    notches:
+
+                        includeNotches
+
+                            ? [
+
+                                [
+                                    backX +
+                                    qH +
+                                    qW +
+                                    2,
+
+                                    20 +
+                                    length /
+                                    2
+
+                                ]
+
+                            ]
+
+                            : [],
+
+                    label:
+                        `SKIRT BACK • ${categoryLabel}`
+
+                }
+
+            );
+
+
+        return [
+
+            frontPiece,
+
+            backPiece
+
+        ];
+
+    }
+
+
+    /* ========================================================
+       ENGINE CONTRACT
        ======================================================== */
 
     const SkirtEngine = {
@@ -1020,54 +746,79 @@
             "Skirt Pattern Engine",
 
         version:
-            "1.0",
+            VERSION,
 
-        generate
+        generate(
+            context
+        ) {
+
+            const category =
+                context?.profile?.category ||
+                context?.category ||
+                "custom";
+
+
+            return {
+
+                type:
+                    "base-pattern",
+
+                engine:
+                    "skirt",
+
+                version:
+                    VERSION,
+
+                pieces:
+                    makeSkirtPieces(
+                        context
+                    ),
+
+                metadata: {
+
+                    source:
+                        "PatternMaker V5",
+
+                    migration:
+                        true,
+
+                    category,
+
+                    unit:
+                        "cm",
+
+                    scale:
+                        1,
+
+                    fullOpen:
+                        true,
+
+                    seamAllowanceIncluded:
+                        true,
+
+                    productionGeometry:
+                        false,
+
+                    formula:
+                        "V5 makeSkirtPieces extraction"
+
+                }
+
+            };
+
+        },
+
+        makeSkirtPieces
 
     };
 
 
     /* ========================================================
-       REGISTER ENGINE
+       GLOBAL EXPORT
        ======================================================== */
 
-    if (
-        Registry
-    ) {
-
-        Registry.registerEngine(
-
-            "skirt",
-
-            SkirtEngine
-
-        );
-
-    }
-
-
-    /* ========================================================
-       GLOBAL API
-       ======================================================== */
-
-    window.PatternMakerSkirtEngine = {
-
-        SkirtEngine,
-
-        generate,
-
-        createSkirtPieces,
-
-        createFront,
-
-        createBack,
-
-        createWaistband,
-
-        calculateDart
-
-    };
+    window.PatternMakerSkirt =
+        SkirtEngine;
 
 
 })();
-```
