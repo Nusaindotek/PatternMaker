@@ -1,20 +1,33 @@
-```javascript id="m0p7vz"
 /**
  * ============================================================
  * PATTERNMAKER UNIVERSAL
- * KODE 5 — engine/garment.js
+ * BASELINE FINAL v1
+ * KODE 48
+ *
+ * FILE:
+ *   engine/garment.js
  * ============================================================
  *
- * Fungsi:
- * - Mendefinisikan semua jenis garment.
- * - Menentukan measurement yang wajib.
- * - Menentukan engine pola yang digunakan.
- * - Menentukan apakah garment membutuhkan sleeve,
- *   seam, grainline, notch, dan nesting.
+ * RESPONSIBILITY:
  *
- * Tidak bergantung pada DOM.
- * Tidak menggambar pola.
- * Tidak menghitung geometri.
+ *   GARMENT CATALOG + ROUTING CONTRACT
+ *
+ * Tidak membuat geometry.
+ * Tidak membuat seam.
+ * Tidak melakukan nesting.
+ *
+ * Tanggung jawab:
+ *
+ *   Category
+ *      ↓
+ *   Garment
+ *      ↓
+ *   Required Measurements
+ *      ↓
+ *   Pattern Engine
+ *      ↓
+ *   Feature Contract
+ *
  * ============================================================
  */
 
@@ -24,10 +37,19 @@
 
 
     /* ========================================================
-       VALIDASI DEPENDENCY
+       DEPENDENCIES
        ======================================================== */
 
-    if (!window.PatternMakerMeasurementSchema) {
+    const Schema =
+        window.PatternMakerMeasurementSchema;
+
+    const Mapper =
+        window.PatternMakerMeasurementMapper;
+
+
+    if (
+        !Schema
+    ) {
 
         throw new Error(
             "measurement-schema.js harus dimuat sebelum garment.js."
@@ -36,530 +58,768 @@
     }
 
 
-    const Schema =
-        window.PatternMakerMeasurementSchema;
+    if (
+        !Mapper
+    ) {
+
+        throw new Error(
+            "measurement-mapper.js harus dimuat sebelum garment.js."
+        );
+
+    }
 
 
     /* ========================================================
-       GARMENT DEFINITIONS
+       VERSION
        ======================================================== */
 
-    const GARMENT_DEFINITIONS = {
+    const VERSION =
+        "FINAL-v1";
+
+
+    /* ========================================================
+       CATEGORY IDS
+       ======================================================== */
+
+    const CATEGORIES = Object.freeze({
+
+        CHILD:
+            "child",
+
+        TEEN:
+            "teen",
+
+        WOMEN:
+            "women",
+
+        MEN:
+            "men",
+
+        CUSTOM:
+            "custom"
+
+    });
+
+
+    /* ========================================================
+       GARMENT FAMILY
+       ======================================================== */
+
+    const FAMILIES = Object.freeze({
+
+        TOP:
+            "top",
+
+        SHIRT:
+            "shirt",
+
+        DRESS:
+            "dress",
+
+        SKIRT:
+            "skirt",
+
+        PANTS:
+            "pants",
+
+        SHORTS:
+            "shorts",
+
+        BODICE:
+            "bodice",
+
+        CUSTOM:
+            "custom"
+
+    });
+
+
+    /* ========================================================
+       HELPERS
+       ======================================================== */
+
+    function clone(
+        value
+    ) {
+
+        if (
+            value === null ||
+            value === undefined
+        ) {
+
+            return value;
+
+        }
+
+
+        if (
+            typeof structuredClone ===
+            "function"
+        ) {
+
+            return structuredClone(
+                value
+            );
+
+        }
+
+
+        return JSON.parse(
+            JSON.stringify(
+                value
+            )
+        );
+
+    }
+
+
+    function unique(
+        values
+    ) {
+
+        return [
+
+            ...new Set(
+                (
+                    values ||
+                    []
+                )
+                .filter(
+                    Boolean
+                )
+            )
+
+        ];
+
+    }
+
+
+    /* ========================================================
+       GARMENT CATALOG
+       ========================================================
+       IMPORTANT:
+       These are routing definitions.
+       Drafting formulas remain in the pattern engines.
+       ======================================================== */
+
+    const GARMENT_CATALOG = {
 
         tshirt: {
 
-            id: "tshirt",
+            id:
+                "tshirt",
 
-            label: "Kaos",
+            label:
+                "T-Shirt",
 
-            category: "top",
+            family:
+                FAMILIES.TOP,
 
-            patternEngine: "bodice",
+            patternEngine:
+                "bodice",
+
+            categories: [
+
+                CATEGORIES.CHILD,
+                CATEGORIES.TEEN,
+                CATEGORIES.WOMEN,
+                CATEGORIES.MEN,
+                CATEGORIES.CUSTOM
+
+            ],
 
             requiredMeasurements: [
-                "bust",
+
+                "chest",
+
                 "shoulder",
-                "bodyLength",
-                "upperArm",
-                "sleeveLength"
+
+                "garmentLength"
+
             ],
 
             optionalMeasurements: [
-                "waist",
-                "hip",
-                "neck"
-            ],
 
-            features: {
-
-                front: true,
-
-                back: true,
-
-                sleeve: true,
-
-                collar: true,
-
-                dart: false,
-
-                waistband: false,
-
-                grainline: true,
-
-                notch: true,
-
-                seamAllowance: true,
-
-                nesting: true,
-
-                fullOpen: true
-
-            }
-
-        },
-
-
-        blouse: {
-
-            id: "blouse",
-
-            label: "Blus",
-
-            category: "top",
-
-            patternEngine: "bodice",
-
-            requiredMeasurements: [
-                "bust",
-                "waist",
-                "hip",
-                "shoulder",
                 "neck",
-                "bodyLength",
-                "upperArm",
-                "sleeveLength"
-            ],
 
-            optionalMeasurements: [],
+                "armhole",
+
+                "bicep",
+
+                "sleeveLength",
+
+                "sleeveOpening",
+
+                "waist"
+
+            ],
 
             features: {
 
-                front: true,
+                sleeve:
+                    true,
 
-                back: true,
+                neckline:
+                    true,
 
-                sleeve: true,
+                seam:
+                    true,
 
-                collar: true,
+                grainline:
+                    true,
 
-                dart: true,
+                notches:
+                    true,
 
-                waistband: false,
+                drillPoints:
+                    true
 
-                grainline: true,
+            },
 
-                notch: true,
+            production: {
 
-                seamAllowance: true,
+                defaultSeamAllowance:
+                    1,
 
-                nesting: true,
+                allowStretch:
+                    true,
 
-                fullOpen: true
+                allowWoven:
+                    true,
 
-            }
+                requiresGrainline:
+                    true
+
+            },
+
+            modes: [
+
+                "newbie",
+                "tailor",
+                "expert"
+
+            ]
 
         },
 
 
         shirt: {
 
-            id: "shirt",
+            id:
+                "shirt",
 
-            label: "Kemeja",
+            label:
+                "Shirt",
 
-            category: "top",
+            family:
+                FAMILIES.SHIRT,
 
-            patternEngine: "shirt",
+            patternEngine:
+                "shirt",
 
-            requiredMeasurements: [
-                "bust",
-                "waist",
-                "hip",
-                "shoulder",
-                "neck",
-                "bodyLength",
-                "upperArm",
-                "wrist",
-                "sleeveLength"
+            categories: [
+
+                CATEGORIES.CHILD,
+                CATEGORIES.TEEN,
+                CATEGORIES.WOMEN,
+                CATEGORIES.MEN,
+                CATEGORIES.CUSTOM
+
             ],
 
-            optionalMeasurements: [],
-
-            features: {
-
-                front: true,
-
-                back: true,
-
-                sleeve: true,
-
-                collar: true,
-
-                dart: true,
-
-                waistband: false,
-
-                placket: true,
-
-                grainline: true,
-
-                notch: true,
-
-                seamAllowance: true,
-
-                nesting: true,
-
-                fullOpen: true
-
-            }
-
-        },
-
-
-        sweater: {
-
-            id: "sweater",
-
-            label: "Sweater",
-
-            category: "top",
-
-            patternEngine: "bodice",
-
             requiredMeasurements: [
-                "bust",
-                "waist",
-                "hip",
+
+                "chest",
+
                 "shoulder",
-                "bodyLength",
-                "upperArm",
-                "wrist",
-                "sleeveLength"
+
+                "backLength",
+
+                "garmentLength"
+
             ],
 
             optionalMeasurements: [
-                "neck"
+
+                "neck",
+
+                "armhole",
+
+                "bicep",
+
+                "wrist",
+
+                "sleeveLength",
+
+                "waist",
+
+                "hip",
+
+                "frontLength"
+
             ],
 
             features: {
 
-                front: true,
+                sleeve:
+                    true,
 
-                back: true,
+                collar:
+                    true,
 
-                sleeve: true,
+                placket:
+                    true,
 
-                collar: true,
+                cuff:
+                    true,
 
-                dart: false,
+                pocket:
+                    true,
 
-                waistband: true,
+                seam:
+                    true,
 
-                grainline: true,
+                grainline:
+                    true,
 
-                notch: true,
+                notches:
+                    true,
 
-                seamAllowance: true,
+                drillPoints:
+                    true
 
-                nesting: true,
+            },
 
-                fullOpen: true
+            production: {
 
-            }
+                defaultSeamAllowance:
+                    1,
+
+                allowStretch:
+                    true,
+
+                allowWoven:
+                    true,
+
+                requiresGrainline:
+                    true
+
+            },
+
+            modes: [
+
+                "newbie",
+                "tailor",
+                "expert"
+
+            ]
 
         },
 
 
         dress: {
 
-            id: "dress",
+            id:
+                "dress",
 
-            label: "Dress",
+            label:
+                "Dress",
 
-            category: "dress",
+            family:
+                FAMILIES.DRESS,
 
-            patternEngine: "dress",
+            patternEngine:
+                "dress",
+
+            categories: [
+
+                CATEGORIES.CHILD,
+                CATEGORIES.TEEN,
+                CATEGORIES.WOMEN,
+                CATEGORIES.CUSTOM
+
+            ],
 
             requiredMeasurements: [
-                "bust",
+
+                "chest",
+
                 "waist",
+
                 "hip",
+
                 "shoulder",
-                "neck",
-                "dressLength",
-                "upperArm",
-                "sleeveLength"
+
+                "garmentLength"
+
             ],
 
             optionalMeasurements: [
-                "bodyLength"
+
+                "bust",
+
+                "neck",
+
+                "armhole",
+
+                "backLength",
+
+                "frontLength",
+
+                "bicep",
+
+                "sleeveLength",
+
+                "sleeveOpening"
+
             ],
 
             features: {
 
-                front: true,
+                sleeve:
+                    true,
 
-                back: true,
+                neckline:
+                    true,
 
-                sleeve: true,
+                waistline:
+                    true,
 
-                collar: true,
+                skirt:
+                    true,
 
-                dart: true,
+                seam:
+                    true,
 
-                waistband: false,
+                grainline:
+                    true,
 
-                grainline: true,
+                notches:
+                    true,
 
-                notch: true,
+                drillPoints:
+                    true
 
-                seamAllowance: true,
+            },
 
-                nesting: true,
+            production: {
 
-                fullOpen: true
+                defaultSeamAllowance:
+                    1,
 
-            }
+                allowStretch:
+                    true,
+
+                allowWoven:
+                    true,
+
+                requiresGrainline:
+                    true
+
+            },
+
+            modes: [
+
+                "newbie",
+                "tailor",
+                "expert"
+
+            ]
 
         },
 
 
         skirt: {
 
-            id: "skirt",
+            id:
+                "skirt",
 
-            label: "Rok",
+            label:
+                "Skirt",
 
-            category: "bottom",
+            family:
+                FAMILIES.SKIRT,
 
-            patternEngine: "skirt",
+            patternEngine:
+                "skirt",
 
-            requiredMeasurements: [
-                "waist",
-                "hip",
-                "skirtLength"
+            categories: [
+
+                CATEGORIES.CHILD,
+                CATEGORIES.TEEN,
+                CATEGORIES.WOMEN,
+                CATEGORIES.CUSTOM
+
             ],
 
-            optionalMeasurements: [],
+            requiredMeasurements: [
+
+                "waist",
+
+                "hip",
+
+                "garmentLength"
+
+            ],
+
+            optionalMeasurements: [
+
+                "thigh"
+
+            ],
 
             features: {
 
-                front: true,
+                waistband:
+                    true,
 
-                back: true,
+                pocket:
+                    true,
 
-                sleeve: false,
+                zipper:
+                    true,
 
-                collar: false,
+                seam:
+                    true,
 
-                dart: true,
+                grainline:
+                    true,
 
-                waistband: true,
+                notches:
+                    true,
 
-                grainline: true,
+                drillPoints:
+                    true
 
-                notch: true,
+            },
 
-                seamAllowance: true,
+            production: {
 
-                nesting: true,
+                defaultSeamAllowance:
+                    1,
 
-                fullOpen: true
+                allowStretch:
+                    true,
 
-            }
+                allowWoven:
+                    true,
+
+                requiresGrainline:
+                    true
+
+            },
+
+            modes: [
+
+                "newbie",
+                "tailor",
+                "expert"
+
+            ]
 
         },
 
 
         pants: {
 
-            id: "pants",
+            id:
+                "pants",
 
-            label: "Celana",
+            label:
+                "Pants",
 
-            category: "bottom",
+            family:
+                FAMILIES.PANTS,
 
-            patternEngine: "pants",
+            patternEngine:
+                "pants",
 
-            requiredMeasurements: [
-                "waist",
-                "hip",
-                "rise",
-                "pantsLength",
-                "thigh",
-                "knee",
-                "hem"
+            categories: [
+
+                CATEGORIES.CHILD,
+                CATEGORIES.TEEN,
+                CATEGORIES.WOMEN,
+                CATEGORIES.MEN,
+                CATEGORIES.CUSTOM
+
             ],
 
-            optionalMeasurements: [],
+            requiredMeasurements: [
+
+                "waist",
+
+                "hip",
+
+                "inseam",
+
+                "outseam"
+
+            ],
+
+            optionalMeasurements: [
+
+                "thigh",
+
+                "knee",
+
+                "calf",
+
+                "ankle",
+
+                "crotchDepth",
+
+                "garmentLength"
+
+            ],
 
             features: {
 
-                front: true,
+                waistband:
+                    true,
 
-                back: true,
+                pocket:
+                    true,
 
-                sleeve: false,
+                zipper:
+                    true,
 
-                collar: false,
+                fly:
+                    true,
 
-                dart: true,
+                seam:
+                    true,
 
-                waistband: true,
+                grainline:
+                    true,
 
-                grainline: true,
+                notches:
+                    true,
 
-                notch: true,
+                drillPoints:
+                    true
 
-                seamAllowance: true,
+            },
 
-                nesting: true,
+            production: {
 
-                fullOpen: true
+                defaultSeamAllowance:
+                    1,
 
-            }
+                allowStretch:
+                    true,
+
+                allowWoven:
+                    true,
+
+                requiresGrainline:
+                    true
+
+            },
+
+            modes: [
+
+                "tailor",
+                "expert"
+
+            ]
 
         },
 
 
         shorts: {
 
-            id: "shorts",
+            id:
+                "shorts",
 
-            label: "Shorts",
+            label:
+                "Shorts",
 
-            category: "bottom",
+            family:
+                FAMILIES.SHORTS,
 
-            patternEngine: "pants",
+            patternEngine:
+                "pants",
+
+            categories: [
+
+                CATEGORIES.CHILD,
+                CATEGORIES.TEEN,
+                CATEGORIES.WOMEN,
+                CATEGORIES.MEN,
+                CATEGORIES.CUSTOM
+
+            ],
 
             requiredMeasurements: [
+
                 "waist",
+
                 "hip",
-                "rise",
-                "shortsLength",
+
+                "outseam"
+
+            ],
+
+            optionalMeasurements: [
+
                 "thigh",
-                "hem"
-            ],
 
-            optionalMeasurements: [],
+                "inseam",
+
+                "crotchDepth",
+
+                "knee"
+
+            ],
 
             features: {
 
-                front: true,
+                waistband:
+                    true,
 
-                back: true,
+                pocket:
+                    true,
 
-                sleeve: false,
+                zipper:
+                    true,
 
-                collar: false,
+                seam:
+                    true,
 
-                dart: true,
+                grainline:
+                    true,
 
-                waistband: true,
+                notches:
+                    true,
 
-                grainline: true,
+                drillPoints:
+                    true
 
-                notch: true,
+            },
 
-                seamAllowance: true,
+            production: {
 
-                nesting: true,
+                defaultSeamAllowance:
+                    1,
 
-                fullOpen: true
+                allowStretch:
+                    true,
 
-            }
+                allowWoven:
+                    true,
 
-        },
+                requiresGrainline:
+                    true
 
+            },
 
-        outer: {
+            modes: [
 
-            id: "outer",
+                "newbie",
+                "tailor",
+                "expert"
 
-            label: "Outer / Jaket",
-
-            category: "outerwear",
-
-            patternEngine: "outer",
-
-            requiredMeasurements: [
-                "bust",
-                "waist",
-                "hip",
-                "shoulder",
-                "neck",
-                "bodyLength",
-                "upperArm",
-                "wrist",
-                "sleeveLength"
-            ],
-
-            optionalMeasurements: [],
-
-            features: {
-
-                front: true,
-
-                back: true,
-
-                sleeve: true,
-
-                collar: true,
-
-                dart: false,
-
-                waistband: false,
-
-                grainline: true,
-
-                notch: true,
-
-                seamAllowance: true,
-
-                nesting: true,
-
-                fullOpen: true
-
-            }
-
-        },
-
-
-        custom: {
-
-            id: "custom",
-
-            label: "Custom Pattern",
-
-            category: "custom",
-
-            patternEngine: "custom",
-
-            requiredMeasurements: [
-                "bust",
-                "waist",
-                "hip",
-                "shoulder",
-                "bodyLength"
-            ],
-
-            optionalMeasurements: [],
-
-            features: {
-
-                front: true,
-
-                back: true,
-
-                sleeve: false,
-
-                collar: false,
-
-                dart: false,
-
-                waistband: false,
-
-                grainline: true,
-
-                notch: true,
-
-                seamAllowance: true,
-
-                nesting: true,
-
-                fullOpen: true
-
-            }
+            ]
 
         }
 
@@ -567,37 +827,11 @@
 
 
     /* ========================================================
-       GARMENT CATEGORIES
+       GARMENT REGISTRY
        ======================================================== */
 
-    const GARMENT_CATEGORIES = {
-
-        top: {
-            id: "top",
-            label: "Atasan"
-        },
-
-        dress: {
-            id: "dress",
-            label: "Dress"
-        },
-
-        bottom: {
-            id: "bottom",
-            label: "Bawahan"
-        },
-
-        outerwear: {
-            id: "outerwear",
-            label: "Outerwear"
-        },
-
-        custom: {
-            id: "custom",
-            label: "Custom"
-        }
-
-    };
+    const CUSTOM_GARMENTS =
+        new Map();
 
 
     /* ========================================================
@@ -608,26 +842,24 @@
         garmentId
     ) {
 
-        return GARMENT_DEFINITIONS[
-            garmentId
-        ] || null;
+        const source =
 
-    }
-
-
-    /* ========================================================
-       CHECK GARMENT
-       ======================================================== */
-
-    function hasGarment(
-        garmentId
-    ) {
-
-        return Boolean(
-            GARMENT_DEFINITIONS[
+            GARMENT_CATALOG[
                 garmentId
             ]
-        );
+
+            ||
+
+            CUSTOM_GARMENTS.get(
+                garmentId
+            );
+
+
+        return source
+            ? clone(
+                source
+            )
+            : null;
 
     }
 
@@ -638,15 +870,66 @@
 
     function getAllGarments() {
 
-        return Object.values(
-            GARMENT_DEFINITIONS
+        return [
+
+            ...Object.values(
+                GARMENT_CATALOG
+            ),
+
+            ...CUSTOM_GARMENTS.values()
+
+        ]
+        .map(
+            clone
         );
 
     }
 
 
     /* ========================================================
-       GET GARMENTS BY CATEGORY
+       GARMENT CATALOG
+       ======================================================== */
+
+    function getGarmentCatalog() {
+
+        const catalog = {};
+
+
+        getAllGarments()
+            .forEach(
+                garment => {
+
+                    catalog[
+                        garment.id
+                    ] =
+                        garment;
+
+                }
+            );
+
+
+        return catalog;
+
+    }
+
+
+    /* ========================================================
+       GARMENT IDS
+       ======================================================== */
+
+    function getGarmentIds() {
+
+        return getAllGarments()
+            .map(
+                garment =>
+                    garment.id
+            );
+
+    }
+
+
+    /* ========================================================
+       BY CATEGORY
        ======================================================== */
 
     function getGarmentsByCategory(
@@ -656,157 +939,279 @@
         return getAllGarments()
             .filter(
                 garment =>
-                    garment.category === category
+
+                    (
+                        garment.categories ||
+                        []
+                    )
+                    .includes(
+                        category
+                    )
+
             );
 
     }
 
 
     /* ========================================================
-       GET REQUIRED MEASUREMENTS
+       BY FAMILY
        ======================================================== */
 
-    function getGarmentMeasurements(
-        garmentId
+    function getGarmentsByFamily(
+        family
     ) {
 
-        const garment =
-            getGarment(
-                garmentId
+        return getAllGarments()
+            .filter(
+                garment =>
+
+                    garment.family ===
+                    family
+
             );
-
-
-        if (!garment) {
-
-            return [];
-
-        }
-
-
-        return [
-            ...garment.requiredMeasurements
-        ];
 
     }
 
 
     /* ========================================================
-       GET OPTIONAL MEASUREMENTS
+       BY ENGINE
        ======================================================== */
 
-    function getOptionalMeasurements(
-        garmentId
+    function getGarmentsByEngine(
+        engineId
     ) {
 
-        const garment =
-            getGarment(
-                garmentId
+        return getAllGarments()
+            .filter(
+                garment =>
+
+                    garment.patternEngine ===
+                    engineId
+
             );
-
-
-        if (!garment) {
-
-            return [];
-
-        }
-
-
-        return [
-            ...garment.optionalMeasurements
-        ];
 
     }
 
 
     /* ========================================================
-       GET ALL MEASUREMENTS
+       CATEGORY SUPPORT
        ======================================================== */
 
-    function getAllGarmentMeasurements(
-        garmentId
+    function supportsCategory(
+        garment,
+        category
     ) {
 
-        const garment =
-            getGarment(
-                garmentId
-            );
-
-
-        if (!garment) {
-
-            return [];
-
-        }
-
-
-        return [
-            ...new Set([
-                ...garment.requiredMeasurements,
-                ...garment.optionalMeasurements
-            ])
-        ];
-
-    }
-
-
-    /* ========================================================
-       CHECK FEATURE
-       ======================================================== */
-
-    function garmentHasFeature(
-        garmentId,
-        feature
-    ) {
-
-        const garment =
-            getGarment(
-                garmentId
-            );
-
-
-        if (!garment) {
+        if (
+            !garment
+        ) {
 
             return false;
 
         }
 
 
-        return Boolean(
-            garment.features &&
-            garment.features[feature]
+        return (
+
+            garment.categories ||
+            []
+        )
+        .includes(
+            category
         );
 
     }
 
 
     /* ========================================================
-       GET PATTERN ENGINE
+       MODE SUPPORT
        ======================================================== */
 
-    function getPatternEngine(
-        garmentId
+    function supportsMode(
+        garment,
+        mode
     ) {
 
-        const garment =
-            getGarment(
-                garmentId
-            );
+        if (
+            !garment
+        ) {
 
-
-        if (!garment) {
-
-            return null;
+            return false;
 
         }
 
 
-        return garment.patternEngine;
+        return (
+
+            garment.modes ||
+            []
+        )
+        .includes(
+            mode
+        );
 
     }
 
 
     /* ========================================================
-       VALIDATE PROFILE FOR GARMENT
+       REQUIRED MEASUREMENTS
+       ======================================================== */
+
+    function getRequiredMeasurements(
+        garment
+    ) {
+
+        if (
+            !garment
+        ) {
+
+            return [];
+
+        }
+
+
+        return Mapper
+            .canonicalizeRequiredIds(
+                garment.requiredMeasurements ||
+                []
+            );
+
+    }
+
+
+    /*
+     * Mapper v1 does not expose
+     * canonicalizeRequiredIds().
+     *
+     * Keep this helper internal and resolve
+     * through Mapper.resolve().
+     */
+
+    function getCanonicalMeasurementIds(
+        ids
+    ) {
+
+        return unique(
+
+            (
+                ids ||
+                []
+            )
+            .map(
+                id =>
+                    Mapper.resolve(
+                        id
+                    )
+            )
+
+        );
+
+    }
+
+
+    /* ========================================================
+       PUBLIC REQUIRED API
+       ======================================================== */
+
+    function getRequiredMeasurementIds(
+        garment
+    ) {
+
+        if (
+            !garment
+        ) {
+
+            return [];
+
+        }
+
+
+        return getCanonicalMeasurementIds(
+
+            garment.requiredMeasurements
+
+        );
+
+    }
+
+
+    function getOptionalMeasurementIds(
+        garment
+    ) {
+
+        if (
+            !garment
+        ) {
+
+            return [];
+
+        }
+
+
+        return getCanonicalMeasurementIds(
+
+            garment.optionalMeasurements
+
+        );
+
+    }
+
+
+    /* ========================================================
+       GARMENT MEASUREMENT CONTRACT
+       ======================================================== */
+
+    function getMeasurementContract(
+        garment
+    ) {
+
+        if (
+            !garment
+        ) {
+
+            return {
+
+                required: [],
+
+                optional: []
+
+            };
+
+        }
+
+
+        const required =
+            getRequiredMeasurementIds(
+                garment
+            );
+
+
+        const optional =
+            getOptionalMeasurementIds(
+                garment
+            );
+
+
+        return {
+
+            required,
+
+            optional:
+
+                optional.filter(
+                    id =>
+                        !required.includes(
+                            id
+                        )
+                )
+
+        };
+
+    }
+
+
+    /* ========================================================
+       PROFILE VALIDATION
        ======================================================== */
 
     function validateProfileForGarment(
@@ -814,92 +1219,276 @@
         garmentId
     ) {
 
-        if (!profile) {
-
-            return {
-
-                valid: false,
-
-                missing: [],
-
-                message:
-                    "Body Profile belum tersedia."
-
-            };
-
-        }
-
-
         const garment =
-            getGarment(
-                garmentId
+            typeof garmentId ===
+                "string"
+
+                ? getGarment(
+                    garmentId
+                )
+
+                : garmentId;
+
+
+        const errors = [];
+
+        const warnings = [];
+
+
+        if (
+            !garment
+        ) {
+
+            errors.push(
+                "Garment tidak ditemukan."
             );
 
 
-        if (!garment) {
-
             return {
 
-                valid: false,
+                valid:
+                    false,
 
-                missing: [],
+                garment:
+                    null,
 
-                message:
-                    `Garment tidak ditemukan: ${garmentId}`
+                missing:
+                    [],
+
+                errors,
+
+                warnings
 
             };
 
         }
+
+
+        if (
+            !profile
+        ) {
+
+            errors.push(
+                "Body profile belum tersedia."
+            );
+
+
+            return {
+
+                valid:
+                    false,
+
+                garment,
+
+                missing:
+                    getRequiredMeasurementIds(
+                        garment
+                    ),
+
+                errors,
+
+                warnings
+
+            };
+
+        }
+
+
+        const measurements =
+            profile.measurements ||
+            profile.getCanonicalMeasurements?.() ||
+            {};
 
 
         const missing = [];
 
 
-        garment.requiredMeasurements
-            .forEach(
-                measurementId => {
+        getRequiredMeasurementIds(
+            garment
+        )
+        .forEach(
+            id => {
 
-                    if (
-                        !profile.hasMeasurement(
-                            measurementId
-                        )
-                    ) {
-
-                        const definition =
-                            Schema.getMeasurementDefinition(
-                                measurementId
-                            );
+                const value =
+                    measurements[
+                        id
+                    ];
 
 
-                        missing.push({
+                if (
+                    value ===
+                    undefined ||
+                    value ===
+                    null
+                ) {
 
-                            id:
-                                measurementId,
+                    missing.push(
+                        id
+                    );
 
-                            label:
-                                definition
-                                    ? definition.label
-                                    : measurementId
+                }
 
-                        });
+            }
+        );
 
-                    }
+
+        const labels =
+            missing.map(
+                id => {
+
+                    const definition =
+                        Schema.getMeasurementDefinition(
+                            id
+                        );
+
+
+                    return definition
+                        ? definition.label
+                        : id;
 
                 }
             );
 
 
+        if (
+            missing.length
+        ) {
+
+            errors.push(
+
+                "Measurement wajib belum lengkap: " +
+                labels.join(", ")
+
+            );
+
+        }
+
+
+        /*
+         * Category compatibility.
+         */
+
+        if (
+            profile.category &&
+            !supportsCategory(
+                garment,
+                profile.category
+            )
+        ) {
+
+            errors.push(
+
+                `Garment "${garment.label}" tidak ` +
+                `mendukung kategori "${profile.category}".`
+
+            );
+
+        }
+
+
+        /*
+         * Age warning.
+         */
+
+        if (
+            profile.age !==
+            null &&
+            profile.age !==
+            undefined
+        ) {
+
+            const category =
+                profile.category;
+
+
+            const definition =
+                Schema.getCategoryDefinition(
+                    category
+                );
+
+
+            if (
+                definition
+            ) {
+
+                if (
+                    definition.ageMin !==
+                    null &&
+                    profile.age <
+                    definition.ageMin
+                ) {
+
+                    warnings.push(
+
+                        `Umur ${profile.age} berada ` +
+                        `di bawah rentang umum kategori ${category}.`
+
+                    );
+
+                }
+
+
+                if (
+                    definition.ageMax !==
+                    null &&
+                    profile.age >
+                    definition.ageMax
+                ) {
+
+                    warnings.push(
+
+                        `Umur ${profile.age} berada ` +
+                        `di atas rentang umum kategori ${category}.`
+
+                    );
+
+                }
+
+            }
+
+        }
+
+
+        /*
+         * Validate actual measurements.
+         */
+
+        const schemaValidation =
+            Schema.validateMeasurementObject(
+                measurements
+            );
+
+
+        if (
+            !schemaValidation.valid
+        ) {
+
+            errors.push(
+                ...schemaValidation.errors
+            );
+
+        }
+
+
+        warnings.push(
+            ...schemaValidation.warnings
+        );
+
+
         return {
 
             valid:
-                missing.length === 0,
+                errors.length === 0,
+
+            garment,
 
             missing,
 
-            message:
-                missing.length === 0
-                    ? "Profile lengkap."
-                    : "Profile belum lengkap."
+            labels,
+
+            errors,
+
+            warnings
 
         };
 
@@ -907,10 +1496,139 @@
 
 
     /* ========================================================
-       GET GARMENT UI DATA
+       FABRIC VALIDATION
        ======================================================== */
 
-    function getGarmentUIData(
+    function validateFabricForGarment(
+        garmentId,
+        fabric = {}
+    ) {
+
+        const garment =
+            getGarment(
+                garmentId
+            );
+
+
+        const errors = [];
+
+        const warnings = [];
+
+
+        if (
+            !garment
+        ) {
+
+            errors.push(
+                "Garment tidak ditemukan."
+            );
+
+
+            return {
+
+                valid:
+                    false,
+
+                errors,
+
+                warnings
+
+            };
+
+        }
+
+
+        const stretch =
+            String(
+                fabric.stretch ||
+                "unknown"
+            )
+            .toLowerCase();
+
+
+        const material =
+            String(
+                fabric.material ||
+                ""
+            )
+            .toLowerCase();
+
+
+        if (
+            stretch ===
+            "high" &&
+            garment.production?.allowStretch ===
+                false
+        ) {
+
+            warnings.push(
+
+                `${garment.label} tidak ditandai ` +
+                "sebagai garment stretch."
+
+            );
+
+        }
+
+
+        if (
+            material &&
+            !garment.production?.allowWoven &&
+            stretch ===
+            "none"
+        ) {
+
+            warnings.push(
+
+                `${garment.label} belum memiliki ` +
+                "aturan woven khusus."
+
+            );
+
+        }
+
+
+        if (
+            garment.production
+                ?.requiresGrainline
+        ) {
+
+            if (
+                fabric.grainline ===
+                false
+            ) {
+
+                warnings.push(
+
+                    `${garment.label} sebaiknya ` +
+                    "menggunakan grainline."
+
+                );
+
+            }
+
+        }
+
+
+        return {
+
+            valid:
+                errors.length === 0,
+
+            errors,
+
+            warnings
+
+        };
+
+    }
+
+
+    /* ========================================================
+       PRODUCTION OPTIONS
+       ======================================================== */
+
+    function getProductionOptions(
         garmentId
     ) {
 
@@ -920,41 +1638,285 @@
             );
 
 
-        if (!garment) {
+        if (
+            !garment
+        ) {
 
-            return null;
+            return {};
+
+        }
+
+
+        return clone(
+            garment.production ||
+            {}
+        );
+
+    }
+
+
+    /* ========================================================
+       FEATURES
+       ======================================================== */
+
+    function getFeatures(
+        garmentId
+    ) {
+
+        const garment =
+            getGarment(
+                garmentId
+            );
+
+
+        if (
+            !garment
+        ) {
+
+            return {};
+
+        }
+
+
+        return clone(
+            garment.features ||
+            {}
+        );
+
+    }
+
+
+    /* ========================================================
+       VALIDATE GARMENT DEFINITION
+       ======================================================== */
+
+    function validateGarment(
+        garment
+    ) {
+
+        const errors = [];
+
+        const warnings = [];
+
+
+        if (
+            !garment ||
+            typeof garment !==
+                "object"
+        ) {
+
+            errors.push(
+                "Garment definition tidak valid."
+            );
+
+
+            return {
+
+                valid:
+                    false,
+
+                errors,
+
+                warnings
+
+            };
+
+        }
+
+
+        if (
+            !garment.id
+        ) {
+
+            errors.push(
+                "Garment tidak memiliki id."
+            );
+
+        }
+
+
+        if (
+            !garment.label
+        ) {
+
+            errors.push(
+                `Garment "${garment.id}" tidak memiliki label.`
+            );
+
+        }
+
+
+        if (
+            !garment.family
+        ) {
+
+            errors.push(
+                `Garment "${garment.id}" tidak memiliki family.`
+            );
+
+        }
+
+
+        if (
+            !garment.patternEngine
+        ) {
+
+            errors.push(
+                `Garment "${garment.id}" tidak memiliki patternEngine.`
+            );
+
+        }
+
+
+        if (
+            !Array.isArray(
+                garment.categories
+            ) ||
+            garment.categories.length ===
+            0
+        ) {
+
+            errors.push(
+
+                `Garment "${garment.id}" tidak memiliki category mapping.`
+
+            );
+
+        }
+
+
+        if (
+            !Array.isArray(
+                garment.requiredMeasurements
+            )
+        ) {
+
+            errors.push(
+
+                `Garment "${garment.id}" requiredMeasurements harus array.`
+
+            );
+
+        }
+
+
+        if (
+            !Array.isArray(
+                garment.optionalMeasurements
+            )
+        ) {
+
+            errors.push(
+
+                `Garment "${garment.id}" optionalMeasurements harus array.`
+
+            );
+
+        }
+
+
+        const required =
+            getRequiredMeasurementIds(
+                garment
+            );
+
+
+        const optional =
+            getOptionalMeasurementIds(
+                garment
+            );
+
+
+        if (
+            required.length !==
+            (
+                garment.requiredMeasurements ||
+                []
+            ).length
+        ) {
+
+            errors.push(
+
+                `Garment "${garment.id}" memiliki ` +
+                "measurement ID yang tidak dikenal."
+
+            );
+
+        }
+
+
+        const overlap =
+            required.filter(
+                id =>
+                    optional.includes(
+                        id
+                    )
+            );
+
+
+        if (
+            overlap.length
+        ) {
+
+            errors.push(
+
+                `Garment "${garment.id}" memiliki ` +
+                "measurement required dan optional yang tumpang tindih: " +
+                overlap.join(", ")
+
+            );
+
+        }
+
+
+        garment.categories
+            ?.forEach(
+                category => {
+
+                    if (
+                        !Schema.getCategoryDefinition(
+                            category
+                        )
+                    ) {
+
+                        errors.push(
+
+                            `Garment "${garment.id}" memiliki ` +
+                            `category "${category}" yang tidak dikenal.`
+
+                        );
+
+                    }
+
+                }
+            );
+
+
+        /*
+         * Expert should support production metadata.
+         */
+
+        if (
+            !garment.production
+        ) {
+
+            warnings.push(
+
+                `Garment "${garment.id}" belum memiliki production config.`
+
+            );
 
         }
 
 
         return {
 
-            id:
-                garment.id,
+            valid:
+                errors.length === 0,
 
-            label:
-                garment.label,
+            errors,
 
-            category:
-                garment.category,
-
-            patternEngine:
-                garment.patternEngine,
-
-            requiredMeasurements:
-                getGarmentMeasurements(
-                    garmentId
-                ),
-
-            optionalMeasurements:
-                getOptionalMeasurements(
-                    garmentId
-                ),
-
-            features:
-                {
-                    ...garment.features
-                }
+            warnings
 
         };
 
@@ -962,39 +1924,235 @@
 
 
     /* ========================================================
-       EXPORT GLOBAL
+       VALIDATE CATALOG
+       ======================================================== */
+
+    function validateCatalog() {
+
+        const result = {
+
+            valid:
+                true,
+
+            errors:
+                [],
+
+            warnings:
+                [],
+
+            garments:
+                {}
+
+        };
+
+
+        getAllGarments()
+            .forEach(
+                garment => {
+
+                    const validation =
+                        validateGarment(
+                            garment
+                        );
+
+
+                    result.garments[
+                        garment.id
+                    ] =
+                        validation;
+
+
+                    if (
+                        !validation.valid
+                    ) {
+
+                        result.valid =
+                            false;
+
+
+                        result.errors.push(
+                            ...validation.errors
+                        );
+
+                    }
+
+
+                    result.warnings.push(
+                        ...validation.warnings
+                    );
+
+                }
+            );
+
+
+        return result;
+
+    }
+
+
+    /* ========================================================
+       REGISTER CUSTOM GARMENT
+       ======================================================== */
+
+    function registerCustomGarment(
+        garment
+    ) {
+
+        const validation =
+            validateGarment(
+                garment
+            );
+
+
+        if (
+            !validation.valid
+        ) {
+
+            throw new Error(
+
+                "Custom garment tidak valid: " +
+                validation.errors.join(
+                    " | "
+                )
+
+            );
+
+        }
+
+
+        CUSTOM_GARMENTS.set(
+
+            garment.id,
+
+            clone(
+                garment
+            )
+
+        );
+
+
+        return getGarment(
+            garment.id
+        );
+
+    }
+
+
+    /* ========================================================
+       REMOVE CUSTOM GARMENT
+       ======================================================== */
+
+    function removeCustomGarment(
+        garmentId
+    ) {
+
+        return CUSTOM_GARMENTS.delete(
+            garmentId
+        );
+
+    }
+
+
+    /* ========================================================
+       DEBUG
+       ======================================================== */
+
+    function debug() {
+
+        const validation =
+            validateCatalog();
+
+
+        console.group(
+            "PatternMaker Garment Catalog"
+        );
+
+
+        console.log(
+            "Version:",
+            VERSION
+        );
+
+
+        console.log(
+            "Garments:",
+            getGarmentIds()
+        );
+
+
+        console.log(
+            "Validation:",
+            validation
+        );
+
+
+        console.groupEnd();
+
+
+        return validation;
+
+    }
+
+
+    /* ========================================================
+       PUBLIC API
        ======================================================== */
 
     window.PatternMakerGarment = {
 
-        GARMENT_DEFINITIONS,
+        VERSION,
 
-        GARMENT_CATEGORIES,
+        CATEGORIES,
+
+        FAMILIES,
+
+        GARMENT_CATALOG,
 
         getGarment,
 
-        hasGarment,
-
         getAllGarments,
+
+        getGarmentCatalog,
+
+        getGarmentIds,
 
         getGarmentsByCategory,
 
-        getGarmentMeasurements,
+        getGarmentsByFamily,
 
-        getOptionalMeasurements,
+        getGarmentsByEngine,
 
-        getAllGarmentMeasurements,
+        supportsCategory,
 
-        garmentHasFeature,
+        supportsMode,
 
-        getPatternEngine,
+        getRequiredMeasurements,
+
+        getRequiredMeasurementIds,
+
+        getOptionalMeasurementIds,
+
+        getMeasurementContract,
 
         validateProfileForGarment,
 
-        getGarmentUIData
+        validateFabricForGarment,
+
+        getProductionOptions,
+
+        getFeatures,
+
+        validateGarment,
+
+        validateCatalog,
+
+        registerCustomGarment,
+
+        removeCustomGarment,
+
+        debug
 
     };
 
 
 })();
-```
