@@ -2,26 +2,18 @@
 /**
  * ============================================================
  * PATTERNMAKER UNIVERSAL
- * KODE 12 — main.js
+ * KODE 16 — main.js
  * ============================================================
  *
- * APPLICATION CONTROLLER
+ * UNIVERSAL APPLICATION CONTROLLER
  *
- * Alur:
- *
- * UI
- *  ↓
- * Body Profile
- *  ↓
- * Garment
- *  ↓
- * Measurement Validation
- *  ↓
- * Pattern Engine
- *  ↓
- * Production Geometry
- *  ↓
- * Full / Open Preview
+ * Tugas:
+ * - Mengatur UI
+ * - Membuat Body Profile
+ * - Validasi ukuran
+ * - Routing garment ke Pattern Engine
+ * - Menormalkan hasil engine menjadi Production Geometry
+ * - Menampilkan Full / Open Preview
  *
  * ============================================================
  */
@@ -30,85 +22,61 @@
 
 
 /* ============================================================
-   GLOBAL REFERENCES
+   GLOBAL DEPENDENCIES
    ============================================================ */
 
 const Schema =
     window.PatternMakerMeasurementSchema;
 
-
 const Profile =
     window.PatternMakerProfile;
-
 
 const Garment =
     window.PatternMakerGarment;
 
-
 const Measurements =
     window.PatternMakerMeasurements;
-
 
 const Registry =
     window.PatternMakerPatternRegistry;
 
-
-const LegacyAdapters =
-    window.PatternMakerLegacyAdapters;
-
-
 const ProductionGeometry =
     window.PatternMakerProductionGeometry;
 
+const ShirtEngine =
+    window.PatternMakerShirtEngine;
+
+const DressEngine =
+    window.PatternMakerDressEngine;
+
 
 /* ============================================================
-   DEPENDENCY VALIDATION
+   DEPENDENCY CHECK
    ============================================================ */
 
 function validateDependencies() {
 
-    const dependencies = {
-
+    const required = {
         Schema,
-
         Profile,
-
         Garment,
-
         Measurements,
-
         Registry,
-
-        LegacyAdapters,
-
         ProductionGeometry
-
     };
 
 
     const missing =
-        Object.entries(
-            dependencies
-        )
-        .filter(
-            ([, value]) =>
-                !value
-        )
-        .map(
-            ([key]) =>
-                key
-        );
+        Object.entries(required)
+            .filter(([, value]) => !value)
+            .map(([key]) => key);
 
 
-    if (
-        missing.length
-    ) {
+    if (missing.length) {
 
         throw new Error(
-
-            "PatternMaker dependency belum tersedia: " +
+            "Dependency PatternMaker belum tersedia: " +
             missing.join(", ")
-
         );
 
     }
@@ -117,49 +85,30 @@ function validateDependencies() {
 
 
 /* ============================================================
-   STATE
+   APPLICATION STATE
    ============================================================ */
 
 const AppState = {
 
-    initialized:
-        false,
+    initialized: false,
 
-    generating:
-        false,
+    generating: false,
 
-    mode:
-        "tailor",
+    mode: "tailor",
 
-    garment:
-        "tshirt",
+    garment: "tshirt",
 
-    profile:
-        null,
+    profile: null,
 
-    measurements:
-        null,
+    measurements: null,
 
-    fabric:
-        null,
+    fabric: null,
 
-    bodice:
-        null,
+    engineResult: null,
 
-    sleeve:
-        null,
+    productionPattern: null,
 
-    pattern:
-        null,
-
-    productionPattern:
-        null,
-
-    productionGeometry:
-        null,
-
-    error:
-        null
+    error: null
 
 };
 
@@ -170,48 +119,7 @@ const AppState = {
 
 function $(id) {
 
-    return document.getElementById(
-        id
-    );
-
-}
-
-
-/* ============================================================
-   NUMBER
-   ============================================================ */
-
-function getNumber(
-    id,
-    fallback = 0
-) {
-
-    const node =
-        $(id);
-
-
-    if (
-        !node
-    ) {
-
-        return fallback;
-
-    }
-
-
-    const value =
-        Number(
-            node.value
-        );
-
-
-    return Number.isFinite(
-        value
-    )
-
-        ? value
-
-        : fallback;
+    return document.getElementById(id);
 
 }
 
@@ -220,18 +128,13 @@ function getNumber(
    STATUS
    ============================================================ */
 
-function setStatus(
-    message,
-    type = ""
-) {
+function setStatus(message, type = "") {
 
     const node =
         $("resultStatus");
 
 
-    if (
-        !node
-    ) {
+    if (!node) {
 
         return;
 
@@ -246,9 +149,7 @@ function setStatus(
         "status";
 
 
-    if (
-        type
-    ) {
+    if (type) {
 
         node.classList.add(
             type
@@ -259,22 +160,13 @@ function setStatus(
 }
 
 
-/* ============================================================
-   DRAFT STATUS
-   ============================================================ */
-
-function setDraftStatus(
-    message,
-    type = ""
-) {
+function setDraftStatus(message, type = "") {
 
     const node =
         $("draftEngineStatus");
 
 
-    if (
-        !node
-    ) {
+    if (!node) {
 
         return;
 
@@ -289,9 +181,7 @@ function setDraftStatus(
         "status";
 
 
-    if (
-        type
-    ) {
+    if (type) {
 
         node.classList.add(
             type
@@ -306,34 +196,29 @@ function setDraftStatus(
    MODE
    ============================================================ */
 
-const MODE_DEFINITIONS = {
+const MODES = {
 
     newbie: {
 
-        label:
-            "Newbie — Mudah",
+        label: "Newbie — Mudah",
 
         description:
             "Workflow sederhana dengan parameter utama."
 
     },
 
-
     tailor: {
 
-        label:
-            "Tailor — Lengkap",
+        label: "Tailor — Lengkap",
 
         description:
-            "Kontrol fitting dan konstruksi untuk tailor."
+            "Kontrol ukuran, fitting dan konstruksi."
 
     },
 
-
     expert: {
 
-        label:
-            "Expert / Garment — Profesional",
+        label: "Expert / Garment — Profesional",
 
         description:
             "Kontrol patternmaking dan produksi."
@@ -343,20 +228,11 @@ const MODE_DEFINITIONS = {
 };
 
 
-/* ============================================================
-   APPLY MODE
-   ============================================================ */
+function applyMode(mode) {
 
-function applyMode(
-    mode
-) {
+    if (!MODES[mode]) {
 
-    if (
-        !MODE_DEFINITIONS[mode]
-    ) {
-
-        mode =
-            "tailor";
+        mode = "tailor";
 
     }
 
@@ -366,18 +242,14 @@ function applyMode(
 
 
     document.body.classList.remove(
-
         "mode-newbie",
         "mode-tailor",
         "mode-expert"
-
     );
 
 
     document.body.classList.add(
-
         `mode-${mode}`
-
     );
 
 
@@ -385,28 +257,22 @@ function applyMode(
         $("modeDescription");
 
 
-    if (
-        description
-    ) {
+    if (description) {
 
         description.textContent =
-            MODE_DEFINITIONS[
-                mode
-            ].description;
+            MODES[mode].description;
 
     }
 
 
-    const result =
+    const modeResult =
         $("modeResult");
 
 
-    if (
-        result
-    ) {
+    if (modeResult) {
 
-        result.textContent =
-            `Mode kerja: ${MODE_DEFINITIONS[mode].label}`;
+        modeResult.textContent =
+            `Mode kerja: ${MODES[mode].label}`;
 
     }
 
@@ -414,73 +280,41 @@ function applyMode(
 
 
 /* ============================================================
-   CURRENT UNIT
+   CURRENT VALUES
    ============================================================ */
+
+function getGarmentId() {
+
+    return (
+        $("garmentType")?.value ||
+        "custom"
+    );
+
+}
+
+
+function getCategory() {
+
+    return (
+        $("category")?.value ||
+        "custom"
+    );
+
+}
+
 
 function getUnit() {
 
-    const node =
-        $("sizeSystem");
-
-
     return (
-
-        node &&
-        node.value
-
-    )
-        ? node.value
-        : "cm";
+        $("sizeSystem")?.value ||
+        "cm"
+    );
 
 }
 
 
 /* ============================================================
-   CURRENT GARMENT
-   ============================================================ */
-
-function getCurrentGarment() {
-
-    const node =
-        $("garmentType");
-
-
-    return (
-
-        node &&
-        node.value
-
-    )
-        ? node.value
-        : "custom";
-
-}
-
-
-/* ============================================================
-   CURRENT CATEGORY
-   ============================================================ */
-
-function getCurrentCategory() {
-
-    const node =
-        $("category");
-
-
-    return (
-
-        node &&
-        node.value
-
-    )
-        ? node.value
-        : "custom";
-
-}
-
-
-/* ============================================================
-   RENDER MEASUREMENT FIELDS
+   MEASUREMENT FIELDS
    ============================================================ */
 
 function renderMeasurementFields() {
@@ -489,9 +323,7 @@ function renderMeasurementFields() {
         $("measurementFields");
 
 
-    if (
-        !container
-    ) {
+    if (!container) {
 
         return;
 
@@ -499,7 +331,7 @@ function renderMeasurementFields() {
 
 
     const garmentId =
-        getCurrentGarment();
+        getGarmentId();
 
 
     const garment =
@@ -508,9 +340,7 @@ function renderMeasurementFields() {
         );
 
 
-    if (
-        !garment
-    ) {
+    if (!garment) {
 
         container.innerHTML =
             "";
@@ -521,15 +351,10 @@ function renderMeasurementFields() {
 
 
     const ids = [
-
         ...new Set([
-
             ...garment.requiredMeasurements,
-
             ...garment.optionalMeasurements
-
         ])
-
     ];
 
 
@@ -550,9 +375,7 @@ function renderMeasurementFields() {
                 );
 
 
-            if (
-                !definition
-            ) {
+            if (!definition) {
 
                 return;
 
@@ -572,23 +395,16 @@ function renderMeasurementFields() {
 
                 const value =
                     AppState.profile.getMeasurement(
-
                         measurementId,
-
                         unit
-
                     );
 
 
-                if (
-                    value !== null
-                ) {
+                if (value !== null) {
 
                     existing =
-                        Number(
-                            value
-                        )
-                        .toFixed(2);
+                        Number(value)
+                            .toFixed(1);
 
                 }
 
@@ -604,9 +420,7 @@ function renderMeasurementFields() {
 
             html += `
 
-                <div
-                    class="measurement-field"
-                >
+                <div class="measurement-field">
 
                     <label
                         for="${measurementId}"
@@ -614,9 +428,7 @@ function renderMeasurementFields() {
 
                         ${definition.label}
 
-                        ${required
-                            ? " *"
-                            : ""}
+                        ${required ? "*" : ""}
 
                     </label>
 
@@ -632,13 +444,8 @@ function renderMeasurementFields() {
 
 
                     <small>
-
                         ${unit}
-
-                        ${required
-                            ? " • wajib"
-                            : " • opsional"}
-
+                        ${required ? " • wajib" : " • opsional"}
                     </small>
 
                 </div>
@@ -668,9 +475,7 @@ function updateMeasurementStatus() {
         $("measurementStatus");
 
 
-    if (
-        !node
-    ) {
+    if (!node) {
 
         return;
 
@@ -679,20 +484,18 @@ function updateMeasurementStatus() {
 
     const garment =
         Garment.getGarment(
-            getCurrentGarment()
+            getGarmentId()
         );
 
 
-    if (
-        !garment
-    ) {
+    if (!garment) {
 
         node.className =
             "status error";
 
 
         node.textContent =
-            "Garment tidak ditemukan.";
+            "Jenis pakaian tidak ditemukan.";
 
 
         return;
@@ -724,7 +527,7 @@ function updateGarmentInformation() {
 
     const garment =
         Garment.getGarment(
-            getCurrentGarment()
+            getGarmentId()
         );
 
 
@@ -747,13 +550,13 @@ function updateGarmentInformation() {
 
 
 /* ============================================================
-   COLLECT INPUT
+   COLLECT MEASUREMENTS
    ============================================================ */
 
 function collectMeasurementInput() {
 
     const garmentId =
-        getCurrentGarment();
+        getGarmentId();
 
 
     const garment =
@@ -762,9 +565,7 @@ function collectMeasurementInput() {
         );
 
 
-    if (
-        !garment
-    ) {
+    if (!garment) {
 
         throw new Error(
             "Garment tidak ditemukan."
@@ -781,31 +582,19 @@ function collectMeasurementInput() {
         {};
 
 
-    const required =
-        garment.requiredMeasurements;
+    const allIds = [
+        ...new Set([
+            ...garment.requiredMeasurements,
+            ...garment.optionalMeasurements
+        ])
+    ];
 
 
-    const all =
-        [
-
-            ...new Set([
-
-                ...garment.requiredMeasurements,
-
-                ...garment.optionalMeasurements
-
-            ])
-
-        ];
-
-
-    all.forEach(
+    allIds.forEach(
         measurementId => {
 
             const node =
-                $(
-                    measurementId
-                );
+                $(measurementId);
 
 
             if (
@@ -824,16 +613,10 @@ function collectMeasurementInput() {
                 );
 
 
-            if (
-                !Number.isFinite(
-                    value
-                )
-            ) {
+            if (!Number.isFinite(value)) {
 
                 throw new Error(
-
                     `${measurementId} harus berupa angka.`
-
                 );
 
             }
@@ -841,27 +624,19 @@ function collectMeasurementInput() {
 
             const cm =
                 Schema.measurementToCm(
-
                     value,
-
                     unit
-
                 );
 
 
             const valid =
                 Schema.validateMeasurementValue(
-
                     measurementId,
-
                     cm
-
                 );
 
 
-            if (
-                !valid.valid
-            ) {
+            if (!valid.valid) {
 
                 throw new Error(
                     valid.message
@@ -880,15 +655,13 @@ function collectMeasurementInput() {
 
 
     const missing =
-        required.filter(
+        garment.requiredMeasurements.filter(
             id =>
                 values[id] === undefined
         );
 
 
-    if (
-        missing.length
-    ) {
+    if (missing.length) {
 
         const labels =
             missing.map(
@@ -909,10 +682,8 @@ function collectMeasurementInput() {
 
 
         throw new Error(
-
             "Ukuran wajib belum lengkap: " +
             labels.join(", ")
-
         );
 
     }
@@ -930,7 +701,7 @@ function collectMeasurementInput() {
 
 
 /* ============================================================
-   CREATE BODY PROFILE
+   BODY PROFILE
    ============================================================ */
 
 function createCurrentProfile() {
@@ -939,19 +710,10 @@ function createCurrentProfile() {
         collectMeasurementInput();
 
 
-    const ageNode =
-        $("age");
-
-
     const age =
-
-        ageNode &&
-        ageNode.value !== ""
-
-            ? Number(
-                ageNode.value
-            )
-
+        $("age") &&
+        $("age").value !== ""
+            ? Number($("age").value)
             : null;
 
 
@@ -959,13 +721,12 @@ function createCurrentProfile() {
         Profile.createBodyProfile({
 
             name:
-
                 `${Schema.getCategoryLabel(
-                    getCurrentCategory()
+                    getCategory()
                 )} Profile`,
 
             category:
-                getCurrentCategory(),
+                getCategory(),
 
             age,
 
@@ -985,13 +746,9 @@ function createCurrentProfile() {
         ([id, value]) => {
 
             profile.setMeasurement(
-
                 id,
-
                 value,
-
                 input.unit
-
             );
 
         }
@@ -1004,9 +761,7 @@ function createCurrentProfile() {
 
     AppState.measurements =
         {
-
             ...profile.measurements
-
         };
 
 
@@ -1024,119 +779,87 @@ function createCurrentProfile() {
    FABRIC
    ============================================================ */
 
-function getFabricInput() {
-
-    const node =
-        $("fabric");
-
+function getFabricKey() {
 
     return (
-
-        node &&
-        node.value
-
-    )
-        ? node.value
-        : "cotton";
+        $("fabric")?.value ||
+        "cotton"
+    );
 
 }
 
 
-function normalizeFabricForLegacy(
-    value
-) {
+function createFabricData() {
 
-    const text =
-        String(
-            value || ""
-        )
-        .toLowerCase();
+    const material =
+        getFabricKey();
 
 
-    if (
-        text.includes("rib")
-    ) {
-
-        return "rib";
-
-    }
-
-
-    return "woven";
-
-}
+    const width =
+        Math.max(
+            1,
+            Number(
+                $("fabricWidth")?.value ||
+                150
+            )
+        );
 
 
-/* ============================================================
-   BUILD FABRIC
-   ============================================================ */
-
-function buildFabric() {
-
-    if (
-        typeof window.createFabric !==
-        "function"
-    ) {
-
-        /*
-         * Fabric engine lama mungkin memakai
-         * export module dan belum diekspos global.
-         *
-         * Untuk sementara kita gunakan data
-         * fallback yang tidak merusak pattern flow.
-         */
-
-        AppState.fabric = {
-
-            material:
-                getFabricInput(),
-
-            width:
-                getNumber(
-                    "fabricWidth",
-                    150
-                ),
-
-            length:
-                getNumber(
-                    "fabricLength",
-                    200
-                )
-
-        };
+    const length =
+        Math.max(
+            1,
+            Number(
+                $("fabricLength")?.value ||
+                200
+            )
+        );
 
 
-        return AppState.fabric;
-
-    }
-
-
-    const fabric =
-        window.createFabric({
-
-            material:
-                getFabricInput(),
-
-            width:
-                getNumber(
-                    "fabricWidth",
-                    150
-                ),
-
-            length:
-                getNumber(
-                    "fabricLength",
-                    200
-                )
-
-        });
+    const stretch =
+        $("stretch")?.value ||
+        "medium";
 
 
-    AppState.fabric =
-        fabric;
+    const direction =
+        $("stretchDirection")?.value ||
+        "crosswise";
 
 
-    return fabric;
+    const ease =
+        Number(
+            $("ease")?.value ||
+            0
+        );
+
+
+    const seam =
+        Number(
+            $("seam")?.value ||
+            0
+        );
+
+
+    AppState.fabric = {
+
+        material,
+
+        width,
+
+        length,
+
+        stretch,
+
+        stretchDirection:
+            direction,
+
+        ease,
+
+        seam
+
+    };
+
+
+    return AppState.fabric;
 
 }
 
@@ -1145,39 +868,28 @@ function buildFabric() {
    FABRIC RESULT
    ============================================================ */
 
-function renderFabricResult(
-    fabric
-) {
+function renderFabricResult() {
 
     const container =
         $("fabricResult");
 
 
-    if (
-        !container ||
-        !fabric
-    ) {
+    if (!container) {
 
         return;
 
     }
 
 
-    const material =
-        fabric.materialName ||
-        fabric.material ||
-        "-";
+    const fabric =
+        AppState.fabric;
 
 
-    const width =
-        fabric.effectiveWidth ||
-        fabric.width ||
-        "-";
+    if (!fabric) {
 
+        return;
 
-    const length =
-        fabric.length ||
-        "-";
+    }
 
 
     container.innerHTML = `
@@ -1189,7 +901,7 @@ function renderFabricResult(
             </b>
 
             <span>
-                ${material}
+                ${fabric.material}
             </span>
 
         </div>
@@ -1202,7 +914,7 @@ function renderFabricResult(
             </b>
 
             <span>
-                ${width} cm
+                ${fabric.width} cm
             </span>
 
         </div>
@@ -1215,7 +927,59 @@ function renderFabricResult(
             </b>
 
             <span>
-                ${length} cm
+                ${fabric.length} cm
+            </span>
+
+        </div>
+
+
+        <div class="kv">
+
+            <b>
+                Stretch
+            </b>
+
+            <span>
+                ${fabric.stretch}
+            </span>
+
+        </div>
+
+
+        <div class="kv">
+
+            <b>
+                Arah Stretch
+            </b>
+
+            <span>
+                ${fabric.stretchDirection}
+            </span>
+
+        </div>
+
+
+        <div class="kv">
+
+            <b>
+                Ease
+            </b>
+
+            <span>
+                ${fabric.ease} cm
+            </span>
+
+        </div>
+
+
+        <div class="kv">
+
+            <b>
+                Seam
+            </b>
+
+            <span>
+                ${fabric.seam} cm
             </span>
 
         </div>
@@ -1226,53 +990,247 @@ function renderFabricResult(
 
 
 /* ============================================================
-   LEGACY UPPER BODY
+   UNIVERSAL ENGINE CONTEXT
    ============================================================ */
 
-function generateLegacyUpperBody(
+function createEngineContext(
     garment
 ) {
 
-    const measurements =
-        Measurements.getLegacyMeasurements(
+    return {
+
+        garment,
+
+        garmentId:
+            garment.id,
+
+        measurements:
+            Measurements.getLegacyMeasurements(
+                garment.id
+            ),
+
+        profile:
+            AppState.profile,
+
+        fabric:
+            AppState.fabric,
+
+        mode:
+            AppState.mode,
+
+        options: {
+
+            seamAllowance:
+                Number(
+                    $("addSeam")?.value === "no"
+                        ? 0
+                        : $("seam")?.value || 0
+                ),
+
+            grainline:
+                $("addGrainline")?.value !== "no",
+
+            notches:
+                $("addNotches")?.value !== "no",
+
+            negativeEase:
+                Number(
+                    $("negativeEase")?.value ||
+                    0
+                ),
+
+            gap:
+                8
+
+        }
+
+    };
+
+}
+
+
+/* ============================================================
+   RUN ENGINE
+   ============================================================ */
+
+function runPatternEngine(
+    garment
+) {
+
+    const context =
+        createEngineContext(
+            garment
+        );
+
+
+    /*
+     * 1. Registry
+     */
+
+    const engineInfo =
+        Registry.getGarmentEngineInfo(
             garment.id
         );
 
 
     /*
-     * Tambahkan parameter legacy yang
-     * dibutuhkan oleh sleeve.js.
+     * 2. GARMENT ENGINE
      */
 
-    const sleeveMeasurements = {
+    let result;
 
-        ...measurements,
 
-        fabric:
-            normalizeFabricForLegacy(
-                getFabricInput()
-            ),
+    if (
+        garment.patternEngine ===
+        "shirt"
+    ) {
 
-        negativeEase:
-            getNumber(
-                "negativeEase",
-                0
-            )
+        if (
+            !ShirtEngine ||
+            typeof ShirtEngine.generate !==
+            "function"
+        ) {
+
+            throw new Error(
+                "Shirt Engine belum tersedia."
+            );
+
+        }
+
+
+        result =
+            ShirtEngine.generate(
+                context
+            );
+
+    }
+    else if (
+        garment.patternEngine ===
+        "dress"
+    ) {
+
+        if (
+            !DressEngine ||
+            typeof DressEngine.generate !==
+            "function"
+        ) {
+
+            throw new Error(
+                "Dress Engine belum tersedia."
+            );
+
+        }
+
+
+        result =
+            DressEngine.generate(
+                context
+            );
+
+    }
+    else if (
+        garment.patternEngine ===
+        "bodice"
+    ) {
+
+        /*
+         * Untuk bodice-family kita masih
+         * menggunakan legacy adapter.
+         */
+
+        const registryResult =
+            Registry.generatePattern({
+
+                garmentId:
+                    garment.id,
+
+                mode:
+                    AppState.mode
+
+            });
+
+
+        if (!registryResult.success) {
+
+            throw new Error(
+                registryResult.message
+            );
+
+        }
+
+
+        result =
+            runLegacyBodiceFamily(
+                context
+            );
+
+    }
+    else {
+
+        throw new Error(
+
+            `${garment.label} menggunakan engine ` +
+            `"${garment.patternEngine}", ` +
+            `tetapi engine tersebut belum tersedia.`
+
+        );
+
+    }
+
+
+    AppState.engineResult =
+        result;
+
+
+    return {
+
+        result,
+
+        engineInfo
 
     };
+
+}
+
+
+/* ============================================================
+   LEGACY BODICE FAMILY
+   ============================================================ */
+
+function runLegacyBodiceFamily(
+    context
+) {
+
+    const measurements =
+        context.measurements;
 
 
     /*
      * BODICE
      */
 
+    let bodice;
+
+
     if (
         typeof window.makeBodice ===
         "function"
     ) {
 
-        AppState.bodice =
+        bodice =
             window.makeBodice(
+                measurements
+            );
+
+    }
+    else if (
+        window.PatternMakerBodiceEngine &&
+        typeof window.PatternMakerBodiceEngine
+            .makeBodice === "function"
+    ) {
+
+        bodice =
+            window.PatternMakerBodiceEngine.makeBodice(
                 measurements
             );
 
@@ -1280,7 +1238,7 @@ function generateLegacyUpperBody(
     else {
 
         throw new Error(
-            "makeBodice tidak tersedia."
+            "Bodice Engine tidak tersedia."
         );
 
     }
@@ -1290,39 +1248,110 @@ function generateLegacyUpperBody(
      * SLEEVE
      */
 
+    const sleeveMeasurements = {
+
+        ...measurements,
+
+        fabric:
+            getFabricKey().toLowerCase().includes("rib")
+                ? "rib"
+                : "woven",
+
+        negativeEase:
+            context.options.negativeEase
+
+    };
+
+
+    let sleeve;
+
+
     if (
         typeof window.makeSleeve ===
         "function"
     ) {
 
-        AppState.sleeve =
+        sleeve =
             window.makeSleeve(
-
                 sleeveMeasurements,
+                bodice
+            );
 
-                AppState.bodice
+    }
+    else if (
+        window.PatternMakerSleeveEngine &&
+        typeof window.PatternMakerSleeveEngine
+            .makeSleeve === "function"
+    ) {
 
+        sleeve =
+            window.PatternMakerSleeveEngine.makeSleeve(
+                sleeveMeasurements,
+                bodice
             );
 
     }
     else {
 
         throw new Error(
-            "makeSleeve tidak tersedia."
+            "Sleeve Engine tidak tersedia."
         );
 
     }
 
 
+    /*
+     * Convert legacy result into
+     * standard Production Geometry.
+     */
+
+    const pattern =
+        ProductionGeometry.createProductionPattern({
+
+            bodice,
+
+            sleeve,
+
+            seamAllowance:
+                context.options.seamAllowance,
+
+            grainline:
+                context.options.grainline,
+
+            notches:
+                context.options.notches,
+
+            gap:
+                context.options.gap
+
+        });
+
+
     return {
 
-        bodice:
-            AppState.bodice,
+        type:
+            "bodice-family",
 
-        sleeve:
-            AppState.sleeve,
+        engine:
+            "bodice",
 
-        measurements
+        bodice,
+
+        sleeve,
+
+        pieces:
+            pattern.pieces,
+
+        metadata:
+            {
+
+                garment:
+                    context.garment.id,
+
+                fullOpen:
+                    true
+
+            }
 
     };
 
@@ -1330,79 +1359,106 @@ function generateLegacyUpperBody(
 
 
 /* ============================================================
-   CREATE PRODUCTION GEOMETRY
+   NORMALIZE ENGINE RESULT
    ============================================================ */
 
-function buildProductionGeometry() {
+function normalizeEngineResult(
+    engineResult
+) {
 
     if (
-        !ProductionGeometry
+        !engineResult
     ) {
 
         throw new Error(
-            "Production Geometry engine belum tersedia."
+            "Pattern engine tidak menghasilkan result."
         );
 
     }
 
 
+    /*
+     * Engine Shirt/Dress sudah mengembalikan
+     * pieces standar.
+     */
+
     if (
-        !AppState.bodice
+        Array.isArray(
+            engineResult.pieces
+        )
     ) {
 
-        throw new Error(
-            "Bodice belum dibuat."
-        );
+        return {
+
+            pieces:
+                engineResult.pieces,
+
+            metadata:
+                engineResult.metadata ||
+                {},
+
+            source:
+                engineResult.source ||
+                "pattern-engine"
+
+        };
 
     }
 
 
-    const seam =
-        Math.max(
-            0,
-            getNumber(
-                "seam",
-                1
-            )
+    throw new Error(
+        "Pattern engine result tidak memiliki pieces."
+    );
+
+}
+
+
+/* ============================================================
+   BUILD PRODUCTION PATTERN
+   ============================================================ */
+
+function buildProductionPattern(
+    engineResult
+) {
+
+    const normalized =
+        normalizeEngineResult(
+            engineResult
         );
 
 
-    const grainline =
-        !$("addGrainline") ||
-        $("addGrainline").value !== "no";
+    const pattern = {
 
+        pieces:
+            normalized.pieces,
 
-    const notches =
-        !$("addNotches") ||
-        $("addNotches").value !== "no";
+        metadata:
+            {
 
+                ...normalized.metadata,
 
-    const pattern =
-        ProductionGeometry.createProductionPattern({
+                generatedAt:
+                    new Date().toISOString(),
 
-            bodice:
-                AppState.bodice,
+                unit:
+                    "cm",
 
-            sleeve:
-                AppState.sleeve,
+                scale:
+                    1,
 
-            seamAllowance:
-                seam,
+                fullOpen:
+                    true
 
-            grainline,
+            }
 
-            notches,
-
-            gap:
-                8
-
-        });
+    };
 
 
     const validation =
-        ProductionGeometry.validateProductionPattern(
-            pattern
-        );
+        ProductionGeometry
+            .validateProductionPattern(
+                pattern
+            );
 
 
     if (
@@ -1411,7 +1467,7 @@ function buildProductionGeometry() {
 
         throw new Error(
 
-            "Production geometry tidak valid: " +
+            "Production Geometry tidak valid: " +
             validation.errors.join("; ")
 
         );
@@ -1423,10 +1479,6 @@ function buildProductionGeometry() {
         pattern;
 
 
-    AppState.productionGeometry =
-        pattern.pieces;
-
-
     return pattern;
 
 }
@@ -1436,7 +1488,7 @@ function buildProductionGeometry() {
    FULL / OPEN PREVIEW
    ============================================================ */
 
-function renderFullOpenPreview(
+function renderPreview(
     pattern
 ) {
 
@@ -1445,9 +1497,7 @@ function renderFullOpenPreview(
 
 
     if (
-        !svg ||
-        !pattern ||
-        !pattern.pieces
+        !svg
     ) {
 
         return;
@@ -1455,39 +1505,41 @@ function renderFullOpenPreview(
     }
 
 
-    svg.innerHTML =
-        "";
-
-
-    const summary =
-        ProductionGeometry.getPatternSummary(
+    const bounds =
+        ProductionGeometry.getPatternBounds(
             pattern
         );
 
 
-    const ns =
-        "http://www.w3.org/2000/svg";
+    const padding =
+        10;
 
 
-    const viewWidth =
+    const width =
         Math.max(
             100,
-            summary.width + 20
+            bounds.width +
+            padding * 2
         );
 
 
-    const viewHeight =
+    const height =
         Math.max(
-            80,
-            summary.height + 20
+            70,
+            bounds.height +
+            padding * 2
         );
+
+
+    svg.innerHTML =
+        "";
 
 
     svg.setAttribute(
         "viewBox",
-
-        `0 0 ${viewWidth} ${viewHeight}`
-
+        `${bounds.minX - padding} ` +
+        `${bounds.minY - padding} ` +
+        `${width} ${height}`
     );
 
 
@@ -1501,48 +1553,49 @@ function renderFullOpenPreview(
      * Background
      */
 
-    const background =
+    const ns =
+        "http://www.w3.org/2000/svg";
+
+
+    const bg =
         document.createElementNS(
-
             ns,
-
             "rect"
-
         );
 
 
-    background.setAttribute(
+    bg.setAttribute(
         "x",
-        "0"
+        bounds.minX - padding
     );
 
 
-    background.setAttribute(
+    bg.setAttribute(
         "y",
-        "0"
+        bounds.minY - padding
     );
 
 
-    background.setAttribute(
+    bg.setAttribute(
         "width",
-        viewWidth
+        width
     );
 
 
-    background.setAttribute(
+    bg.setAttribute(
         "height",
-        viewHeight
+        height
     );
 
 
-    background.setAttribute(
+    bg.setAttribute(
         "fill",
         "#fafafa"
     );
 
 
     svg.appendChild(
-        background
+        bg
     );
 
 
@@ -1555,25 +1608,20 @@ function renderFullOpenPreview(
 
             const polygon =
                 document.createElementNS(
-
                     ns,
-
                     "polygon"
-
                 );
 
 
             polygon.setAttribute(
-
                 "points",
 
                 piece.points
                     .map(
-                        point =>
-                            point.join(",")
+                        p =>
+                            `${p[0]},${p[1]}`
                     )
                     .join(" ")
-
             );
 
 
@@ -1591,7 +1639,7 @@ function renderFullOpenPreview(
 
             polygon.setAttribute(
                 "stroke-width",
-                "0.4"
+                "0.5"
             );
 
 
@@ -1600,50 +1648,36 @@ function renderFullOpenPreview(
             );
 
 
+            const b =
+                piece.bounds ||
+                ProductionGeometry.getBounds(
+                    piece.points
+                );
+
+
             /*
              * LABEL
              */
 
-            const bounds =
-                piece.bounds;
-
-
             const label =
                 document.createElementNS(
-
                     ns,
-
                     "text"
-
                 );
 
 
             label.setAttribute(
-
                 "x",
-
                 (
-                    bounds.minX +
-                    bounds.maxX
+                    b.minX +
+                    b.maxX
                 ) / 2
-
             );
 
 
             label.setAttribute(
-
                 "y",
-
-                Math.max(
-
-                    3,
-
-                    bounds.minY -
-
-                    2
-
-                )
-
+                b.minY - 2
             );
 
 
@@ -1655,7 +1689,7 @@ function renderFullOpenPreview(
 
             label.setAttribute(
                 "font-size",
-                "2.8"
+                "3"
             );
 
 
@@ -1666,7 +1700,8 @@ function renderFullOpenPreview(
 
 
             label.textContent =
-                piece.label;
+                piece.label ||
+                piece.name;
 
 
             svg.appendChild(
@@ -1682,18 +1717,14 @@ function renderFullOpenPreview(
                 piece.grainline &&
                 piece.grainline.length >= 2 &&
                 (
-                    !$("addGrainline") ||
-                    $("addGrainline").value !== "no"
+                    $("addGrainline")?.value !== "no"
                 )
             ) {
 
                 const grain =
                     document.createElementNS(
-
                         ns,
-
                         "line"
-
                     );
 
 
@@ -1747,7 +1778,7 @@ function renderFullOpenPreview(
 
 
             /*
-             * NOTCHES
+             * NOTCH
              */
 
             if (
@@ -1758,54 +1789,51 @@ function renderFullOpenPreview(
                 piece.notches.forEach(
                     notch => {
 
-                        const n =
+                        const mark =
                             document.createElementNS(
-
                                 ns,
-
                                 "line"
-
                             );
 
 
-                        n.setAttribute(
+                        mark.setAttribute(
                             "x1",
-                            notch[0] - 1.2
+                            notch[0] - 1
                         );
 
 
-                        n.setAttribute(
+                        mark.setAttribute(
                             "y1",
-                            notch[1] - 1.2
+                            notch[1] - 1
                         );
 
 
-                        n.setAttribute(
+                        mark.setAttribute(
                             "x2",
-                            notch[0] + 1.2
+                            notch[0] + 1
                         );
 
 
-                        n.setAttribute(
+                        mark.setAttribute(
                             "y2",
-                            notch[1] + 1.2
+                            notch[1] + 1
                         );
 
 
-                        n.setAttribute(
+                        mark.setAttribute(
                             "stroke",
                             "#b42318"
                         );
 
 
-                        n.setAttribute(
+                        mark.setAttribute(
                             "stroke-width",
                             "0.4"
                         );
 
 
                         svg.appendChild(
-                            n
+                            mark
                         );
 
                     }
@@ -1820,18 +1848,16 @@ function renderFullOpenPreview(
 
 
 /* ============================================================
-   RESULT INFORMATION
+   RESULT INFO
    ============================================================ */
 
-function renderResultInformation() {
+function renderResultInfo() {
 
     const container =
         $("resultInfo");
 
 
-    if (
-        !container
-    ) {
+    if (!container) {
 
         return;
 
@@ -1846,30 +1872,18 @@ function renderResultInformation() {
 
     const category =
         Schema.getCategoryLabel(
-            getCurrentCategory()
+            getCategory()
         );
 
 
-    const profileAge =
+    const age =
         AppState.profile &&
         AppState.profile.age !== null
-
             ? `${AppState.profile.age} tahun`
-
             : "-";
 
 
-    const material =
-        AppState.fabric
-            ? (
-                AppState.fabric.materialName ||
-                AppState.fabric.material ||
-                "-"
-            )
-            : "-";
-
-
-    const pieceCount =
+    const pieces =
         AppState.productionPattern
             ? AppState.productionPattern.pieces.length
             : 0;
@@ -1910,7 +1924,7 @@ function renderResultInformation() {
             </b>
 
             <span>
-                ${profileAge}
+                ${age}
             </span>
 
         </div>
@@ -1923,7 +1937,7 @@ function renderResultInformation() {
             </b>
 
             <span>
-                ${material}
+                ${AppState.fabric?.material || "-"}
             </span>
 
         </div>
@@ -1932,24 +1946,11 @@ function renderResultInformation() {
         <div class="kv">
 
             <b>
-                Unit Internal
+                Unit
             </b>
 
             <span>
-                cm
-            </span>
-
-        </div>
-
-
-        <div class="kv">
-
-            <b>
-                Seam Allowance
-            </b>
-
-            <span>
-                ${getNumber("seam", 1)} cm
+                cm internal
             </span>
 
         </div>
@@ -1962,7 +1963,7 @@ function renderResultInformation() {
             </b>
 
             <span>
-                ${pieceCount}
+                ${pieces}
             </span>
 
         </div>
@@ -1976,7 +1977,7 @@ function renderResultInformation() {
    RESULT MEASUREMENTS
    ============================================================ */
 
-function renderResultMeasurements() {
+function renderMeasurementsResult() {
 
     const container =
         $("resultMeasurements");
@@ -1998,9 +1999,7 @@ function renderResultMeasurements() {
         );
 
 
-    if (
-        !garment
-    ) {
+    if (!garment) {
 
         return;
 
@@ -2050,11 +2049,8 @@ function renderResultMeasurements() {
 
             const value =
                 AppState.profile.getMeasurement(
-
                     measurementId,
-
                     unit
-
                 );
 
 
@@ -2086,7 +2082,7 @@ function renderResultMeasurements() {
 
 
 /* ============================================================
-   GENERATE PATTERN
+   GENERATE
    ============================================================ */
 
 async function generatePattern() {
@@ -2104,10 +2100,6 @@ async function generatePattern() {
         true;
 
 
-    AppState.error =
-        null;
-
-
     try {
 
         setStatus(
@@ -2116,11 +2108,11 @@ async function generatePattern() {
 
 
         AppState.garment =
-            getCurrentGarment();
+            getGarmentId();
 
 
         /*
-         * BODY PROFILE
+         * PROFILE
          */
 
         createCurrentProfile();
@@ -2136,9 +2128,7 @@ async function generatePattern() {
             );
 
 
-        if (
-            !garment
-        ) {
+        if (!garment) {
 
             throw new Error(
                 "Jenis pakaian tidak ditemukan."
@@ -2148,7 +2138,7 @@ async function generatePattern() {
 
 
         /*
-         * PROFILE VALIDATION
+         * VALIDATE
          */
 
         const validation =
@@ -2161,13 +2151,11 @@ async function generatePattern() {
             );
 
 
-        if (
-            !validation.valid
-        ) {
+        if (!validation.valid) {
 
             throw new Error(
 
-                "Ukuran belum lengkap: " +
+                "Ukuran wajib belum lengkap: " +
 
                 validation.missing
                     .map(
@@ -2185,98 +2173,64 @@ async function generatePattern() {
          * FABRIC
          */
 
-        const fabric =
-            buildFabric();
+        createFabricData();
 
-
-        renderFabricResult(
-            fabric
-        );
+        renderFabricResult();
 
 
         /*
-         * ENGINE AVAILABILITY
-         */
-
-        const engineInfo =
-            Registry.getGarmentEngineInfo(
-                AppState.garment
-            );
-
-
-        /*
-         * Saat ini engine nyata yang
-         * sudah kita sambungkan adalah bodice.
-         */
-
-        if (
-            garment.patternEngine !==
-            "bodice"
-        ) {
-
-            throw new Error(
-
-                `${garment.label} sudah terdaftar, ` +
-                `tetapi engine "${garment.patternEngine}" ` +
-                `belum diimplementasikan.`
-
-            );
-
-        }
-
-
-        /*
-         * LEGACY BODICE/SLEEVE
+         * ENGINE
          */
 
         setDraftStatus(
-            "Menjalankan bodice engine..."
+            `Menjalankan ${garment.label} engine...`
         );
 
 
-        generateLegacyUpperBody(
-            garment
-        );
+        const engine =
+            runPatternEngine(
+                garment
+            );
 
 
         /*
          * PRODUCTION GEOMETRY
          */
 
-        setDraftStatus(
-            "Membuat production geometry..."
-        );
-
-
-        const productionPattern =
-            buildProductionGeometry();
+        const production =
+            buildProductionPattern(
+                engine.result
+            );
 
 
         /*
          * PREVIEW
          */
 
-        renderFullOpenPreview(
-            productionPattern
+        renderPreview(
+            production
         );
 
 
         /*
-         * RESULT
+         * RESULTS
          */
 
-        renderResultInformation();
+        renderResultInfo();
 
-        renderResultMeasurements();
+        renderMeasurementsResult();
 
+
+        /*
+         * SUCCESS
+         */
 
         setDraftStatus(
 
             `Drafting selesai • ` +
-
-            `${productionPattern.pieces.length} ` +
-
-            `potongan • Full / Open`,
+            `${garment.label} • ` +
+            `${production.pieces.length} potongan • ` +
+            `Full / Open`,
 
             "ok"
 
@@ -2286,25 +2240,20 @@ async function generatePattern() {
         setStatus(
 
             `Pola berhasil dibuat • ` +
-
             `${Schema.getCategoryLabel(
-                getCurrentCategory()
+                getCategory()
             )} • ` +
-
             `${garment.label}`,
 
             "ok"
 
         );
 
-
     }
-    catch (
-        error
-    ) {
+    catch (error) {
 
         console.error(
-            "PatternMaker Error:",
+            "PatternMaker generate error:",
             error
         );
 
@@ -2338,7 +2287,7 @@ async function generatePattern() {
 
 
 /* ============================================================
-   PREVIEW FIT
+   FIT PREVIEW
    ============================================================ */
 
 function fitPreview() {
@@ -2347,9 +2296,7 @@ function fitPreview() {
         $("patternPreview");
 
 
-    if (
-        !preview
-    ) {
+    if (!preview) {
 
         return;
 
@@ -2379,136 +2326,12 @@ function openPreview() {
     }
 
 
-    renderFullOpenPreview(
-
+    renderPreview(
         AppState.productionPattern
-
     );
 
 
     fitPreview();
-
-}
-
-
-/* ============================================================
-   GARMENT CHANGE
-   ============================================================ */
-
-function handleGarmentChange() {
-
-    AppState.garment =
-        getCurrentGarment();
-
-
-    AppState.profile =
-        null;
-
-
-    AppState.measurements =
-        null;
-
-
-    AppState.bodice =
-        null;
-
-
-    AppState.sleeve =
-        null;
-
-
-    AppState.productionPattern =
-        null;
-
-
-    AppState.productionGeometry =
-        null;
-
-
-    renderMeasurementFields();
-
-    updateGarmentInformation();
-
-
-    setDraftStatus(
-        "Jenis pakaian berubah. Periksa ukuran kemudian buat pola kembali."
-    );
-
-}
-
-
-/* ============================================================
-   UNIT CHANGE
-   ============================================================ */
-
-function handleUnitChange() {
-
-    const oldProfile =
-        AppState.profile;
-
-
-    renderMeasurementFields();
-
-
-    /*
-     * Internal profile tetap CM.
-     * UI hanya berubah unit.
-     */
-
-    AppState.profile =
-        oldProfile;
-
-}
-
-
-/* ============================================================
-   MODE CHANGE
-   ============================================================ */
-
-function handleModeChange(
-    event
-) {
-
-    applyMode(
-        event.target.value
-    );
-
-}
-
-
-/* ============================================================
-   MEASUREMENT CHANGE
-   ============================================================ */
-
-function handleMeasurementChange() {
-
-    AppState.profile =
-        null;
-
-
-    AppState.measurements =
-        null;
-
-
-    AppState.bodice =
-        null;
-
-
-    AppState.sleeve =
-        null;
-
-
-    AppState.productionPattern =
-        null;
-
-
-    AppState.productionGeometry =
-        null;
-
-
-    setDraftStatus(
-        "Ukuran berubah. Buat pola kembali."
-    );
 
 }
 
@@ -2522,129 +2345,104 @@ function resetApplication() {
     AppState.profile =
         null;
 
-
     AppState.measurements =
         null;
-
-
-    AppState.bodice =
-        null;
-
-
-    AppState.sleeve =
-        null;
-
-
-    AppState.pattern =
-        null;
-
-
-    AppState.productionPattern =
-        null;
-
-
-    AppState.productionGeometry =
-        null;
-
 
     AppState.fabric =
         null;
 
+    AppState.engineResult =
+        null;
+
+    AppState.productionPattern =
+        null;
 
     AppState.error =
         null;
 
 
-    AppState.garment =
-        "tshirt";
+    if ($("userMode"))
+        $("userMode").value = "tailor";
 
 
-    if (
-        $("userMode")
-    ) {
-
-        $("userMode").value =
-            "tailor";
-
-    }
+    if ($("category"))
+        $("category").value = "child";
 
 
-    if (
-        $("category")
-    ) {
-
-        $("category").value =
-            "child";
-
-    }
+    if ($("sizeSystem"))
+        $("sizeSystem").value = "cm";
 
 
-    if (
-        $("sizeSystem")
-    ) {
-
-        $("sizeSystem").value =
-            "cm";
-
-    }
+    if ($("garmentType"))
+        $("garmentType").value = "tshirt";
 
 
-    if (
-        $("garmentType")
-    ) {
-
-        $("garmentType").value =
-            "tshirt";
-
-    }
+    if ($("age"))
+        $("age").value = "";
 
 
-    if (
-        $("age")
-    ) {
-
-        $("age").value =
-            "";
-
-    }
+    if ($("fabric"))
+        $("fabric").value = "cotton";
 
 
-    renderMeasurementFields();
+    if ($("fabricWidth"))
+        $("fabricWidth").value = "150";
 
 
-    if (
-        $("patternPreview")
-    ) {
-
-        $("patternPreview").innerHTML =
-            "";
-
-        $("patternPreview").setAttribute(
-            "viewBox",
-            "0 0 1000 620"
-        );
-
-    }
+    if ($("fabricLength"))
+        $("fabricLength").value = "200";
 
 
-    if (
-        $("resultInfo")
-    ) {
-
-        $("resultInfo").innerHTML =
-            "";
-
-    }
+    if ($("stretch"))
+        $("stretch").value = "medium";
 
 
-    if (
-        $("resultMeasurements")
-    ) {
+    if ($("stretchDirection"))
+        $("stretchDirection").value = "crosswise";
 
-        $("resultMeasurements").innerHTML =
-            "";
 
-    }
+    if ($("ease"))
+        $("ease").value = "2";
+
+
+    if ($("seam"))
+        $("seam").value = "1";
+
+
+    if ($("fit"))
+        $("fit").value = "regular";
+
+
+    if ($("dart"))
+        $("dart").value = "none";
+
+
+    if ($("patternTolerance"))
+        $("patternTolerance").value = "0";
+
+
+    if ($("addSeam"))
+        $("addSeam").value = "yes";
+
+
+    if ($("addNotches"))
+        $("addNotches").value = "yes";
+
+
+    if ($("addGrainline"))
+        $("addGrainline").value = "yes";
+
+
+    if ($("patternPreview"))
+        $("patternPreview").innerHTML = "";
+
+
+    if ($("resultInfo"))
+        $("resultInfo").innerHTML = "";
+
+
+    if ($("resultMeasurements"))
+        $("resultMeasurements").innerHTML = "";
 
 
     applyMode(
@@ -2652,8 +2450,9 @@ function resetApplication() {
     );
 
 
-    updateGarmentInformation();
+    renderMeasurementFields();
 
+    updateGarmentInformation();
 
     setStatus(
         "Masukkan ukuran kemudian tekan BUAT POLA."
@@ -2668,177 +2467,134 @@ function resetApplication() {
 
 
 /* ============================================================
+   EVENT HANDLERS
+   ============================================================ */
+
+function handleGarmentChange() {
+
+    AppState.garment =
+        getGarmentId();
+
+
+    AppState.profile =
+        null;
+
+    AppState.measurements =
+        null;
+
+    AppState.engineResult =
+        null;
+
+    AppState.productionPattern =
+        null;
+
+
+    renderMeasurementFields();
+
+    updateGarmentInformation();
+
+
+    setDraftStatus(
+        "Jenis pakaian berubah. Periksa ukuran kembali."
+    );
+
+}
+
+
+function handleUnitChange() {
+
+    renderMeasurementFields();
+
+}
+
+
+function handleMeasurementChange() {
+
+    AppState.profile =
+        null;
+
+    AppState.measurements =
+        null;
+
+    AppState.engineResult =
+        null;
+
+    AppState.productionPattern =
+        null;
+
+
+    setDraftStatus(
+        "Ukuran berubah. Buat pola kembali."
+    );
+
+}
+
+
+/* ============================================================
    BIND EVENTS
    ============================================================ */
 
 function bindEvents() {
 
-    const mode =
-        $("userMode");
+    $("userMode")?.addEventListener(
+        "change",
+        event =>
+            applyMode(
+                event.target.value
+            )
+    );
 
 
-    if (
-        mode
-    ) {
+    $("garmentType")?.addEventListener(
+        "change",
+        handleGarmentChange
+    );
 
-        mode.addEventListener(
 
-            "change",
+    $("sizeSystem")?.addEventListener(
+        "change",
+        handleUnitChange
+    );
 
-            handleModeChange
 
-        );
+    $("generateBtn")?.addEventListener(
+        "click",
+        generatePattern
+    );
 
-    }
 
+    $("resetBtn")?.addEventListener(
+        "click",
+        resetApplication
+    );
 
-    const garment =
-        $("garmentType");
 
+    $("fitPreviewBtn")?.addEventListener(
+        "click",
+        fitPreview
+    );
 
-    if (
-        garment
-    ) {
 
-        garment.addEventListener(
+    $("openPreviewBtn")?.addEventListener(
+        "click",
+        openPreview
+    );
 
-            "change",
 
-            handleGarmentChange
+    $("measurementFields")?.addEventListener(
+        "input",
+        event => {
 
-        );
+            if (
+                event.target?.dataset?.measurement
+            ) {
 
-    }
-
-
-    const unit =
-        $("sizeSystem");
-
-
-    if (
-        unit
-    ) {
-
-        unit.addEventListener(
-
-            "change",
-
-            handleUnitChange
-
-        );
-
-    }
-
-
-    const generate =
-        $("generateBtn");
-
-
-    if (
-        generate
-    ) {
-
-        generate.addEventListener(
-
-            "click",
-
-            generatePattern
-
-        );
-
-    }
-
-
-    const reset =
-        $("resetBtn");
-
-
-    if (
-        reset
-    ) {
-
-        reset.addEventListener(
-
-            "click",
-
-            resetApplication
-
-        );
-
-    }
-
-
-    const fit =
-        $("fitPreviewBtn");
-
-
-    if (
-        fit
-    ) {
-
-        fit.addEventListener(
-
-            "click",
-
-            fitPreview
-
-        );
-
-    }
-
-
-    const open =
-        $("openPreviewBtn");
-
-
-    if (
-        open
-    ) {
-
-        open.addEventListener(
-
-            "click",
-
-            openPreview
-
-        );
-
-    }
-
-
-    /*
-     * Measurement inputs dinamis.
-     */
-
-    const measurementContainer =
-        $("measurementFields");
-
-
-    if (
-        measurementContainer
-    ) {
-
-        measurementContainer.addEventListener(
-
-            "input",
-
-            event => {
-
-                if (
-                    event.target &&
-                    event.target.dataset &&
-                    event.target.dataset.measurement
-                ) {
-
-                    handleMeasurementChange();
-
-                }
+                handleMeasurementChange();
 
             }
 
-        );
-
-    }
+        }
+    );
 
 }
 
@@ -2871,7 +2627,7 @@ function initializeApplication() {
 
 
     AppState.garment =
-        getCurrentGarment();
+        getGarmentId();
 
 
     applyMode(
@@ -2881,16 +2637,9 @@ function initializeApplication() {
 
     renderMeasurementFields();
 
-
     updateGarmentInformation();
 
-
     bindEvents();
-
-
-    setDraftStatus(
-        "Engine drafting siap."
-    );
 
 
     setStatus(
@@ -2898,8 +2647,13 @@ function initializeApplication() {
     );
 
 
+    setDraftStatus(
+        "Engine drafting siap."
+    );
+
+
     console.log(
-        "PatternMaker Universal initialized.",
+        "PatternMaker Universal ready.",
         AppState
     );
 
@@ -2907,14 +2661,14 @@ function initializeApplication() {
 
 
 /* ============================================================
-   STARTUP
+   START
    ============================================================ */
 
 initializeApplication();
 
 
 /* ============================================================
-   EXPORT CONTROLLER API
+   GLOBAL API
    ============================================================ */
 
 window.PatternMakerApp = {
@@ -2929,14 +2683,16 @@ window.PatternMakerApp = {
 
     renderMeasurementFields,
 
-    renderFullOpenPreview,
+    renderPreview,
 
-    buildProductionGeometry,
+    buildProductionPattern,
 
     reset:
         resetApplication,
 
-    fitPreview
+    fitPreview,
+
+    openPreview
 
 };
 ```
