@@ -1,39 +1,32 @@
 /**
  * ============================================================
  * PATTERNMAKER UNIVERSAL
- * KODE 24 — engine/seam-production.js
+ * BASELINE FINAL v1
+ * KODE 58
+ *
+ * FILE:
+ *   engine/seam-production.js
  * ============================================================
  *
- * PRODUCTION SEAM ALLOWANCE ENGINE
+ * RESPONSIBILITY:
  *
- * Fungsi:
+ *   BASE PATTERN
+ *        ↓
+ *   SEAM PRODUCTION
+ *        ↓
+ *   CUTTING GEOMETRY
  *
- * 1. Mengambil base pattern piece.
- * 2. Membuat offset perimeter.
- * 3. Menghasilkan cutting boundary.
- * 4. Mempertahankan construction points.
- * 5. Tidak mengubah base pattern.
+ * V1:
+ * - seam = 0  → geometry tetap
+ * - seam > 0  → legacy radial compatibility offset
+ * - base pattern tidak dimutasi
+ * - seam metadata disimpan per piece
  *
- * ============================================================
+ * IMPORTANT:
  *
- * DATA FLOW
- *
- * Base Pattern
- *      ↓
- * Seam Production Engine
- *      ↓
- * Cut Boundary
- *      ↓
- * Production Geometry
- *
- * ============================================================
- *
- * CATATAN
- *
- * Offset polygon di sini adalah pendekatan parametrik dasar.
- * Untuk bentuk kurva/concave yang sangat kompleks, engine
- * offset tingkat lanjut dapat menggantikan fungsi ini tanpa
- * mengubah API publik.
+ * Legacy radial offset hanya compatibility layer.
+ * Ini BELUM merupakan true polygon offset produksi
+ * dengan edge-by-edge offset / corner join / curve offset.
  *
  * ============================================================
  */
@@ -47,21 +40,34 @@
        DEPENDENCY
        ======================================================== */
 
-    const ProductionGeometry =
+    const Geometry =
         window.PatternMakerProductionGeometry;
 
 
-    if (!ProductionGeometry) {
+    if (
+        !Geometry
+    ) {
 
         throw new Error(
-            "production-geometry.js belum tersedia."
+
+            "production-geometry.js harus dimuat " +
+            "sebelum seam-production.js."
+
         );
 
     }
 
 
     /* ========================================================
-       HELPERS
+       VERSION
+       ======================================================== */
+
+    const VERSION =
+        "FINAL-v1";
+
+
+    /* ========================================================
+       NUMBER
        ======================================================== */
 
     function num(
@@ -70,7 +76,9 @@
     ) {
 
         const n =
-            Number(value);
+            Number(
+                value
+            );
 
 
         return Number.isFinite(n)
@@ -80,411 +88,112 @@
     }
 
 
-    function round(
+    /* ========================================================
+       CLONE
+       ======================================================== */
+
+    function clone(
         value
     ) {
 
-        return Math.round(
-            Number(value) * 1000
-        ) / 1000;
+        if (
+            value === null ||
+            value === undefined
+        ) {
 
-    }
+            return value;
+
+        }
 
 
-    function clonePoint(
-        point
-    ) {
+        if (
+            typeof structuredClone ===
+            "function"
+        ) {
 
-        return [
+            return structuredClone(
+                value
+            );
 
-            round(
-                point[0]
-            ),
+        }
 
-            round(
-                point[1]
+
+        return JSON.parse(
+            JSON.stringify(
+                value
             )
-
-        ];
-
-    }
-
-
-    function clonePoints(
-        points = []
-    ) {
-
-        return points.map(
-            clonePoint
         );
 
     }
 
 
     /* ========================================================
-       AREA / ORIENTATION
+       CLONE POINTS
        ======================================================== */
 
-    function polygonSignedArea(
+    function clonePoints(
         points
     ) {
 
-        let area =
-            0;
-
-
-        for (
-            let i = 0;
-            i < points.length;
-            i++
-        ) {
-
-            const j =
-                (
-                    i + 1
-                ) %
-                points.length;
-
-
-            area +=
-
-                (
-                    points[i][0] *
-                    points[j][1]
-                )
-
-                -
-
-                (
-                    points[j][0] *
-                    points[i][1]
-                );
-
-        }
-
-
-        return area / 2;
-
-    }
-
-
-    function polygonOrientation(
-        points
-    ) {
-
-        const area =
-            polygonSignedArea(
-                points
-            );
-
-
-        if (
-            area > 0
-        ) {
-
-            return "CCW";
-
-        }
-
-
-        if (
-            area < 0
-        ) {
-
-            return "CW";
-
-        }
-
-
-        return "DEGENERATE";
-
-    }
-
-
-    /* ========================================================
-       VECTOR HELPERS
-       ======================================================== */
-
-    function normalizeVector(
-        x,
-        y
-    ) {
-
-        const length =
-            Math.hypot(
-                x,
-                y
-            );
-
-
-        if (
-            length === 0
-        ) {
-
-            return {
-
-                x: 0,
-
-                y: 0
-
-            };
-
-        }
-
-
-        return {
-
-            x:
-                x / length,
-
-            y:
-                y / length
-
-        };
-
-    }
-
-
-    function perpendicular(
-        vector,
-        orientation
-    ) {
-
-        /*
-         * Untuk polygon CCW:
-         * outward normal berada di kanan edge.
-         *
-         * Untuk polygon CW:
-         * outward normal berada di kiri edge.
-         */
-
-        if (
-            orientation === "CCW"
-        ) {
-
-            return {
-
-                x:
-                    vector.y,
-
-                y:
-                    -vector.x
-
-            };
-
-        }
-
-
-        return {
-
-            x:
-                -vector.y,
-
-            y:
-                vector.x
-
-        };
-
-    }
-
-
-    /* ========================================================
-       LINE INTERSECTION
-       ======================================================== */
-
-    function lineIntersection(
-        lineA,
-        lineB
-    ) {
-
-        const x1 =
-            lineA.a[0];
-
-        const y1 =
-            lineA.a[1];
-
-        const x2 =
-            lineA.b[0];
-
-        const y2 =
-            lineA.b[1];
-
-
-        const x3 =
-            lineB.a[0];
-
-        const y3 =
-            lineB.a[1];
-
-        const x4 =
-            lineB.b[0];
-
-        const y4 =
-            lineB.b[1];
-
-
-        const denominator =
-
-            (
-                x1 - x2
-            ) *
-            (
-                y3 - y4
-            )
-
-            -
-
-            (
-                y1 - y2
-            ) *
-            (
-                x3 - x4
-            );
-
-
-        if (
-            Math.abs(
-                denominator
-            ) <
-            1e-9
-        ) {
-
-            return null;
-
-        }
-
-
-        const numeratorX =
-
-            (
-                (
-                    x1 * y2 -
-                    y1 * x2
-                ) *
-                (
-                    x3 - x4
-                )
-            )
-
-            -
-
-            (
-                (
-                    x1 - x2
-                ) *
-                (
-                    x3 * y4 -
-                    y3 * x4
-                )
-            );
-
-
-        const numeratorY =
-
-            (
-                (
-                    x1 * y2 -
-                    y1 * x2
-                ) *
-                (
-                    y3 - y4
-                )
-            )
-
-            -
-
-            (
-                (
-                    y1 - y2
-                ) *
-                (
-                    x3 * y4 -
-                    y3 * x4
-                )
-            );
-
-
-        return [
-
-            numeratorX /
-                denominator,
-
-            numeratorY /
-                denominator
-
-        ];
-
-    }
-
-
-    /* ========================================================
-       OFFSET EDGE
-       ======================================================== */
-
-    function offsetEdge(
-        a,
-        b,
-        distance,
-        orientation
-    ) {
-
-        const dx =
-            b[0] -
-            a[0];
-
-
-        const dy =
-            b[1] -
-            a[1];
-
-
-        const direction =
-            normalizeVector(
-                dx,
-                dy
-            );
-
-
-        const normal =
-            perpendicular(
-                direction,
-                orientation
-            );
-
-
-        return {
-
-            a: [
-
-                round(
-                    a[0] +
-                    normal.x *
-                    distance
+        return (
+            points ||
+            []
+        )
+        .map(
+            point => [
+
+                num(
+                    point?.[0]
                 ),
 
-                round(
-                    a[1] +
-                    normal.y *
-                    distance
-                )
-
-            ],
-
-            b: [
-
-                round(
-                    b[0] +
-                    normal.x *
-                    distance
-                ),
-
-                round(
-                    b[1] +
-                    normal.y *
-                    distance
+                num(
+                    point?.[1]
                 )
 
             ]
+        );
+
+    }
+
+
+    /* ========================================================
+       OPTIONS
+       ======================================================== */
+
+    function normalizeOptions(
+        options = {}
+    ) {
+
+        return {
+
+            defaultSeam:
+
+                Math.max(
+
+                    0,
+
+                    num(
+                        options.defaultSeam,
+                        0
+                    )
+
+                ),
+
+            strategy:
+                options.strategy ||
+                "legacy-radial",
+
+            applyWhenIncluded:
+                options.applyWhenIncluded !==
+                false,
+
+            keepBasePoints:
+                options.keepBasePoints !==
+                false,
+
+            keepExistingCutPoints:
+                options.keepExistingCutPoints ===
+                true
 
         };
 
@@ -492,261 +201,196 @@
 
 
     /* ========================================================
-       OFFSET POLYGON
+       PIECE SEAM
        ======================================================== */
 
-    function offsetPolygon(
-        points,
-        distance
+    function getPieceSeam(
+        piece,
+        defaultSeam
     ) {
 
-        const original =
-            clonePoints(
-                points
-            );
+        const value =
+
+            piece?.metadata
+                ?.seamAllowanceCm
+
+            ??
+
+            piece?.seamAllowanceCm;
 
 
-        if (
-            original.length < 3
-        ) {
+        return Math.max(
 
-            throw new Error(
-                "Offset membutuhkan minimal 3 titik."
-            );
+            0,
 
-        }
+            num(
+                value,
+                defaultSeam
+            )
 
-
-        if (
-            distance === 0
-        ) {
-
-            return original;
-
-        }
-
-
-        const orientation =
-            polygonOrientation(
-                original
-            );
-
-
-        if (
-            orientation ===
-            "DEGENERATE"
-        ) {
-
-            throw new Error(
-                "Polygon degenerate."
-            );
-
-        }
-
-
-        const edgeCount =
-            original.length;
-
-
-        const edges =
-            [];
-
-
-        for (
-            let i = 0;
-            i < edgeCount;
-            i++
-        ) {
-
-            const current =
-                original[i];
-
-
-            const next =
-                original[
-                    (
-                        i + 1
-                    ) %
-                    edgeCount
-                ];
-
-
-            edges.push(
-
-                offsetEdge(
-
-                    current,
-
-                    next,
-
-                    distance,
-
-                    orientation
-
-                )
-
-            );
-
-        }
-
-
-        const output =
-            [];
-
-
-        for (
-            let i = 0;
-            i < edgeCount;
-            i++
-        ) {
-
-            const previousEdge =
-                edges[
-                    (
-                        i - 1 +
-                        edgeCount
-                    ) %
-                    edgeCount
-                ];
-
-
-            const currentEdge =
-                edges[i];
-
-
-            const intersection =
-                lineIntersection(
-
-                    previousEdge,
-
-                    currentEdge
-
-                );
-
-
-            if (
-                intersection
-            ) {
-
-                output.push([
-
-                    round(
-                        intersection[0]
-                    ),
-
-                    round(
-                        intersection[1]
-                    )
-
-                ]);
-
-            }
-            else {
-
-                /*
-                 * Parallel fallback.
-                 */
-
-                output.push([
-
-                    round(
-                        currentEdge.a[0]
-                    ),
-
-                    round(
-                        currentEdge.a[1]
-                    )
-
-                ]);
-
-            }
-
-        }
-
-
-        return output;
+        );
 
     }
 
 
     /* ========================================================
-       ADD SEAM TO PIECE
+       APPLY PIECE SEAM
        ======================================================== */
 
-    function createSeamPiece(
+    function applyPieceSeam(
         piece,
-        distance
+        seam,
+        options
     ) {
-
-        const seam =
-            Math.max(
-                0,
-                num(
-                    distance,
-                    0
-                )
-            );
-
 
         const basePoints =
             clonePoints(
-                piece.points
+
+                piece?.seamPoints ||
+
+                piece?.points ||
+
+                piece?.cutPoints ||
+
+                []
+
             );
 
 
         if (
-            seam === 0
+            basePoints.length <
+            3
         ) {
 
-            return {
+            throw new Error(
 
-                ...piece,
+                `Piece "${piece?.name || "unknown"}" ` +
+                "tidak memiliki geometry yang valid."
 
-                basePoints,
-
-                cutPoints:
-                    clonePoints(
-                        basePoints
-                    ),
-
-                seamAllowance:
-                    0
-
-            };
+            );
 
         }
 
 
-        const cutPoints =
-            offsetPolygon(
+        const existingCut =
 
-                basePoints,
+            Array.isArray(
+                piece?.cutPoints
+            )
 
-                seam
+                ? clonePoints(
+                    piece.cutPoints
+                )
+
+                : null;
+
+
+        let cutPoints;
+
+
+        /*
+         * Preserve an existing cut geometry
+         * only when explicitly requested.
+         */
+
+        if (
+            options.keepExistingCutPoints &&
+            existingCut
+        ) {
+
+            cutPoints =
+                existingCut;
+
+        }
+
+        else if (
+            seam <= 0
+        ) {
+
+            cutPoints =
+                clonePoints(
+                    basePoints
+                );
+
+        }
+
+        else if (
+            options.strategy ===
+            "legacy-radial"
+        ) {
+
+            cutPoints =
+                Geometry.offsetRadial(
+
+                    basePoints,
+
+                    seam
+
+                );
+
+        }
+
+        else {
+
+            throw new Error(
+
+                `Seam strategy "${options.strategy}" ` +
+                "belum tersedia."
 
             );
+
+        }
 
 
         return {
 
-            ...piece,
+            ...clone(
+                piece
+            ),
 
-            basePoints,
+            /*
+             * Original sewing/base geometry.
+             */
+
+            points:
+                clonePoints(
+                    basePoints
+                ),
+
+            seamPoints:
+                clonePoints(
+                    basePoints
+                ),
+
+            /*
+             * Production cutting boundary.
+             */
 
             cutPoints,
 
-            seamAllowance:
-                seam,
+            layer:
+                "CUT",
 
             metadata: {
 
-                ...(piece.metadata || {}),
+                ...(piece?.metadata || {}),
 
-                hasSeamAllowance:
+                seamProduction:
                     true,
 
                 seamAllowanceCm:
-                    seam
+                    seam,
+
+                seamStrategy:
+
+                    seam > 0
+
+                        ? options.strategy
+
+                        : "none",
+
+                seamVersion:
+                    VERSION
 
             }
 
@@ -756,7 +400,7 @@
 
 
     /* ========================================================
-       APPLY SEAM TO PATTERN
+       APPLY SEAM ALLOWANCE
        ======================================================== */
 
     function applySeamAllowance(
@@ -772,43 +416,41 @@
         ) {
 
             throw new Error(
-                "Pattern tidak memiliki pieces."
+
+                "Pattern tidak valid untuk seam allowance."
+
             );
 
         }
 
 
-        const defaultSeam =
-            Math.max(
-                0,
-                num(
-                    options.defaultSeam,
-                    1
-                )
+        const config =
+            normalizeOptions(
+                options
             );
 
 
-        const resultPieces =
+        const pieces =
             pattern.pieces.map(
                 piece => {
 
                     const seam =
-                        piece.seamAllowance !==
-                            undefined
+                        getPieceSeam(
 
-                            ? num(
-                                piece.seamAllowance,
-                                defaultSeam
-                            )
+                            piece,
 
-                            : defaultSeam;
+                            config.defaultSeam
+
+                        );
 
 
-                    return createSeamPiece(
+                    return applyPieceSeam(
 
                         piece,
 
-                        seam
+                        seam,
+
+                        config
 
                     );
 
@@ -818,27 +460,36 @@
 
         return {
 
-            ...pattern,
+            type:
+                "production-pattern",
 
-            pieces:
-                resultPieces,
+            engine:
+                pattern.engine ||
+                null,
+
+            version:
+                VERSION,
+
+            pieces,
 
             metadata: {
 
                 ...(pattern.metadata || {}),
 
-                seamProcessed:
+                geometryType:
+                    "PRODUCTION",
+
+                seamProduction:
                     true,
 
-                seamUnit:
-                    "cm",
+                seamStrategy:
+                    config.strategy,
 
-                seamDefault:
-                    defaultSeam,
+                defaultSeamAllowanceCm:
+                    config.defaultSeam,
 
-                seamProcessedAt:
-                    new Date()
-                        .toISOString()
+                seamVersion:
+                    VERSION
 
             }
 
@@ -848,106 +499,44 @@
 
 
     /* ========================================================
-       VALIDATE SEAM PIECE
-       ======================================================== */
-
-    function validateSeamPiece(
-        piece
-    ) {
-
-        const errors = [];
-
-
-        if (
-            !piece.basePoints ||
-            piece.basePoints.length < 3
-        ) {
-
-            errors.push(
-
-                "basePoints tidak valid."
-
-            );
-
-        }
-
-
-        if (
-            !piece.cutPoints ||
-            piece.cutPoints.length < 3
-        ) {
-
-            errors.push(
-
-                "cutPoints tidak valid."
-
-            );
-
-        }
-
-
-        const seam =
-            Number(
-                piece.seamAllowance
-            );
-
-
-        if (
-            !Number.isFinite(
-                seam
-            ) ||
-            seam < 0
-        ) {
-
-            errors.push(
-
-                "seamAllowance tidak valid."
-
-            );
-
-        }
-
-
-        return {
-
-            valid:
-                errors.length === 0,
-
-            errors
-
-        };
-
-    }
-
-
-    /* ========================================================
-       VALIDATE PATTERN
+       VALIDATE SEAM PATTERN
        ======================================================== */
 
     function validateSeamPattern(
         pattern
     ) {
 
-        const errors = [];
+        const errors =
+            [];
+
+        const warnings =
+            [];
 
 
         if (
             !pattern ||
             !Array.isArray(
                 pattern.pieces
-            )
+            ) ||
+            pattern.pieces.length ===
+            0
         ) {
+
+            errors.push(
+
+                "Seam pattern tidak memiliki pieces."
+
+            );
+
 
             return {
 
                 valid:
                     false,
 
-                errors: [
+                errors,
 
-                    "Pattern tidak valid."
-
-                ]
+                warnings
 
             };
 
@@ -960,27 +549,106 @@
                 index
             ) => {
 
-                const result =
-                    validateSeamPiece(
-                        piece
+                const points =
+
+                    piece.cutPoints ||
+
+                    piece.points ||
+
+                    [];
+
+
+                if (
+                    !Array.isArray(
+                        points
+                    ) ||
+                    points.length <
+                    3
+                ) {
+
+                    errors.push(
+
+                        `Piece ${index + 1} ` +
+                        "tidak memiliki cutPoints valid."
+
+                    );
+
+
+                    return;
+
+                }
+
+
+                points.forEach(
+                    (
+                        point,
+                        pointIndex
+                    ) => {
+
+                        if (
+
+                            !Array.isArray(
+                                point
+                            )
+
+                            ||
+
+                            point.length <
+                            2
+
+                            ||
+
+                            !Number.isFinite(
+                                Number(
+                                    point[0]
+                                )
+                            )
+
+                            ||
+
+                            !Number.isFinite(
+                                Number(
+                                    point[1]
+                                )
+                            )
+
+                        ) {
+
+                            errors.push(
+
+                                `Piece ${index + 1}, ` +
+                                `point ${pointIndex + 1} ` +
+                                "tidak valid."
+
+                            );
+
+                        }
+
+                    }
+                );
+
+
+                const seam =
+                    num(
+
+                        piece.metadata
+                            ?.seamAllowanceCm,
+
+                        0
+
                     );
 
 
                 if (
-                    !result.valid
+                    seam < 0
                 ) {
 
-                    errors.push({
+                    errors.push(
 
-                        index,
+                        `Piece ${index + 1} ` +
+                        "memiliki seam allowance negatif."
 
-                        piece:
-                            piece.name,
-
-                        errors:
-                            result.errors
-
-                    });
+                    );
 
                 }
 
@@ -988,12 +656,39 @@
         );
 
 
+        /*
+         * Explicitly warn that this is still
+         * compatibility geometry.
+         */
+
+        if (
+
+            pattern.metadata
+                ?.seamStrategy ===
+            "legacy-radial"
+
+        ) {
+
+            warnings.push(
+
+                "Geometry menggunakan " +
+                "legacy-radial compatibility offset; " +
+                "belum merupakan true polygon offset produksi."
+
+            );
+
+        }
+
+
         return {
 
             valid:
-                errors.length === 0,
+                errors.length ===
+                0,
 
-            errors
+            errors,
+
+            warnings
 
         };
 
@@ -1001,7 +696,105 @@
 
 
     /* ========================================================
-       CONVERT TO CUTTING GEOMETRY
+       SUMMARY
+       ======================================================== */
+
+    function getSeamSummary(
+        pattern
+    ) {
+
+        const pieces =
+            pattern?.pieces ||
+            [];
+
+
+        const values =
+            pieces.map(
+                piece =>
+                    num(
+
+                        piece.metadata
+                            ?.seamAllowanceCm,
+
+                        0
+
+                    )
+            );
+
+
+        const positive =
+            values.filter(
+                value =>
+                    value > 0
+            );
+
+
+        const average =
+
+            positive.length
+
+                ? positive.reduce(
+                    (
+                        total,
+                        value
+                    ) =>
+                        total + value,
+
+                    0
+                  )
+                  /
+                  positive.length
+
+                : 0;
+
+
+        return {
+
+            pieceCount:
+                pieces.length,
+
+            averageSeam:
+                Math.round(
+                    average *
+                    1000
+                ) / 1000,
+
+            maxSeam:
+
+                positive.length
+
+                    ? Math.max(
+                        ...positive
+                    )
+
+                    : 0,
+
+            minSeam:
+
+                positive.length
+
+                    ? Math.min(
+                        ...positive
+                    )
+
+                    : 0,
+
+            anySeam:
+                positive.length >
+                0,
+
+            strategy:
+                pattern?.metadata
+                    ?.seamStrategy ||
+                "none"
+
+        };
+
+    }
+
+
+    /* ========================================================
+       CUTTING GEOMETRY
        ======================================================== */
 
     function toCuttingGeometry(
@@ -1016,99 +809,58 @@
         ) {
 
             throw new Error(
-                "Pattern tidak valid."
+
+                "Pattern tidak valid untuk cutting geometry."
+
             );
 
         }
 
 
-        const pieces =
+        const normalized =
             pattern.pieces.map(
-                piece => {
+                piece => ({
 
-                    const points =
+                    ...clone(
+                        piece
+                    ),
 
-                        piece.cutPoints &&
-                        piece.cutPoints.length
+                    cutPoints:
+                        clonePoints(
 
-                            ? clonePoints(
-                                piece.cutPoints
-                            )
+                            piece.cutPoints ||
 
-                            : clonePoints(
-                                piece.points
-                            );
+                            piece.seamPoints ||
 
+                            piece.points
 
-                    const cutPiece = {
+                        )
 
-                        ...piece,
-
-                        points,
-
-                        layer:
-                            "CUT",
-
-                        basePoints:
-                            clonePoints(
-                                piece.basePoints ||
-                                piece.points
-                            ),
-
-                        cuttingBoundary:
-                            true
-
-                    };
-
-
-                    /*
-                     * Base pattern tetap
-                     * tersedia untuk informasi konstruksi.
-                     */
-
-                    cutPiece.metadata = {
-
-                        ...(piece.metadata || {}),
-
-                        cuttingBoundary:
-                            true
-
-                    };
-
-
-                    /*
-                     * Recalculate bounds.
-                     */
-
-                    cutPiece.bounds =
-                        ProductionGeometry
-                            .getBounds(
-                                points
-                            );
-
-
-                    return cutPiece;
-
-                }
+                })
             );
 
 
         return {
 
-            ...pattern,
+            type:
+                "cutting-pattern",
 
-            pieces,
+            engine:
+                pattern.engine ||
+                null,
+
+            version:
+                VERSION,
+
+            pieces:
+                normalized,
 
             metadata: {
 
                 ...(pattern.metadata || {}),
 
                 geometryType:
-                    "CUTTING_BOUNDARY",
-
-                generatedAt:
-                    new Date()
-                        .toISOString()
+                    "CUTTING"
 
             }
 
@@ -1118,113 +870,41 @@
 
 
     /* ========================================================
-       GET SEAM SUMMARY
+       PRODUCTION READY CHECK
        ======================================================== */
 
-    function getSeamSummary(
+    function isProductionReady(
         pattern
     ) {
 
-        if (
-            !pattern ||
-            !Array.isArray(
-                pattern.pieces
-            )
-        ) {
-
-            return {
-
-                pieceCount:
-                    0,
-
-                averageSeam:
-                    0,
-
-                maxSeam:
-                    0
-
-            };
-
-        }
-
-
-        const values =
-            pattern.pieces.map(
-                piece =>
-                    Number(
-                        piece.seamAllowance ||
-                        0
-                    )
+        const validation =
+            validateSeamPattern(
+                pattern
             );
 
 
-        const total =
-            values.reduce(
-                (
-                    sum,
-                    value
-                ) =>
-                    sum + value,
-
-                0
-
-            );
-
-
-        const max =
-            values.length
-                ? Math.max(
-                    ...values
-                )
-                : 0;
-
-
-        return {
-
-            pieceCount:
-                values.length,
-
-            averageSeam:
-                values.length
-                    ? round(
-                        total /
-                        values.length
-                    )
-                    : 0,
-
-            maxSeam:
-                round(
-                    max
-                )
-
-        };
+        return validation.valid;
 
     }
 
 
     /* ========================================================
-       EXPORT GLOBAL API
+       PUBLIC API
        ======================================================== */
 
     window.PatternMakerSeamProduction = {
 
-        polygonSignedArea,
-
-        polygonOrientation,
-
-        offsetPolygon,
-
-        createSeamPiece,
+        VERSION,
 
         applySeamAllowance,
 
-        validateSeamPiece,
-
         validateSeamPattern,
+
+        getSeamSummary,
 
         toCuttingGeometry,
 
-        getSeamSummary
+        isProductionReady
 
     };
 
