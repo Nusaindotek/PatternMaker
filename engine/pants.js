@@ -2,19 +2,41 @@
  * ============================================================
  * PATTERNMAKER UNIVERSAL
  * BASELINE FINAL v1
- * KODE 53
- * FILE: engine/pants.js
+ * KODE 66
+ *
+ * FILE:
+ *   engine/pants.js
+ *
+ * SOURCE:
+ *   PatternMaker_Universal_v5_Production_Drafting.html
+ *
+ * EXTRACTED:
+ *   makePantPieces(shorts=false)
+ *
+ * ADDED:
+ *   Grade-point metadata
+ *
  * ============================================================
  *
- * Migrated from V5:
- *   makePantPieces(shorts = false)
+ * SUPPORT:
  *
- * Supports:
  *   pants
  *   shorts
  *
- * Internal unit:
- *   cm
+ * ============================================================
+ *
+ * FLOW:
+ *
+ * Canonical Profile
+ *       ↓
+ * Pants Drafting
+ *       ↓
+ * Base Geometry
+ *       ↓
+ * Grade Points
+ *       ↓
+ * Strict Grading
+ *
  * ============================================================
  */
 
@@ -23,11 +45,18 @@
     "use strict";
 
 
+    /* ========================================================
+       DEPENDENCIES
+       ======================================================== */
+
     const Schema =
         window.PatternMakerMeasurementSchema;
 
     const Mapper =
         window.PatternMakerMeasurementMapper;
+
+    const GradePointSchema =
+        window.PatternMakerGradePointSchema;
 
 
     if (
@@ -36,15 +65,41 @@
     ) {
 
         throw new Error(
-            "Pants Engine membutuhkan measurement-schema.js dan measurement-mapper.js."
+
+            "Pants Engine membutuhkan " +
+            "measurement-schema.js dan " +
+            "measurement-mapper.js."
+
         );
 
     }
 
 
-    const VERSION =
-        "V5-MIGRATED-v1";
+    if (
+        !GradePointSchema
+    ) {
 
+        throw new Error(
+
+            "grade-point-schema.js harus dimuat " +
+            "sebelum pants.js."
+
+        );
+
+    }
+
+
+    /* ========================================================
+       VERSION
+       ======================================================== */
+
+    const VERSION =
+        "V5-MIGRATED-v1.1";
+
+
+    /* ========================================================
+       NUMBER
+       ======================================================== */
 
     function num(
         value,
@@ -52,14 +107,23 @@
     ) {
 
         const n =
-            Number(value);
+            Number(
+                value
+            );
 
-        return Number.isFinite(n)
+
+        return Number.isFinite(
+            n
+        )
             ? n
             : fallback;
 
     }
 
+
+    /* ========================================================
+       ROUND
+       ======================================================== */
 
     function round1(
         value
@@ -72,20 +136,41 @@
     }
 
 
+    /* ========================================================
+       CLONE POINTS
+       ======================================================== */
+
     function clonePoints(
         points
     ) {
 
-        return (points || [])
-            .map(
-                point => [
-                    num(point[0]),
-                    num(point[1])
-                ]
-            );
+        return (
+
+            points ||
+
+            []
+
+        )
+        .map(
+            point => [
+
+                num(
+                    point[0]
+                ),
+
+                num(
+                    point[1]
+                )
+
+            ]
+        );
 
     }
 
+
+    /* ========================================================
+       MEASUREMENT
+       ======================================================== */
 
     function getMeasurement(
         measurements,
@@ -93,6 +178,10 @@
         fallback,
         aliases = []
     ) {
+
+        /*
+         * Canonical field.
+         */
 
         const direct =
             measurements?.[
@@ -107,15 +196,24 @@
             Number(direct) > 0
         ) {
 
-            return Number(direct);
+            return Number(
+                direct
+            );
 
         }
 
 
+        /*
+         * Mapper.
+         */
+
         const mapped =
             Mapper.getValue(
+
                 measurements || {},
+
                 canonicalId
+
             );
 
 
@@ -126,13 +224,20 @@
             Number(mapped) > 0
         ) {
 
-            return Number(mapped);
+            return Number(
+                mapped
+            );
 
         }
 
 
+        /*
+         * Explicit legacy aliases.
+         */
+
         for (
-            const alias of aliases
+            const alias
+            of aliases
         ) {
 
             const value =
@@ -148,7 +253,9 @@
                 Number(value) > 0
             ) {
 
-                return Number(value);
+                return Number(
+                    value
+                );
 
             }
 
@@ -162,6 +269,10 @@
     }
 
 
+    /* ========================================================
+       EASE
+       ======================================================== */
+
     function getEase(
         context
     ) {
@@ -171,11 +282,14 @@
             0,
 
             num(
+
                 context?.fabric?.ease,
+
                 num(
                     context?.options?.ease,
                     0
                 )
+
             )
 
         );
@@ -183,31 +297,9 @@
     }
 
 
-    function getSeam(
-        context
-    ) {
-
-        const seam =
-            num(
-                context?.options?.seam,
-                0
-            );
-
-
-        const tolerance =
-            num(
-                context?.options?.tolerance,
-                0
-            );
-
-
-        return Math.max(
-            0,
-            seam + tolerance
-        );
-
-    }
-
+    /* ========================================================
+       LEGACY RADIAL SEAM
+       ======================================================== */
 
     function addRadialSeam(
         points,
@@ -226,18 +318,24 @@
         }
 
 
-        let cx = 0;
-        let cy = 0;
+        let cx =
+            0;
+
+
+        let cy =
+            0;
 
 
         for (
             const [
                 x,
                 y
-            ] of points
+            ]
+            of points
         ) {
 
             cx += x;
+
             cy += y;
 
         }
@@ -245,6 +343,7 @@
 
         cx /=
             points.length;
+
 
         cy /=
             points.length;
@@ -259,31 +358,43 @@
             ) => {
 
                 const dx =
-                    x - cx;
+                    x -
+                    cx;
+
 
                 const dy =
-                    y - cy;
+                    y -
+                    cy;
+
 
                 const length =
                     Math.hypot(
                         dx,
                         dy
-                    ) || 1;
+                    ) ||
+                    1;
+
 
                 const factor =
                     (
-                        length + seam
-                    ) / length;
+                        length +
+                        seam
+                    ) /
+                    length;
 
 
                 return [
 
                     round1(
-                        cx + dx * factor
+                        cx +
+                        dx *
+                        factor
                     ),
 
                     round1(
-                        cy + dy * factor
+                        cy +
+                        dy *
+                        factor
                     )
 
                 ];
@@ -293,6 +404,10 @@
 
     }
 
+
+    /* ========================================================
+       PIECE
+       ======================================================== */
 
     function makePiece(
         name,
@@ -318,17 +433,23 @@
                 false,
 
             grainline:
+
                 options.grainline
+
                     ? clonePoints(
                         options.grainline
                     )
+
                     : null,
 
             notches:
+
                 options.notches
+
                     ? clonePoints(
                         options.notches
                     )
+
                     : [],
 
             label:
@@ -353,30 +474,304 @@
     }
 
 
+    /* ========================================================
+       GRADE POINT DEFINITIONS
+       ======================================================== */
+
+    function createPantsGradePoints(
+        type
+    ) {
+
+        /*
+         * Pants geometry:
+         *
+         * 0 = waist center
+         * 1 = waist side
+         * 2 = crotch point
+         * 3 = outer hem
+         * 4 = inner hem
+         * 5 = center hem
+         *
+         * Shorts:
+         *   vertical control = garmentLength
+         *
+         * Pants:
+         *   vertical control = outseam
+         */
+
+        const lengthMeasurement =
+
+            type ===
+            "shorts"
+
+                ? "garmentLength"
+
+                : "outseam";
+
+
+        return [
+
+            {
+
+                horizontalMeasurement:
+                    "waist",
+
+                verticalMeasurement:
+                    lengthMeasurement,
+
+                horizontalFactor:
+                    0,
+
+                verticalFactor:
+                    0,
+
+                role:
+                    "waist-center"
+
+            },
+
+
+            {
+
+                horizontalMeasurement:
+                    "waist",
+
+                verticalMeasurement:
+                    lengthMeasurement,
+
+                horizontalFactor:
+                    0.25,
+
+                verticalFactor:
+                    0,
+
+                role:
+                    "waist-side"
+
+            },
+
+
+            {
+
+                horizontalMeasurement:
+                    "hip",
+
+                verticalMeasurement:
+                    "crotchDepth",
+
+                horizontalFactor:
+                    0.25,
+
+                verticalFactor:
+                    1,
+
+                role:
+                    "crotch"
+
+            },
+
+
+            {
+
+                horizontalMeasurement:
+                    "hip",
+
+                verticalMeasurement:
+                    lengthMeasurement,
+
+                horizontalFactor:
+                    0.25,
+
+                verticalFactor:
+                    1,
+
+                role:
+                    "outer-hem"
+
+            },
+
+
+            {
+
+                horizontalMeasurement:
+                    "hip",
+
+                verticalMeasurement:
+                    lengthMeasurement,
+
+                horizontalFactor:
+                    0.25,
+
+                verticalFactor:
+                    1,
+
+                role:
+                    "inner-hem"
+
+            },
+
+
+            {
+
+                horizontalMeasurement:
+                    "hip",
+
+                verticalMeasurement:
+                    lengthMeasurement,
+
+                horizontalFactor:
+                    0,
+
+                verticalFactor:
+                    1,
+
+                role:
+                    "center-hem"
+
+            }
+
+        ];
+
+    }
+
+
+    /* ========================================================
+       ATTACH GRADE POINTS
+       ======================================================== */
+
+    function attachGradePoints(
+        piece,
+        type
+    ) {
+
+        const definitions =
+            createPantsGradePoints(
+                type
+            );
+
+
+        const gradePoints =
+            GradePointSchema
+                .createFromPointDefinitions(
+                    definitions
+                );
+
+
+        if (
+            gradePoints.length !==
+            piece.points.length
+        ) {
+
+            throw new Error(
+
+                `Pants piece "${piece.name}" ` +
+                "memiliki jumlah grade point " +
+                "yang tidak sama dengan geometry."
+
+            );
+
+        }
+
+
+        const validation =
+            GradePointSchema
+                .validatePieceGradePoints({
+
+                    ...piece,
+
+                    gradePoints
+
+                });
+
+
+        if (
+            !validation.valid
+        ) {
+
+            throw new Error(
+
+                `Grade point validation failed ` +
+                `for "${piece.name}": ` +
+
+                validation.errors.join(
+                    " | "
+                )
+
+            );
+
+        }
+
+
+        return {
+
+            ...piece,
+
+            gradePoints
+
+        };
+
+    }
+
+
+    /* ========================================================
+       PANTS / SHORTS ENGINE
+       ======================================================== */
+
     function makePantPieces(
         context = {}
     ) {
 
         const measurements =
-            context?.profile?.measurements ||
-            context?.measurements ||
+
+            context?.profile
+                ?.measurements
+
+            ||
+
+            context?.measurements
+
+            ||
+
             {};
 
 
+        /*
+         * Determine garment type.
+         */
+
         const garmentId =
             String(
+
                 context?.garment?.id ||
+
                 context?.garmentId ||
+
                 ""
+
             )
             .toLowerCase();
 
 
         const isShorts =
-            garmentId ===
-            "shorts" ||
-            context?.shorts === true;
 
+            garmentId ===
+            "shorts"
+
+            ||
+
+            context?.shorts ===
+            true;
+
+
+        const type =
+            isShorts
+                ? "shorts"
+                : "pants";
+
+
+        /* ====================================================
+           V5 MEASUREMENTS
+           ==================================================== */
 
         const ease =
             getEase(
@@ -386,70 +781,134 @@
 
         const hip =
             getMeasurement(
+
                 measurements,
+
                 "hip",
+
                 96
-            ) + ease;
 
+            ) +
 
-        /*
-         * Retain V5 calculation.
-         */
+            ease;
+
 
         const waist =
             getMeasurement(
-                measurements,
-                "waist",
-                72
-            ) + ease;
 
+                measurements,
+
+                "waist",
+
+                72
+
+            ) +
+
+            ease;
+
+
+        /*
+         * V5 calculated waist even though
+         * the current polygon formula does not
+         * directly consume it.
+         */
 
         void waist;
 
 
+        /*
+         * rise → crotchDepth
+         */
+
         const rise =
             getMeasurement(
+
                 measurements,
+
                 "crotchDepth",
+
                 27,
+
                 [
                     "rise"
                 ]
+
             );
 
 
+        /*
+         * Pants:
+         *
+         * outseam
+         *
+         * Legacy:
+         * pantsLength
+         *
+         * Shorts:
+         *
+         * garmentLength
+         *
+         * Legacy:
+         * shortsLength
+         */
+
         const length =
+
             isShorts
 
                 ? getMeasurement(
+
                     measurements,
+
                     "garmentLength",
+
                     38,
+
                     [
                         "shortsLength"
                     ]
-                )
+
+                  )
 
                 : getMeasurement(
-                    measurements,
-                    "outseam",
-                    100,
-                    [
-                        "pantsLength",
-                        "garmentLength"
-                    ]
-                );
 
+                    measurements,
+
+                    "outseam",
+
+                    100,
+
+                    [
+
+                        "pantsLength",
+
+                        "garmentLength"
+
+                    ]
+
+                  );
+
+
+        /*
+         * thigh
+         */
 
         const thigh =
             getMeasurement(
+
                 measurements,
+
                 "thigh",
+
                 58,
+
                 [
                     "thighCircumference"
                 ]
-            ) + ease;
+
+            ) +
+
+            ease;
 
 
         /*
@@ -461,49 +920,98 @@
 
         const hem =
             getMeasurement(
+
                 measurements,
+
                 "ankle",
+
                 32,
+
                 [
                     "hem"
                 ]
-            ) + ease;
 
+            ) +
+
+            ease;
+
+
+        /* ====================================================
+           SEAM COMPATIBILITY
+           ==================================================== */
 
         const seam =
-            getSeam(
-                context
+
+            Math.max(
+
+                0,
+
+                num(
+                    context?.options?.seam,
+                    0
+                )
+
+                +
+
+                num(
+                    context?.options?.tolerance,
+                    0
+                )
+
             );
 
 
+        const includeLegacySeam =
+
+            context?.options
+                ?.includeLegacySeam ===
+            true;
+
+
+        /* ====================================================
+           V5 FORMULA
+           ==================================================== */
+
         const w =
             Math.max(
+
                 23,
+
                 hip / 4
+
             );
 
 
         const crotch =
             Math.max(
+
                 8,
+
                 thigh / 7
+
             );
 
 
         const hemW =
             Math.max(
+
                 12,
+
                 hem / 4
+
             );
 
 
-        /*
-         * LEFT
-         */
+        /* ====================================================
+           LEFT
+           ==================================================== */
 
-        const left = [
+        const leftBase = [
 
-            [20, 20],
+            [
+                20,
+                20
+            ],
 
             [
                 20 + w,
@@ -533,17 +1041,21 @@
         ];
 
 
-        /*
-         * RIGHT
-         */
+        /* ====================================================
+           RIGHT
+           ==================================================== */
 
         const x2 =
-            55 + w;
+            55 +
+            w;
 
 
-        const right = [
+        const rightBase = [
 
-            [x2, 20],
+            [
+                x2,
+                20
+            ],
 
             [
                 x2 + w,
@@ -573,6 +1085,10 @@
         ];
 
 
+        /* ====================================================
+           CATEGORY
+           ==================================================== */
+
         const category =
             context?.profile?.category ||
             context?.category ||
@@ -585,63 +1101,120 @@
             );
 
 
+        /* ====================================================
+           NOTCHES
+           ==================================================== */
+
         const includeNotches =
             context?.options?.notches !==
             false;
 
 
-        const type =
-            isShorts
-                ? "SHORTS"
-                : "PANTS";
-
-
         const leftNotches =
+
             includeNotches
+
                 ? [
+
                     [
                         20 + w,
-                        20 + rise + 8
+
+                        20 +
+                        rise +
+                        8
+
                     ]
+
                 ]
+
                 : [];
 
 
         const rightNotches =
+
             includeNotches
+
                 ? [
+
                     [
                         x2 + w,
-                        20 + rise + 8
+
+                        20 +
+                        rise +
+                        8
+
                     ]
+
                 ]
+
                 : [];
 
+
+        /* ====================================================
+           OPTIONAL LEGACY SEAM
+           ==================================================== */
+
+        const leftPoints =
+
+            includeLegacySeam
+
+                ? addRadialSeam(
+                    leftBase,
+                    seam
+                  )
+
+                : clonePoints(
+                    leftBase
+                  );
+
+
+        const rightPoints =
+
+            includeLegacySeam
+
+                ? addRadialSeam(
+                    rightBase,
+                    seam
+                  )
+
+                : clonePoints(
+                    rightBase
+                  );
+
+
+        /* ====================================================
+           PIECES
+           ==================================================== */
 
         const leftPiece =
             makePiece(
 
-                `${type}_L`,
+                isShorts
+                    ? "SHORTS_L"
+                    : "PANTS_L",
 
-                addRadialSeam(
-                    left,
-                    seam
-                ),
+                leftPoints,
 
                 {
 
                     grainline: [
 
                         [
-                            20 + w / 2,
+                            20 +
+                            w / 2,
+
                             30
+
                         ],
 
                         [
-                            20 + w / 2,
+                            20 +
+                            w / 2,
+
                             20 +
                             length -
                             8
+
                         ]
 
                     ],
@@ -650,7 +1223,12 @@
                         leftNotches,
 
                     label:
-                        `${type} LEFT • ${categoryLabel}`
+
+                        `${
+                            isShorts
+                                ? "SHORTS"
+                                : "PANTS"
+                        } LEFT • ${categoryLabel}`
 
                 }
 
@@ -660,27 +1238,32 @@
         const rightPiece =
             makePiece(
 
-                `${type}_R`,
+                isShorts
+                    ? "SHORTS_R"
+                    : "PANTS_R",
 
-                addRadialSeam(
-                    right,
-                    seam
-                ),
+                rightPoints,
 
                 {
 
                     grainline: [
 
                         [
-                            x2 + w / 2,
+                            x2 +
+                            w / 2,
+
                             30
+
                         ],
 
                         [
-                            x2 + w / 2,
+                            x2 +
+                            w / 2,
+
                             20 +
                             length -
                             8
+
                         ]
 
                     ],
@@ -689,72 +1272,56 @@
                         rightNotches,
 
                     label:
-                        `${type} RIGHT • ${categoryLabel}`
+
+                        `${
+                            isShorts
+                                ? "SHORTS"
+                                : "PANTS"
+                        } RIGHT • ${categoryLabel}`
 
                 }
 
             );
 
 
-        return {
+        /* ====================================================
+           GRADE POINTS
+           ==================================================== */
 
-            type:
-                "base-pattern",
-
-            engine:
-                "pants",
-
-            version:
-                VERSION,
-
-            pieces: [
+        const leftWithGrade =
+            attachGradePoints(
 
                 leftPiece,
-                rightPiece
 
-            ],
+                type
 
-            metadata: {
+            );
 
-                source:
-                    "PatternMaker V5",
 
-                migration:
-                    true,
+        const rightWithGrade =
+            attachGradePoints(
 
-                category,
+                rightPiece,
 
-                categoryLabel,
+                type
 
-                garmentType:
-                    isShorts
-                        ? "shorts"
-                        : "pants",
+            );
 
-                unit:
-                    "cm",
 
-                scale:
-                    1,
+        return [
 
-                fullOpen:
-                    true,
+            leftWithGrade,
 
-                seamAllowanceIncluded:
-                    seam > 0,
+            rightWithGrade
 
-                productionGeometry:
-                    false,
-
-                formula:
-                    "V5 makePantPieces extraction"
-
-            }
-
-        };
+        ];
 
     }
 
+
+    /* ========================================================
+       ENGINE CONTRACT
+       ======================================================== */
 
     const PantsEngine = {
 
@@ -767,13 +1334,142 @@
         version:
             VERSION,
 
-        generate:
-            makePantPieces,
 
-        makePantPieces
+        generate(
+            context = {}
+        ) {
+
+            const category =
+                context?.profile?.category ||
+                context?.category ||
+                "custom";
+
+
+            const garmentId =
+                String(
+
+                    context?.garment?.id ||
+
+                    context?.garmentId ||
+
+                    ""
+
+                )
+                .toLowerCase();
+
+
+            const type =
+
+                garmentId ===
+                    "shorts"
+
+                    ||
+
+                context?.shorts ===
+                    true
+
+                    ? "shorts"
+
+                    : "pants";
+
+
+            return {
+
+                type:
+                    "base-pattern",
+
+                engine:
+                    "pants",
+
+                version:
+                    VERSION,
+
+                pieces:
+
+                    makePantPieces(
+                        context
+                    ),
+
+                metadata: {
+
+                    source:
+                        "PatternMaker V5",
+
+                    migration:
+                        true,
+
+                    category,
+
+                    categoryLabel:
+                        Schema.getCategoryLabel(
+                            category
+                        ),
+
+                    garmentType:
+                        type,
+
+                    unit:
+                        "cm",
+
+                    scale:
+                        1,
+
+                    fullOpen:
+                        true,
+
+                    seamAllowanceIncluded:
+
+                        Boolean(
+                            context?.options
+                                ?.includeLegacySeam
+                        ),
+
+                    productionGeometry:
+                        false,
+
+                    grading: {
+
+                        supported:
+                            true,
+
+                        strict:
+                            true,
+
+                        gradePointSchema:
+                            GradePointSchema.VERSION
+
+                    },
+
+                    formula:
+                        "V5 makePantPieces extraction"
+
+                }
+
+            };
+
+        },
+
+
+        makePantPieces,
+
+
+        validateGradePoints(
+            pattern
+        ) {
+
+            return GradePointSchema
+                .validatePatternGradePoints(
+                    pattern
+                );
+
+        }
 
     };
 
+
+    /* ========================================================
+       GLOBAL
+       ======================================================== */
 
     window.PatternMakerPants =
         PantsEngine;
