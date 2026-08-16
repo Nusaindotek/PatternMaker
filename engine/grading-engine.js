@@ -1,46 +1,35 @@
 /**
  * ============================================================
  * PATTERNMAKER UNIVERSAL
- * KODE 41 — engine/grading-engine.js
+ * BASELINE FINAL v1
+ * KODE 61
+ *
+ * FILE:
+ *   engine/grading-engine.js
  * ============================================================
  *
- * UNIVERSAL SIZE GRADING ENGINE
+ * RESPONSIBILITY:
  *
- * Tujuan:
- *
- *   Base Pattern
+ *   BASE PATTERN
  *       ↓
- *   Grading Rule
+ *   GRADE POINTS
  *       ↓
- *   Size Variants
+ *   CATEGORY GRADING RULE
+ *       ↓
+ *   MULTI SIZE PATTERN
  *
  * ============================================================
  *
- * PRINSIP:
+ * IMPORTANT:
  *
- * 1. Base pattern tidak dimutasi.
- * 2. Setiap size merupakan clone terpisah.
- * 3. Grading bekerja berdasarkan titik geometry.
- * 4. Rule dapat berbeda untuk category.
- * 5. Engine dapat diperluas ke grade point profesional.
+ * STRICT MODE
+ *   membutuhkan explicit gradePoints pada setiap piece.
  *
- * ============================================================
+ * APPROXIMATE MODE
+ *   hanya fallback untuk preview/testing.
  *
- * V1:
- *
- * - Delta chest
- * - Delta waist
- * - Delta hip
- * - Delta length
- * - Delta shoulder
- * - Delta sleeve
- *
- * V1 BELUM:
- *
- * - true grade-point ASTM
- * - nested-size optimization
- * - dart relocation grading
- * - curve reconstruction profesional
+ * Approximate grading TIDAK boleh dianggap sebagai
+ * final garment-factory grading.
  *
  * ============================================================
  */
@@ -51,15 +40,36 @@
 
 
     /* ========================================================
-       CONSTANTS
+       VERSION
        ======================================================== */
 
     const VERSION =
-        "1.0";
+        "FINAL-v1";
+
+
+    /* ========================================================
+       MODES
+       ======================================================== */
+
+    const MODES = Object.freeze({
+
+        STRICT:
+            "strict",
+
+        APPROXIMATE:
+            "approximate"
+
+    });
 
 
     /* ========================================================
        DEFAULT RULES
+       ======================================================== *
+       IMPORTANT:
+       These are architecture defaults.
+       They are NOT claimed as universal industry standards.
+       Production rule tables should eventually come from
+       the user's garment/brand grading specification.
        ======================================================== */
 
     const DEFAULT_RULES = {
@@ -67,9 +77,12 @@
         child: {
 
             name:
-                "Child Basic Grading",
+                "Child Basic",
 
             chest:
+                2,
+
+            bust:
                 2,
 
             waist:
@@ -78,23 +91,42 @@
             hip:
                 2,
 
-            length:
-                2,
-
             shoulder:
                 0.5,
 
-            sleeve:
-                1
+            armhole:
+                1,
+
+            upperArm:
+                1,
+
+            length:
+                2,
+
+            sleeveLength:
+                1.5,
+
+            rise:
+                1,
+
+            inseam:
+                2,
+
+            outseam:
+                2
 
         },
+
 
         teen: {
 
             name:
-                "Teen Basic Grading",
+                "Teen Basic",
 
             chest:
+                2.5,
+
+            bust:
                 2.5,
 
             waist:
@@ -102,24 +134,43 @@
 
             hip:
                 2.5,
-
-            length:
-                2,
 
             shoulder:
                 0.6,
 
-            sleeve:
-                1
+            armhole:
+                1,
+
+            upperArm:
+                1,
+
+            length:
+                2,
+
+            sleeveLength:
+                1.5,
+
+            rise:
+                1,
+
+            inseam:
+                2,
+
+            outseam:
+                2
 
         },
+
 
         women: {
 
             name:
-                "Women Basic Grading",
+                "Women Basic",
 
             chest:
+                4,
+
+            bust:
                 4,
 
             waist:
@@ -127,65 +178,118 @@
 
             hip:
                 4,
-
-            length:
-                1.5,
 
             shoulder:
                 0.8,
 
-            sleeve:
-                1
-
-        },
-
-        men: {
-
-            name:
-                "Men Basic Grading",
-
-            chest:
-                4,
-
-            waist:
-                4,
-
-            hip:
-                4,
-
-            length:
-                2,
-
-            shoulder:
+            armhole:
                 1,
 
-            sleeve:
+            upperArm:
+                1,
+
+            length:
+                1.5,
+
+            sleeveLength:
+                1,
+
+            rise:
+                1,
+
+            inseam:
+                1.5,
+
+            outseam:
                 1.5
 
         },
 
+
+        men: {
+
+            name:
+                "Men Basic",
+
+            chest:
+                4,
+
+            bust:
+                4,
+
+            waist:
+                4,
+
+            hip:
+                4,
+
+            shoulder:
+                1,
+
+            armhole:
+                1,
+
+            upperArm:
+                1,
+
+            length:
+                2,
+
+            sleeveLength:
+                1.5,
+
+            rise:
+                1,
+
+            inseam:
+                2,
+
+            outseam:
+                2
+
+        },
+
+
         custom: {
 
             name:
-                "Custom Grading",
+                "Custom",
 
             chest:
+                2,
+
+            bust:
                 2,
 
             waist:
                 2,
 
             hip:
-                2,
-
-            length:
                 2,
 
             shoulder:
                 0.5,
 
-            sleeve:
-                1
+            armhole:
+                1,
+
+            upperArm:
+                1,
+
+            length:
+                2,
+
+            sleeveLength:
+                1,
+
+            rise:
+                1,
+
+            inseam:
+                2,
+
+            outseam:
+                2
 
         }
 
@@ -193,41 +297,7 @@
 
 
     /* ========================================================
-       NUMBER HELPERS
-       ======================================================== */
-
-    function num(
-        value,
-        fallback = 0
-    ) {
-
-        const n =
-            Number(
-                value
-            );
-
-
-        return Number.isFinite(n)
-            ? n
-            : fallback;
-
-    }
-
-
-    function round(
-        value
-    ) {
-
-        return Math.round(
-            Number(value) *
-            1000
-        ) / 1000;
-
-    }
-
-
-    /* ========================================================
-       DEEP CLONE
+       CLONE
        ======================================================== */
 
     function clone(
@@ -266,7 +336,44 @@
 
 
     /* ========================================================
-       RULE MERGE
+       NUMBER
+       ======================================================== */
+
+    function num(
+        value,
+        fallback = 0
+    ) {
+
+        const n =
+            Number(
+                value
+            );
+
+
+        return Number.isFinite(n)
+            ? n
+            : fallback;
+
+    }
+
+
+    /* ========================================================
+       ROUND
+       ======================================================== */
+
+    function round(
+        value
+    ) {
+
+        return Math.round(
+            num(value) * 1000
+        ) / 1000;
+
+    }
+
+
+    /* ========================================================
+       RULE
        ======================================================== */
 
     function getRule(
@@ -285,7 +392,7 @@
 
             ...base,
 
-            ...(customRules?.[
+            ...(customRules[
                 category
             ] || {})
 
@@ -295,37 +402,7 @@
 
 
     /* ========================================================
-       SIGN
-       ======================================================== */
-
-    function directionSign(
-        direction
-    ) {
-
-        const value =
-            String(
-                direction || ""
-            )
-            .toLowerCase();
-
-
-        if (
-            value ===
-            "decrease"
-        ) {
-
-            return -1;
-
-        }
-
-
-        return 1;
-
-    }
-
-
-    /* ========================================================
-       SIZE INDEX
+       SIZE NORMALIZATION
        ======================================================== */
 
     function normalizeSizes(
@@ -340,7 +417,7 @@
         ) {
 
             throw new Error(
-                "Daftar size grading kosong."
+                "Daftar grading size kosong."
             );
 
         }
@@ -405,55 +482,143 @@
         index
     ) {
 
-        const middle =
+        const center =
             (
-                sizes.length -
-                1
+                sizes.length - 1
             ) / 2;
 
 
         return (
-            index -
-            middle
+
+            Number(index) -
+            center
+
         );
 
     }
 
 
     /* ========================================================
-       COMPONENT TYPE
+       CANONICAL AXIS
        ======================================================== */
 
-    function detectAxis(
-        point,
-        index,
-        piece
+    function normalizeAxis(
+        axis
     ) {
 
-        /*
-         * V1 menggunakan geometry position.
-         *
-         * V2 dapat memakai explicit gradePoint
-         * metadata dari pattern engine.
-         */
+        const value =
+            String(
+                axis || ""
+            )
+            .trim()
+            .toLowerCase();
+
+
+        const aliases = {
+
+            x:
+                "horizontal",
+
+            y:
+                "vertical",
+
+            horizontal:
+                "horizontal",
+
+            vertical:
+                "vertical",
+
+            width:
+                "horizontal",
+
+            length:
+                "vertical"
+
+        };
+
+
+        return (
+
+            aliases[
+                value
+            ] ||
+
+            "horizontal"
+
+        );
+
+    }
+
+
+    /* ========================================================
+       GRADE POINT TYPE
+       ======================================================== */
+
+    function normalizeGradePoint(
+        point,
+        index
+    ) {
 
         if (
-            piece?.gradePoints &&
-            piece.gradePoints[index]
+            Array.isArray(
+                point
+            )
         ) {
 
-            return piece.gradePoints[index];
+            return {
+
+                index,
+
+                x:
+                    num(
+                        point[0]
+                    ),
+
+                y:
+                    num(
+                        point[1]
+                    ),
+
+                horizontal:
+                    "chest",
+
+                vertical:
+                    "length"
+
+            };
 
         }
 
 
         return {
 
+            index,
+
+            x:
+                num(
+                    point?.x
+                ),
+
+            y:
+                num(
+                    point?.y
+                ),
+
             horizontal:
+                point?.horizontal ||
                 "chest",
 
             vertical:
-                "length"
+                point?.vertical ||
+                "length",
+
+            horizontalFactor:
+                point?.horizontalFactor ??
+                1,
+
+            verticalFactor:
+                point?.verticalFactor ??
+                1
 
         };
 
@@ -461,28 +626,410 @@
 
 
     /* ========================================================
-       GRADE DELTA
+       GET GRADE POINTS
        ======================================================== */
 
-    function getGradeDelta(
-        rule,
-        axis
+    function getGradePoints(
+        piece
     ) {
 
-        const horizontal =
-            axis?.horizontal ||
+        if (
+            !Array.isArray(
+                piece?.gradePoints
+            )
+        ) {
+
+            return null;
+
+        }
+
+
+        return piece.gradePoints.map(
+            (
+                point,
+                index
+            ) =>
+
+                normalizeGradePoint(
+                    point,
+                    index
+                )
+
+        );
+
+    }
+
+
+    /* ========================================================
+       STRICT CHECK
+       ======================================================== */
+
+    function validateGradePoints(
+        pattern
+    ) {
+
+        const errors =
+            [];
+
+        const warnings =
+            [];
+
+
+        if (
+            !pattern ||
+            !Array.isArray(
+                pattern.pieces
+            )
+        ) {
+
+            errors.push(
+                "Pattern tidak memiliki pieces."
+            );
+
+
+            return {
+
+                valid:
+                    false,
+
+                errors,
+
+                warnings
+
+            };
+
+        }
+
+
+        pattern.pieces.forEach(
+            (
+                piece,
+                pieceIndex
+            ) => {
+
+                const points =
+                    piece.points ||
+                    piece.seamPoints;
+
+
+                const gradePoints =
+                    getGradePoints(
+                        piece
+                    );
+
+
+                if (
+                    !gradePoints
+                ) {
+
+                    errors.push(
+
+                        `Piece "${piece.name || pieceIndex + 1}" ` +
+                        "belum memiliki gradePoints."
+
+                    );
+
+
+                    return;
+
+                }
+
+
+                if (
+                    gradePoints.length !==
+                    points.length
+                ) {
+
+                    errors.push(
+
+                        `Piece "${piece.name || pieceIndex + 1}" ` +
+                        "jumlah gradePoints tidak sama dengan geometry points."
+
+                    );
+
+                }
+
+
+                gradePoints.forEach(
+                    (
+                        point,
+                        pointIndex
+                    ) => {
+
+                        if (
+                            point.x === null ||
+                            point.y === null
+                        ) {
+
+                            errors.push(
+
+                                `Piece "${piece.name || pieceIndex + 1}" ` +
+                                `gradePoint ${pointIndex + 1} tidak memiliki coordinate.`
+
+                            );
+
+                        }
+
+
+                        if (
+                            !point.horizontal
+                        ) {
+
+                            warnings.push(
+
+                                `Piece "${piece.name || pieceIndex + 1}" ` +
+                                `gradePoint ${pointIndex + 1} tidak memiliki horizontal rule.`
+
+                            );
+
+                        }
+
+
+                        if (
+                            !point.vertical
+                        ) {
+
+                            warnings.push(
+
+                                `Piece "${piece.name || pieceIndex + 1}" ` +
+                                `gradePoint ${pointIndex + 1} tidak memiliki vertical rule.`
+
+                            );
+
+                        }
+
+                    }
+                );
+
+            }
+        );
+
+
+        return {
+
+            valid:
+                errors.length === 0,
+
+            errors,
+
+            warnings
+
+        };
+
+    }
+
+
+    /* ========================================================
+       APPROXIMATE GRADE MAP
+       ======================================================== */
+
+    function createApproximateGradePoints(
+        piece
+    ) {
+
+        const points =
+            piece.points ||
+            piece.seamPoints ||
+            [];
+
+
+        if (
+            points.length <
+            3
+        ) {
+
+            return [];
+
+        }
+
+
+        let minX =
+            Infinity;
+
+        let maxX =
+            -Infinity;
+
+        let minY =
+            Infinity;
+
+        let maxY =
+            -Infinity;
+
+
+        points.forEach(
+            point => {
+
+                minX =
+                    Math.min(
+                        minX,
+                        num(
+                            point[0]
+                        )
+                    );
+
+
+                maxX =
+                    Math.max(
+                        maxX,
+                        num(
+                            point[0]
+                        )
+                    );
+
+
+                minY =
+                    Math.min(
+                        minY,
+                        num(
+                            point[1]
+                        )
+                    );
+
+
+                maxY =
+                    Math.max(
+                        maxY,
+                        num(
+                            point[1]
+                        )
+                    );
+
+            }
+        );
+
+
+        const width =
+            Math.max(
+                1,
+                maxX - minX
+            );
+
+
+        const height =
+            Math.max(
+                1,
+                maxY - minY
+            );
+
+
+        return points.map(
+            (
+                point,
+                index
+            ) => {
+
+                const normalizedX =
+                    (
+                        num(
+                            point[0]
+                        ) -
+                        minX
+                    ) /
+                    width;
+
+
+                const normalizedY =
+                    (
+                        num(
+                            point[1]
+                        ) -
+                        minY
+                    ) /
+                    height;
+
+
+                /*
+                 * Approximate mapping:
+                 *
+                 * X:
+                 *   middle body → chest
+                 *   lower body  → hip
+                 *
+                 * Y:
+                 *   vertical length
+                 */
+
+                let horizontal =
+                    "chest";
+
+
+                if (
+                    normalizedY >
+                    0.65
+                ) {
+
+                    horizontal =
+                        "hip";
+
+                }
+                else if (
+                    normalizedY >
+                    0.35
+                ) {
+
+                    horizontal =
+                        "waist";
+
+                }
+
+
+                return {
+
+                    index,
+
+                    x:
+                        num(
+                            point[0]
+                        ),
+
+                    y:
+                        num(
+                            point[1]
+                        ),
+
+                    horizontal,
+
+                    vertical:
+                        "length",
+
+                    horizontalFactor:
+                        1,
+
+                    verticalFactor:
+                        1
+
+                };
+
+            }
+        );
+
+    }
+
+
+    /* ========================================================
+       DELTA
+       ======================================================== */
+
+    function calculateDelta(
+        rule,
+        gradePoint,
+        offset
+    ) {
+
+        const horizontalKey =
+            gradePoint.horizontal ||
             "chest";
 
 
-        const vertical =
-            axis?.vertical ||
+        const verticalKey =
+            gradePoint.vertical ||
             "length";
 
 
         const horizontalDelta =
             num(
                 rule[
-                    horizontal
+                    horizontalKey
                 ],
                 0
             );
@@ -491,19 +1038,59 @@
         const verticalDelta =
             num(
                 rule[
-                    vertical
+                    verticalKey
                 ],
                 0
             );
 
 
+        const horizontalFactor =
+            num(
+                gradePoint.horizontalFactor,
+                1
+            );
+
+
+        const verticalFactor =
+            num(
+                gradePoint.verticalFactor,
+                1
+            );
+
+
+        /*
+         * Circumference grade:
+         *
+         * A full body circumference increase
+         * is divided across the corresponding
+         * pattern sides.
+         *
+         * factor:
+         * 0.5 = half body
+         * 0.25 = quarter body
+         */
+
+        const xDelta =
+
+            horizontalDelta *
+            offset *
+            horizontalFactor;
+
+
+        const yDelta =
+
+            verticalDelta *
+            offset *
+            verticalFactor;
+
+
         return {
 
-            horizontal:
-                horizontalDelta,
+            x:
+                xDelta,
 
-            vertical:
-                verticalDelta
+            y:
+                yDelta
 
         };
 
@@ -511,7 +1098,7 @@
 
 
     /* ========================================================
-       PIECE GRADING
+       GRADE PIECE
        ======================================================== */
 
     function gradePiece(
@@ -521,33 +1108,55 @@
         options = {}
     ) {
 
-        const output =
-            clone(
-                piece
-            );
-
-
         const points =
-            piece.cutPoints &&
-            Array.isArray(
-                piece.cutPoints
-            )
-
-                ? piece.cutPoints
-
-                : piece.points;
+            piece.points ||
+            piece.seamPoints ||
+            [];
 
 
         if (
             !Array.isArray(
                 points
-            )
+            ) ||
+            points.length <
+            3
         ) {
 
             throw new Error(
 
                 `Piece "${piece.name || "unknown"}" ` +
-                "tidak memiliki points."
+                "tidak memiliki geometry yang valid."
+
+            );
+
+        }
+
+
+        let gradePoints =
+            getGradePoints(
+                piece
+            );
+
+
+        let approximate =
+            false;
+
+
+        /*
+         * STRICT
+         */
+
+        if (
+            !gradePoints &&
+            options.mode ===
+            MODES.STRICT
+        ) {
+
+            throw new Error(
+
+                `Piece "${piece.name || "unknown"}" ` +
+                "tidak memiliki gradePoints ` +
+                "untuk strict grading."
 
             );
 
@@ -555,78 +1164,64 @@
 
 
         /*
-         * Explicit point map:
-         *
-         * piece.gradePoints = [
-         *   {
-         *      horizontal: "chest",
-         *      vertical: "length"
-         *   }
-         * ]
-         *
-         * Fallback:
-         * chest + length
+         * APPROXIMATE
          */
 
-        const transformed =
+        if (
+            !gradePoints
+        ) {
+
+            gradePoints =
+                createApproximateGradePoints(
+                    piece
+                );
+
+
+            approximate =
+                true;
+
+        }
+
+
+        const gradedPoints =
             points.map(
                 (
                     point,
                     index
                 ) => {
 
-                    const axis =
-                        detectAxis(
-
-                            point,
-
-                            index,
-
-                            piece
-
-                        );
+                    const gradePoint =
+                        gradePoints[
+                            index
+                        ];
 
 
                     const delta =
-                        getGradeDelta(
+                        calculateDelta(
 
                             rule,
 
-                            axis
+                            gradePoint,
+
+                            offset
 
                         );
-
-
-                    /*
-                     * Half increment per side.
-                     *
-                     * Karena bust/waist/hip adalah
-                     * ukuran keliling.
-                     */
-
-                    const xDelta =
-                        (
-                            delta.horizontal *
-                            offset
-                        ) /
-                        2;
-
-
-                    const yDelta =
-                        delta.vertical *
-                        offset;
 
 
                     return [
 
                         round(
-                            Number(point[0]) +
-                            xDelta
+                            num(
+                                point[0]
+                            ) +
+                            delta.x
                         ),
 
                         round(
-                            Number(point[1]) +
-                            yDelta
+                            num(
+                                point[1]
+                            ) +
+                            delta.y
                         )
 
                     ];
@@ -635,60 +1230,27 @@
             );
 
 
-        /*
-         * Preserve original geometry structure.
-         */
+        const output =
+            clone(
+                piece
+            );
 
-        if (
-            Array.isArray(
-                piece.cutPoints
-            )
-        ) {
 
-            output.cutPoints =
-                transformed;
-
-        }
+        output.points =
+            gradedPoints;
 
 
         if (
             Array.isArray(
-                piece.points
+                piece.seamPoints
             )
         ) {
 
-            output.points =
-                transformed;
-
-        }
-
-
-        /*
-         * Grainline.
-         */
-
-        if (
-            Array.isArray(
-                piece.grainline
-            )
-        ) {
-
-            output.grainline =
-                piece.grainline.map(
+            output.seamPoints =
+                gradedPoints.map(
                     point => [
-
-                        round(
-                            Number(point[0])
-                        ),
-
-                        round(
-                            Number(point[1]) +
-                            (
-                                rule.length *
-                                offset
-                            )
-                        )
-
+                        point[0],
+                        point[1]
                     ]
                 );
 
@@ -696,21 +1258,27 @@
 
 
         /*
-         * Mark grade metadata.
+         * CutPoints cannot safely be preserved after
+         * grading base geometry because the seam geometry
+         * must be regenerated.
          */
 
-        output.grading =
-            {
+        delete output.cutPoints;
 
-                offset,
 
-                rule:
-                    rule.name,
+        output.grading = {
 
-                version:
-                    VERSION
+            version:
+                VERSION,
 
-            };
+            offset,
+
+            rule:
+                rule.name,
+
+            approximate
+
+        };
 
 
         return output;
@@ -719,7 +1287,7 @@
 
 
     /* ========================================================
-       PATTERN GRADING
+       GRADE PATTERN
        ======================================================== */
 
     function gradePattern(
@@ -735,7 +1303,9 @@
         ) {
 
             throw new Error(
+
                 "Pattern tidak valid untuk grading."
+
             );
 
         }
@@ -747,15 +1317,42 @@
             "custom";
 
 
-        const customRules =
-            options.rules ||
-            {};
+        const mode =
+            options.mode ||
+            MODES.STRICT;
+
+
+        if (
+            !MODES[
+                Object
+                    .keys(
+                        MODES
+                    )
+                    .find(
+                        key =>
+                            MODES[key] ===
+                            mode
+                    )
+            ]
+        ) {
+
+            throw new Error(
+
+                `Grading mode "${mode}" tidak dikenal.`
+
+            );
+
+        }
 
 
         const rule =
             getRule(
+
                 category,
-                customRules
+
+                options.rules ||
+                {}
+
             );
 
 
@@ -768,6 +1365,51 @@
 
         const variants =
             [];
+
+
+        const warnings =
+            [];
+
+
+        if (
+            mode ===
+            MODES.STRICT
+        ) {
+
+            const gradeValidation =
+                validateGradePoints(
+                    pattern
+                );
+
+
+            if (
+                !gradeValidation.valid
+            ) {
+
+                throw new Error(
+
+                    "Strict grading gagal: " +
+
+                    gradeValidation.errors.join(
+                        " | "
+                    )
+
+                );
+
+            }
+
+        }
+        else {
+
+            warnings.push(
+
+                "Approximate grading aktif. " +
+                "Hasil ini tidak boleh dianggap sebagai " +
+                "final factory grading."
+
+            );
+
+        }
 
 
         sizes.forEach(
@@ -783,32 +1425,53 @@
                     );
 
 
-                const sizePattern = {
+                const gradedPieces =
+                    pattern.pieces.map(
+                        piece =>
+
+                            gradePiece(
+
+                                piece,
+
+                                rule,
+
+                                offset,
+
+                                {
+
+                                    ...options,
+
+                                    mode
+
+                                }
+
+                            )
+
+                    );
+
+
+                variants.push({
+
+                    ...clone(
+                        pattern
+                    ),
+
+                    type:
+                        "graded-pattern",
 
                     pieces:
-                        pattern.pieces.map(
-                            piece =>
-                                gradePiece(
-
-                                    piece,
-
-                                    rule,
-
-                                    offset,
-
-                                    options
-
-                                )
-                        ),
+                        gradedPieces,
 
                     metadata: {
 
-                        ...(clone(
-                            pattern.metadata ||
-                            {}
-                        )),
+                        ...(pattern.metadata || {}),
 
                         grading: {
+
+                            version:
+                                VERSION,
+
+                            mode,
 
                             category,
 
@@ -821,28 +1484,18 @@
                             sizeLabel:
                                 size.label,
 
-                            offset,
+                            index,
 
-                            version:
-                                VERSION
+                            offset
 
                         },
 
-                        unit:
-                            pattern.metadata?.unit ||
-                            "cm",
-
-                        scale:
-                            1
+                        cutGeometryInvalidated:
+                            true
 
                     }
 
-                };
-
-
-                variants.push(
-                    sizePattern
-                );
+                });
 
             }
         );
@@ -851,10 +1504,12 @@
         return {
 
             type:
-                "graded-pattern",
+                "graded-pattern-set",
 
             version:
                 VERSION,
+
+            mode,
 
             category,
 
@@ -864,20 +1519,23 @@
 
             variants,
 
+            warnings,
+
             metadata: {
 
                 source:
                     "PatternMaker Universal",
 
-                unit:
-                    "cm",
-
-                scale:
-                    1,
+                baseEngine:
+                    pattern.engine,
 
                 generatedAt:
                     new Date()
-                        .toISOString()
+                        .toISOString(),
+
+                unit:
+                    pattern.metadata?.unit ||
+                    "cm"
 
             }
 
@@ -887,7 +1545,7 @@
 
 
     /* ========================================================
-       VALIDATE GRADED RESULT
+       VALIDATE GRADED SET
        ======================================================== */
 
     function validateGradedPattern(
@@ -897,40 +1555,51 @@
         const errors =
             [];
 
-
         const warnings =
             [];
 
 
         if (
-            !graded
+            !graded ||
+            !Array.isArray(
+                graded.variants
+            )
         ) {
 
             errors.push(
-                "Graded pattern belum tersedia."
+
+                "Graded pattern set tidak memiliki variants."
+
             );
+
+
+            return {
+
+                valid:
+                    false,
+
+                errors,
+
+                warnings
+
+            };
 
         }
 
 
         if (
-            !Array.isArray(
-                graded?.variants
-            )
+            graded.variants.length ===
+            0
         ) {
 
             errors.push(
-                "Graded pattern tidak memiliki variants."
+                "Graded pattern set kosong."
             );
 
         }
 
 
-        (
-            graded?.variants ||
-            []
-        )
-        .forEach(
+        graded.variants.forEach(
             (
                 variant,
                 variantIndex
@@ -962,14 +1631,9 @@
                     ) => {
 
                         const points =
-                            piece.cutPoints &&
-                            Array.isArray(
-                                piece.cutPoints
-                            )
-
-                                ? piece.cutPoints
-
-                                : piece.points;
+                            piece.points ||
+                            piece.seamPoints ||
+                            [];
 
 
                         if (
@@ -988,10 +1652,13 @@
 
                             );
 
+
+                            return;
+
                         }
 
 
-                        points?.forEach(
+                        points.forEach(
                             (
                                 point,
                                 pointIndex
@@ -1015,8 +1682,7 @@
 
                                         `Variant ${variantIndex + 1}, ` +
                                         `piece ${pieceIndex + 1}, ` +
-                                        `point ${pointIndex + 1} ` +
-                                        "tidak valid."
+                                        `point ${pointIndex + 1} invalid.`
 
                                     );
 
@@ -1028,14 +1694,45 @@
                     }
                 );
 
+
+                if (
+                    variant.metadata
+                        ?.cutGeometryInvalidated !==
+                    true
+                ) {
+
+                    warnings.push(
+
+                        `Variant ${variantIndex + 1} ` +
+                        "belum menandai cut geometry sebagai invalidated."
+
+                    );
+
+                }
+
             }
         );
+
+
+        if (
+            graded.mode ===
+            MODES.APPROXIMATE
+        ) {
+
+            warnings.push(
+
+                "Set grading menggunakan approximate mode."
+
+            );
+
+        }
 
 
         return {
 
             valid:
-                errors.length === 0,
+                errors.length ===
+                0,
 
             errors,
 
@@ -1047,136 +1744,142 @@
 
 
     /* ========================================================
-       SIZE TABLE HELPER
+       SIZE SERIES
        ======================================================== */
 
     function createSizeSeries(
-        options = {}
+        ids
     ) {
 
-        const count =
-            Math.max(
-                1,
-                Math.round(
-                    num(
-                        options.count,
-                        5
-                    )
-                )
-            );
-
-
-        const prefix =
-            options.prefix ||
-            "SIZE";
-
-
-        const start =
-            num(
-                options.start,
-                1
-            );
-
-
-        const sizes =
-            [];
-
-
-        for (
-            let i = 0;
-            i < count;
-            i++
-        ) {
-
-            sizes.push({
-
-                id:
-                    `${prefix}-${start + i}`,
-
-                label:
-                    `${prefix} ${start + i}`
-
-            });
-
-        }
-
-
-        return sizes;
+        return normalizeSizes(
+            ids
+        );
 
     }
 
 
     /* ========================================================
-       COMMON READY-MADE SERIES
+       GRADE PREVIEW
        ======================================================== */
 
-    function createNumericSeries(
-        start,
-        end,
-        step = 1
+    function createGradePreview(
+        pattern,
+        options = {}
     ) {
 
-        const output =
-            [];
+        const result =
+            gradePattern(
 
+                pattern,
 
-        const direction =
-            end >= start
-                ? 1
-                : -1;
+                {
 
+                    ...options,
 
-        const increment =
-            Math.abs(
-                step
-            ) *
-            direction;
+                    mode:
+                        MODES.APPROXIMATE,
 
+                    sizes:
+                        options.sizes ||
+                        [
 
-        if (
-            increment ===
-            0
-        ) {
+                            {
+                                id:
+                                    "BASE",
 
-            return [
+                                label:
+                                    "Base"
 
-                String(start)
+                            },
 
-            ];
+                            {
+                                id:
+                                    "UP",
 
-        }
+                                label:
+                                    "Grade +1"
 
+                            },
 
-        let current =
-            start;
+                            {
+                                id:
+                                    "DOWN",
 
+                                label:
+                                    "Grade -1"
 
-        while (
-            (
-                direction > 0 &&
-                current <= end
-            )
-            ||
-            (
-                direction < 0 &&
-                current >= end
-            )
-        ) {
+                            }
 
-            output.push(
-                String(
-                    current
-                )
+                        ]
+
+                }
+
             );
 
 
-            current +=
-                increment;
+        return result;
 
-        }
+    }
 
 
-        return output;
+    /* ========================================================
+       DEBUG
+       ======================================================== */
+
+    function debug(
+        pattern,
+        options = {}
+    ) {
+
+        const result =
+            createGradePreview(
+
+                pattern,
+
+                options
+
+            );
+
+
+        console.group(
+            "PatternMaker Grading Engine"
+        );
+
+
+        console.log(
+            "Version:",
+            VERSION
+        );
+
+
+        console.log(
+            "Mode:",
+            result.mode
+        );
+
+
+        console.log(
+            "Category:",
+            result.category
+        );
+
+
+        console.log(
+            "Rule:",
+            result.rule
+        );
+
+
+        console.log(
+            "Variants:",
+            result.variants
+        );
+
+
+        console.groupEnd();
+
+
+        return result;
 
     }
 
@@ -1189,15 +1892,23 @@
 
         VERSION,
 
-        DEFAULT_RULES,
+        MODES,
 
-        clone,
+        DEFAULT_RULES,
 
         getRule,
 
         normalizeSizes,
 
         getSizeOffset,
+
+        getGradePoints,
+
+        validateGradePoints,
+
+        createApproximateGradePoints,
+
+        calculateDelta,
 
         gradePiece,
 
@@ -1207,7 +1918,9 @@
 
         createSizeSeries,
 
-        createNumericSeries
+        createGradePreview,
+
+        debug
 
     };
 
