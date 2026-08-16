@@ -3,16 +3,18 @@
  * PATTERNMAKER UNIVERSAL
  * BASELINE FINAL v1
  * KODE 53
+ * FILE: engine/pants.js
+ * ============================================================
  *
- * FILE:
- *   engine/pants.js
+ * Migrated from V5:
+ *   makePantPieces(shorts = false)
  *
- * SOURCE:
- *   PatternMaker_Universal_v5_Production_Drafting.html
+ * Supports:
+ *   pants
+ *   shorts
  *
- * EXTRACTED:
- *   makePantPieces(shorts=false)
- *
+ * Internal unit:
+ *   cm
  * ============================================================
  */
 
@@ -20,10 +22,6 @@
 
     "use strict";
 
-
-    /* ========================================================
-       DEPENDENCIES
-       ======================================================== */
 
     const Schema =
         window.PatternMakerMeasurementSchema;
@@ -38,26 +36,15 @@
     ) {
 
         throw new Error(
-
-            "Pants Engine membutuhkan " +
-            "measurement schema + mapper."
-
+            "Pants Engine membutuhkan measurement-schema.js dan measurement-mapper.js."
         );
 
     }
 
 
-    /* ========================================================
-       VERSION
-       ======================================================== */
-
     const VERSION =
         "V5-MIGRATED-v1";
 
-
-    /* ========================================================
-       NUMBER
-       ======================================================== */
 
     function num(
         value,
@@ -65,10 +52,7 @@
     ) {
 
         const n =
-            Number(
-                value
-            );
-
+            Number(value);
 
         return Number.isFinite(n)
             ? n
@@ -77,61 +61,38 @@
     }
 
 
-    /* ========================================================
-       ROUND
-       ======================================================== */
-
     function round1(
         value
     ) {
 
         return Math.round(
-            num(value) *
-            10
+            num(value) * 10
         ) / 10;
 
     }
 
 
-    /* ========================================================
-       CLONE POINTS
-       ======================================================== */
-
     function clonePoints(
         points
     ) {
 
-        return (
-            points ||
-            []
-        )
-        .map(
-            point => [
-
-                num(point[0]),
-
-                num(point[1])
-
-            ]
-        );
+        return (points || [])
+            .map(
+                point => [
+                    num(point[0]),
+                    num(point[1])
+                ]
+            );
 
     }
 
-
-    /* ========================================================
-       GET MEASUREMENT
-       ======================================================== */
 
     function getMeasurement(
         measurements,
         canonicalId,
         fallback,
-        legacyKeys = []
+        aliases = []
     ) {
-
-        /*
-         * Canonical field first.
-         */
 
         const direct =
             measurements?.[
@@ -146,24 +107,15 @@
             Number(direct) > 0
         ) {
 
-            return Number(
-                direct
-            );
+            return Number(direct);
 
         }
 
 
-        /*
-         * Measurement mapper.
-         */
-
         const mapped =
             Mapper.getValue(
-
                 measurements || {},
-
                 canonicalId
-
             );
 
 
@@ -174,42 +126,29 @@
             Number(mapped) > 0
         ) {
 
-            return Number(
-                mapped
-            );
+            return Number(mapped);
 
         }
 
 
-        /*
-         * Explicit V5 compatibility fields.
-         */
-
         for (
-            const key
-            of legacyKeys
+            const alias of aliases
         ) {
 
-            const legacyValue =
+            const value =
                 measurements?.[
-                    key
+                    alias
                 ];
 
 
             if (
                 Number.isFinite(
-                    Number(
-                        legacyValue
-                    )
+                    Number(value)
                 ) &&
-                Number(
-                    legacyValue
-                ) > 0
+                Number(value) > 0
             ) {
 
-                return Number(
-                    legacyValue
-                );
+                return Number(value);
 
             }
 
@@ -223,10 +162,6 @@
     }
 
 
-    /* ========================================================
-       EASE
-       ======================================================== */
-
     function getEase(
         context
     ) {
@@ -236,24 +171,17 @@
             0,
 
             num(
-
                 context?.fabric?.ease,
-
                 num(
                     context?.options?.ease,
                     0
                 )
-
             )
 
         );
 
     }
 
-
-    /* ========================================================
-       SEAM + TOLERANCE
-       ======================================================== */
 
     function getSeam(
         context
@@ -274,20 +202,12 @@
 
 
         return Math.max(
-
             0,
-
-            seam +
-            tolerance
-
+            seam + tolerance
         );
 
     }
 
-
-    /* ========================================================
-       RADIAL SEAM
-       ======================================================== */
 
     function addRadialSeam(
         points,
@@ -306,24 +226,18 @@
         }
 
 
-        let cx =
-            0;
-
-
-        let cy =
-            0;
+        let cx = 0;
+        let cy = 0;
 
 
         for (
             const [
                 x,
                 y
-            ]
-            of points
+            ] of points
         ) {
 
             cx += x;
-
             cy += y;
 
         }
@@ -331,7 +245,6 @@
 
         cx /=
             points.length;
-
 
         cy /=
             points.length;
@@ -346,43 +259,31 @@
             ) => {
 
                 const dx =
-                    x -
-                    cx;
-
+                    x - cx;
 
                 const dy =
-                    y -
-                    cy;
-
+                    y - cy;
 
                 const length =
                     Math.hypot(
                         dx,
                         dy
-                    ) ||
-                    1;
-
+                    ) || 1;
 
                 const factor =
                     (
-                        length +
-                        seam
-                    ) /
-                    length;
+                        length + seam
+                    ) / length;
 
 
                 return [
 
                     round1(
-                        cx +
-                        dx *
-                        factor
+                        cx + dx * factor
                     ),
 
                     round1(
-                        cy +
-                        dy *
-                        factor
+                        cy + dy * factor
                     )
 
                 ];
@@ -392,10 +293,6 @@
 
     }
 
-
-    /* ========================================================
-       PIECE
-       ======================================================== */
 
     function makePiece(
         name,
@@ -456,10 +353,6 @@
     }
 
 
-    /* ========================================================
-       ENGINE
-       ======================================================== */
-
     function makePantPieces(
         context = {}
     ) {
@@ -470,20 +363,19 @@
             {};
 
 
+        const garmentId =
+            String(
+                context?.garment?.id ||
+                context?.garmentId ||
+                ""
+            )
+            .toLowerCase();
+
+
         const isShorts =
-
-            context?.garment?.id ===
-                "shorts"
-
-            ||
-
-            context?.garmentId ===
-                "shorts"
-
-            ||
-
-            context?.shorts ===
-                true;
+            garmentId ===
+            "shorts" ||
+            context?.shorts === true;
 
 
         const ease =
@@ -494,154 +386,88 @@
 
         const hip =
             getMeasurement(
-
                 measurements,
-
                 "hip",
-
                 96
-
-            ) +
-
-            ease;
-
-
-        const waist =
-            getMeasurement(
-
-                measurements,
-
-                "waist",
-
-                72
-
-            ) +
-
-            ease;
+            ) + ease;
 
 
         /*
-         * V5 calculates waist even though
-         * the polygon formula currently does
-         * not consume it directly.
-         *
-         * Preserve that behavior.
+         * Retain V5 calculation.
          */
+
+        const waist =
+            getMeasurement(
+                measurements,
+                "waist",
+                72
+            ) + ease;
+
 
         void waist;
 
 
-        /*
-         * V5:
-         * rise → canonical crotchDepth
-         */
-
         const rise =
             getMeasurement(
-
                 measurements,
-
                 "crotchDepth",
-
                 27,
-
                 [
                     "rise"
                 ]
-
             );
 
 
-        /*
-         * V5 uses:
-         *
-         * shortsLength
-         * pantsLength
-         *
-         * Canonical compatibility:
-         *
-         * shorts → garmentLength
-         * pants  → outseam
-         */
-
         const length =
-
             isShorts
 
                 ? getMeasurement(
-
                     measurements,
-
                     "garmentLength",
-
                     38,
-
                     [
                         "shortsLength"
                     ]
-
                 )
 
                 : getMeasurement(
-
                     measurements,
-
                     "outseam",
-
                     100,
-
                     [
                         "pantsLength",
-
                         "garmentLength"
-
                     ]
-
                 );
 
 
         const thigh =
             getMeasurement(
-
                 measurements,
-
                 "thigh",
-
                 58,
-
                 [
                     "thighCircumference"
                 ]
-
-            ) +
-
-            ease;
+            ) + ease;
 
 
         /*
-         * V5 uses "hem".
+         * V5 uses hem.
          *
-         * Canonical schema currently does not
-         * have hem, therefore support ankle first
-         * and legacy hem second.
+         * Canonical fallback:
+         * ankle.
          */
 
         const hem =
             getMeasurement(
-
                 measurements,
-
                 "ankle",
-
                 32,
-
                 [
                     "hem"
                 ]
-
-            ) +
-
-            ease;
+            ) + ease;
 
 
         const seam =
@@ -649,10 +475,6 @@
                 context
             );
 
-
-        /*
-         * V5 formula.
-         */
 
         const w =
             Math.max(
@@ -775,34 +597,24 @@
 
 
         const leftNotches =
-
             includeNotches
-
                 ? [
-
                     [
                         20 + w,
                         20 + rise + 8
                     ]
-
                 ]
-
                 : [];
 
 
         const rightNotches =
-
             includeNotches
-
                 ? [
-
                     [
                         x2 + w,
                         20 + rise + 8
                     ]
-
                 ]
-
                 : [];
 
 
@@ -898,7 +710,6 @@
             pieces: [
 
                 leftPiece,
-
                 rightPiece
 
             ],
@@ -945,10 +756,6 @@
     }
 
 
-    /* ========================================================
-       ENGINE CONTRACT
-       ======================================================== */
-
     const PantsEngine = {
 
         id:
@@ -967,10 +774,6 @@
 
     };
 
-
-    /* ========================================================
-       GLOBAL
-       ======================================================== */
 
     window.PatternMakerPants =
         PantsEngine;
