@@ -2,22 +2,31 @@
  * ============================================================
  * PATTERNMAKER UNIVERSAL
  * BASELINE FINAL v1
- * KODE 55
- * FILE: engine/shirt.js
- * ============================================================
+ * KODE 68
+ *
+ * FILE:
+ *   engine/shirt.js
  *
  * SOURCE:
  *   PatternMaker_Universal_v5_Production_Drafting.html
  *
- * V5 source behavior:
+ * V5 BEHAVIOR:
  *   makeUpperPieces("shirt")
+ *   +
+ *   PLACKET
  *
- * Shirt is intentionally built on the migrated Bodice engine.
- * The V5-specific addition is the PLACKET piece.
+ * ADDED:
+ *   Grade-point metadata
  *
- * Seam allowance remains outside the normal base-pattern path.
- * Legacy radial seam can explicitly be requested through
- * context.options.includeLegacySeam=true.
+ * ============================================================
+ *
+ * IMPORTANT:
+ *
+ * - FRONT / BACK / SLEEVE memiliki grade points.
+ * - PLACKET TIDAK memiliki grade points.
+ * - PLACKET diperlakukan sebagai accessory / production piece.
+ * - Seam production tetap berada di seam-production.js.
+ *
  * ============================================================
  */
 
@@ -36,6 +45,9 @@
     const Bodice =
         window.PatternMakerBodice;
 
+    const GradePointSchema =
+        window.PatternMakerGradePointSchema;
+
 
     if (
         !Schema ||
@@ -49,12 +61,23 @@
     }
 
 
+    if (
+        !GradePointSchema
+    ) {
+
+        throw new Error(
+            "grade-point-schema.js harus dimuat sebelum shirt.js."
+        );
+
+    }
+
+
     /* ========================================================
        VERSION
        ======================================================== */
 
     const VERSION =
-        "V5-MIGRATED-v1";
+        "V5-MIGRATED-v1.2";
 
 
     /* ========================================================
@@ -69,10 +92,315 @@
         const n =
             Number(value);
 
-
         return Number.isFinite(n)
             ? n
             : fallback;
+
+    }
+
+
+    /* ========================================================
+       CLONE POINTS
+       ======================================================== */
+
+    function clonePoints(
+        points
+    ) {
+
+        return (
+            points || []
+        )
+        .map(
+            point => [
+                num(point[0]),
+                num(point[1])
+            ]
+        );
+
+    }
+
+
+    /* ========================================================
+       GRADE POINT DEFINITIONS
+       ======================================================== */
+
+    function createBodyGradePoints() {
+
+        return [
+
+            {
+                horizontalMeasurement:
+                    "shoulder",
+
+                verticalMeasurement:
+                    "length",
+
+                horizontalFactor:
+                    0,
+
+                verticalFactor:
+                    0,
+
+                role:
+                    "center-neck"
+            },
+
+            {
+                horizontalMeasurement:
+                    "shoulder",
+
+                verticalMeasurement:
+                    "length",
+
+                horizontalFactor:
+                    0,
+
+                verticalFactor:
+                    0,
+
+                role:
+                    "neck-edge"
+            },
+
+            {
+                horizontalMeasurement:
+                    "shoulder",
+
+                verticalMeasurement:
+                    "length",
+
+                horizontalFactor:
+                    0.5,
+
+                verticalFactor:
+                    0,
+
+                role:
+                    "shoulder"
+            },
+
+            {
+                horizontalMeasurement:
+                    "chest",
+
+                verticalMeasurement:
+                    "length",
+
+                horizontalFactor:
+                    0.25,
+
+                verticalFactor:
+                    0.35,
+
+                role:
+                    "armhole"
+            },
+
+            {
+                horizontalMeasurement:
+                    "hip",
+
+                verticalMeasurement:
+                    "length",
+
+                horizontalFactor:
+                    0.25,
+
+                verticalFactor:
+                    1,
+
+                role:
+                    "body-hem"
+            },
+
+            {
+                horizontalMeasurement:
+                    "hip",
+
+                verticalMeasurement:
+                    "length",
+
+                horizontalFactor:
+                    0,
+
+                verticalFactor:
+                    1,
+
+                role:
+                    "center-hem"
+            }
+
+        ];
+
+    }
+
+
+    /* ========================================================
+       SLEEVE GRADE POINT DEFINITIONS
+       ======================================================== */
+
+    function createSleeveGradePoints() {
+
+        return [
+
+            {
+                horizontalMeasurement:
+                    "upperArm",
+
+                verticalMeasurement:
+                    "sleeveLength",
+
+                horizontalFactor:
+                    0,
+
+                verticalFactor:
+                    0,
+
+                role:
+                    "sleeve-cap-center"
+            },
+
+            {
+                horizontalMeasurement:
+                    "upperArm",
+
+                verticalMeasurement:
+                    "sleeveLength",
+
+                horizontalFactor:
+                    0.5,
+
+                verticalFactor:
+                    0,
+
+                role:
+                    "sleeve-cap-edge"
+            },
+
+            {
+                horizontalMeasurement:
+                    "upperArm",
+
+                verticalMeasurement:
+                    "sleeveLength",
+
+                horizontalFactor:
+                    0.5,
+
+                verticalFactor:
+                    0.5,
+
+                role:
+                    "sleeve-side"
+            },
+
+            {
+                horizontalMeasurement:
+                    "upperArm",
+
+                verticalMeasurement:
+                    "sleeveLength",
+
+                horizontalFactor:
+                    0.5,
+
+                verticalFactor:
+                    1,
+
+                role:
+                    "sleeve-hem-edge"
+            },
+
+            {
+                horizontalMeasurement:
+                    "upperArm",
+
+                verticalMeasurement:
+                    "sleeveLength",
+
+                horizontalFactor:
+                    0,
+
+                verticalFactor:
+                    1,
+
+                role:
+                    "sleeve-hem-center"
+            }
+
+        ];
+
+    }
+
+
+    /* ========================================================
+       ATTACH GRADE POINTS
+       ======================================================== */
+
+    function attachGradePoints(
+        piece,
+        definitions
+    ) {
+
+        const gradePoints =
+            GradePointSchema
+                .createFromPointDefinitions(
+                    definitions
+                );
+
+
+        if (
+            gradePoints.length !==
+            piece.points.length
+        ) {
+
+            throw new Error(
+
+                `Shirt piece "${piece.name}" ` +
+                "memiliki jumlah grade points " +
+                "yang tidak sama dengan geometry."
+
+            );
+
+        }
+
+
+        const validation =
+            GradePointSchema
+                .validatePieceGradePoints({
+
+                    ...piece,
+
+                    gradePoints
+
+                });
+
+
+        if (
+            !validation.valid
+        ) {
+
+            throw new Error(
+
+                `Grade point validation gagal ` +
+                `untuk "${piece.name}": ` +
+
+                validation.errors.join(
+                    " | "
+                )
+
+            );
+
+        }
+
+
+        return {
+
+            ...piece,
+
+            gradePoints
+
+        };
 
     }
 
@@ -95,15 +423,14 @@
 
         if (
             !front ||
-            !Array.isArray(front.points) ||
+            !Array.isArray(
+                front.points
+            ) ||
             front.points.length < 2
         ) {
 
             throw new Error(
-
-                "Shirt Engine tidak dapat menentukan " +
-                "posisi PLACKET dari FRONT."
-
+                "Shirt Engine tidak dapat menentukan posisi PLACKET."
             );
 
         }
@@ -113,115 +440,97 @@
             front.points;
 
 
+        const xs =
+            points.map(
+                point =>
+                    Number(point[0])
+            );
+
+
+        const ys =
+            points.map(
+                point =>
+                    Number(point[1])
+            );
+
+
         const minX =
             Math.min(
-                ...points.map(
-                    point =>
-                        Number(point[0])
-                )
-            );
-
-
-        const maxX =
-            Math.max(
-                ...points.map(
-                    point =>
-                        Number(point[0])
-                )
-            );
-
-
-        const minY =
-            Math.min(
-                ...points.map(
-                    point =>
-                        Number(point[1])
-                )
+                ...xs
             );
 
 
         const maxY =
             Math.max(
-                ...points.map(
-                    point =>
-                        Number(point[1])
-                )
+                ...ys
+            );
+
+
+        const minY =
+            Math.min(
+                ...ys
             );
 
 
         const qHip =
+
+            (
+                num(
+                    context?.profile
+                        ?.measurements
+                        ?.hip,
+
+                    96
+                )
+
+                +
+
+                num(
+                    context?.fabric?.ease,
+                    0
+                )
+
+            ) / 4;
+
+
+        const seam =
             Math.max(
 
                 0,
 
-                (
-                    num(
-                        context?.profile
-                            ?.measurements
-                            ?.hip,
+                num(
+                    context?.options?.seam,
+                    0
+                )
 
-                        96
+                +
 
-                    )
-                    +
-
-                    num(
-                        context?.fabric?.ease,
-                        0
-                    )
-
-                ) / 4
+                num(
+                    context?.options?.tolerance,
+                    0
+                )
 
             );
 
 
-        const seam =
-            num(
-                context?.options?.seam,
-                0
-            )
-
-            +
-
-            num(
-                context?.options?.tolerance,
-                0
-            );
-
-
-        const placketWidth =
+        const width =
             Math.max(
-
                 3,
-
                 seam + 1.5
-
             );
 
 
         /*
-         * V5:
+         * Preserve the V5 open-layout relationship:
          *
-         * x =
-         *     frontX +
-         *     qHip +
-         *     7
+         * frontX + qHip + 7
          *
-         * frontX = 15
-         *
-         * In the migrated bodice engine FRONT starts
-         * from the same open-preview reference.
-         *
-         * We derive it from actual geometry rather
-         * than DOM/state.
+         * The migrated FRONT uses its actual minimum X
+         * as the front reference.
          */
 
-        const frontX =
-            minX;
-
-
         const x =
-            frontX +
+            minX +
             qHip +
             7;
 
@@ -256,16 +565,12 @@
                 ],
 
                 [
-                    x +
-                    placketWidth,
-
+                    x + width,
                     top
                 ],
 
                 [
-                    x +
-                    placketWidth,
-
+                    x + width,
                     bottom
                 ],
 
@@ -286,13 +591,10 @@
                 [],
 
             label:
-
                 `PLACKET • ${
-
                     Schema.getCategoryLabel(
                         category
                     )
-
                 }`,
 
             metadata: {
@@ -304,7 +606,13 @@
                     "V5-migration",
 
                 version:
-                    VERSION
+                    VERSION,
+
+                gradingExcluded:
+                    true,
+
+                productionAccessory:
+                    true
 
             }
 
@@ -341,7 +649,7 @@
 
 
         /*
-         * Use migrated Bodice engine.
+         * Use the migrated Bodice engine.
          */
 
         const bodiceResult =
@@ -358,60 +666,75 @@
         ) {
 
             throw new Error(
-
-                "Bodice Engine tidak menghasilkan " +
-                "pieces untuk Shirt."
-
+                "Bodice Engine tidak menghasilkan pieces untuk Shirt."
             );
 
         }
 
 
         /*
-         * Convert base-piece metadata to shirt.
+         * Convert body pieces to shirt metadata.
          */
 
-        const basePieces =
-            bodiceResult.pieces.map(
+        const pieces =
+            bodiceResult.pieces
+                .map(
+                    piece => {
 
-                piece => ({
+                        const output = {
 
-                    ...piece,
+                            ...piece,
 
-                    metadata: {
+                            metadata: {
 
-                        ...(piece.metadata || {}),
+                                ...(piece.metadata || {}),
 
-                        engine:
-                            "shirt",
+                                engine:
+                                    "shirt",
 
-                        source:
-                            "V5-migration",
+                                source:
+                                    "V5-migration",
 
-                        version:
-                            VERSION
+                                version:
+                                    VERSION
+
+                            }
+
+                        };
+
+
+                        /*
+                         * Grade points are already created
+                         * by Bodice KODE 63.
+                         *
+                         * We keep them here.
+                         */
+
+                        return output;
 
                     }
-
-                })
-
-            );
+                );
 
 
         /*
-         * Add V5 PLACKET.
+         * Add PLACKET separately.
+         *
+         * PLACKET explicitly has:
+         *
+         *   gradingExcluded: true
+         *
+         * and does not receive gradePoints.
          */
 
-        basePieces.push(
-
+        const placket =
             makePlacket(
-
                 shirtContext,
+                pieces
+            );
 
-                basePieces
 
-            )
-
+        pieces.push(
+            placket
         );
 
 
@@ -432,8 +755,7 @@
             version:
                 VERSION,
 
-            pieces:
-                basePieces,
+            pieces,
 
             metadata: {
 
@@ -469,10 +791,157 @@
                 productionGeometry:
                     false,
 
+                grading: {
+
+                    supported:
+                        true,
+
+                    strict:
+                        true,
+
+                    gradePointSchema:
+                        GradePointSchema.VERSION,
+
+                    excludedPieces: [
+
+                        "PLACKET"
+
+                    ]
+
+                },
+
                 formula:
                     'V5 makeUpperPieces("shirt") extraction'
 
             }
+
+        };
+
+    }
+
+
+    /* ========================================================
+       VALIDATE GRADE POINTS
+       ======================================================== */
+
+    function validateGradePoints(
+        pattern
+    ) {
+
+        const errors =
+            [];
+
+        const warnings =
+            [];
+
+
+        if (
+            !pattern ||
+            !Array.isArray(
+                pattern.pieces
+            )
+        ) {
+
+            errors.push(
+                "Shirt pattern tidak memiliki pieces."
+            );
+
+
+            return {
+
+                valid:
+                    false,
+
+                errors,
+
+                warnings
+
+            };
+
+        }
+
+
+        pattern.pieces.forEach(
+            piece => {
+
+                /*
+                 * PLACKET intentionally excluded.
+                 */
+
+                if (
+                    piece.name ===
+                    "PLACKET"
+                ) {
+
+                    if (
+                        piece.gradePoints
+                    ) {
+
+                        errors.push(
+
+                            "PLACKET tidak boleh memiliki gradePoints."
+
+                        );
+
+                    }
+
+
+                    if (
+                        piece.metadata
+                            ?.gradingExcluded !==
+                        true
+                    ) {
+
+                        warnings.push(
+
+                            "PLACKET sebaiknya memiliki " +
+                            "metadata gradingExcluded=true."
+
+                        );
+
+                    }
+
+
+                    return;
+
+                }
+
+
+                const validation =
+                    GradePointSchema
+                        .validatePieceGradePoints(
+                            piece
+                        );
+
+
+                if (
+                    !validation.valid
+                ) {
+
+                    errors.push(
+                        ...validation.errors
+                    );
+
+                }
+
+
+                warnings.push(
+                    ...validation.warnings
+                );
+
+            }
+        );
+
+
+        return {
+
+            valid:
+                errors.length ===
+                0,
+
+            errors,
+
+            warnings
 
         };
 
@@ -494,10 +963,22 @@
         version:
             VERSION,
 
-        generate:
-            makeShirtPieces,
 
-        makeShirtPieces
+        generate(
+            context = {}
+        ) {
+
+            return makeShirtPieces(
+                context
+            );
+
+        },
+
+
+        makeShirtPieces,
+
+
+        validateGradePoints
 
     };
 
