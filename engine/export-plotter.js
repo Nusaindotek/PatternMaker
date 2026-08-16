@@ -1,51 +1,40 @@
 /**
  * ============================================================
- * PATTERNMAKER UNIVERSAL
- * KODE 30 — engine/export-plotter.js
+ * PATTERMAKER UNIVERSAL
+ * BASELINE FINAL v1
+ * KODE 82
+ *
+ * FILE:
+ *   engine/export-plotter.js
  * ============================================================
  *
- * PLT / HPGL EXPORTER
+ * HPGL PLOTTER EXPORTER
  *
- * Input:
- *   Cutting Geometry
+ * Supports:
  *
- * Output:
- *   HPGL / PLT
+ *   Production Pattern
+ *   Marker / Nesting Result
  *
  * Internal geometry:
  *   cm
  *
- * HPGL default:
- *   40 plotter units / mm
- *
- * sehingga:
- *
- *   1 mm = 40 HPGL units
- *   1 cm = 400 HPGL units
+ * Output:
+ *   HPGL plotter units
  *
  * ============================================================
  *
- * COMMANDS:
+ * IMPORTANT
  *
- *   IN  = Initialize
- *   SP  = Select Pen
- *   PU  = Pen Up
- *   PD  = Pen Down
+ * Exporter TIDAK:
  *
- * Default:
+ * - mengubah drafting
+ * - menambah seam
+ * - melakukan nesting
+ * - memperbaiki geometry
  *
- *   CUT       → pen 1
- *   GRAINLINE → pen 2
- *   NOTCH     → pen 3
- *   DRILL     → pen 4
+ * Ia hanya melakukan:
  *
- * ============================================================
- *
- * CATATAN:
- *
- * Karena implementasi HPGL berbeda antar plotter/driver,
- * unitsPerMm, pen mapping, origin dan page behavior
- * dibuat configurable.
+ *   cm → plotter units
  *
  * ============================================================
  */
@@ -56,63 +45,60 @@
 
 
     /* ========================================================
-       DEPENDENCY
+       DEPENDENCIES
        ======================================================== */
 
     const ProductionValidator =
         window.PatternMakerProductionValidator;
 
-
-    if (
-        !ProductionValidator
-    ) {
-
-        throw new Error(
-            "production-validator.js belum tersedia."
-        );
-
-    }
+    const NestingValidator =
+        window.PatternMakerNestingValidator;
 
 
     /* ========================================================
-       DEFAULT CONFIGURATION
+       VERSION
        ======================================================== */
 
-    const DEFAULTS = {
+    const VERSION =
+        "FINAL-v1";
 
-        unitsPerMm:
+
+    const HPGL_VERSION =
+        "HPGL-1";
+
+
+    /* ========================================================
+       DEFAULTS
+       ======================================================== */
+
+    const DEFAULT_OPTIONS = {
+
+        unitsPerCm:
             40,
 
-        penCut:
-            1,
+        sourceType:
+            "production",
 
-        penGrainline:
-            2,
-
-        penNotch:
-            3,
-
-        penDrill:
-            4,
-
-        penLabel:
-            5,
-
-        includeGrainline:
+        validateBeforeExport:
             true,
 
-        includeNotches:
-            true,
-
-        includeDrillPoints:
-            true,
-
-        includeLabels:
+        requireProductionPass:
             false,
 
-        /*
-         * HPGL origin.
-         */
+        requireNestingPass:
+            false,
+
+        includeMarkerBoundary:
+            true,
+
+        penSelect:
+            1,
+
+        autoPenUp:
+            true,
+
+        precision:
+            0,
 
         originX:
             0,
@@ -120,45 +106,14 @@
         originY:
             0,
 
-        /*
-         * Y orientation.
-         *
-         * false:
-         * preserve Cartesian-like Y direction.
-         *
-         * true:
-         * flip Y for device coordinate system.
-         */
-
-        flipY:
-            false,
-
-        /*
-         * Initialize plotter.
-         */
-
-        initialize:
-            true,
-
-        /*
-         * Reset pen at end.
-         */
-
-        resetPen:
-            true,
-
-        /*
-         * Final command.
-         */
-
-        terminate:
-            true
+        invertY:
+            false
 
     };
 
 
     /* ========================================================
-       HELPERS
+       NUMBER
        ======================================================== */
 
     function num(
@@ -169,7 +124,6 @@
         const n =
             Number(value);
 
-
         return Number.isFinite(n)
             ? n
             : fallback;
@@ -177,24 +131,17 @@
     }
 
 
-    function round(
-        value
-    ) {
+    /* ========================================================
+       OPTIONS
+       ======================================================== */
 
-        return Math.round(
-            Number(value)
-        );
-
-    }
-
-
-    function mergeOptions(
+    function normalizeOptions(
         options = {}
     ) {
 
         return {
 
-            ...DEFAULTS,
+            ...DEFAULT_OPTIONS,
 
             ...options
 
@@ -204,25 +151,72 @@
 
 
     /* ========================================================
-       CM → HPGL
+       ROUND
        ======================================================== */
 
-    function cmToHpgl(
+    function round(
         value,
-        options = {}
+        precision
     ) {
 
-        const config =
-            mergeOptions(
-                options
-            );
+        const factor =
+            10 ** precision;
 
 
-        return round(
+        return Math.round(
+            num(value) *
+            factor
+        ) /
+        factor;
 
-            Number(value) *
-            10 *
-            config.unitsPerMm
+    }
+
+
+    /* ========================================================
+       POINT VALIDATION
+       ======================================================== */
+
+    function validatePoints(
+        points
+    ) {
+
+        return (
+
+            Array.isArray(
+                points
+            )
+
+            &&
+
+            points.length >=
+            2
+
+            &&
+
+            points.every(
+                point =>
+
+                    Array.isArray(
+                        point
+                    )
+
+                    &&
+
+                    Number.isFinite(
+                        Number(
+                            point[0]
+                        )
+                    )
+
+                    &&
+
+                    Number.isFinite(
+                        Number(
+                            point[1]
+                        )
+                    )
+
+            )
 
         );
 
@@ -230,48 +224,127 @@
 
 
     /* ========================================================
-       POINT → HPGL
+       CLOSE POLYGON
        ======================================================== */
 
-    function pointToHpgl(
-        point,
-        options = {}
+    function closePoints(
+        points
     ) {
 
         if (
-            !Array.isArray(point) ||
-            point.length < 2
+            !Array.isArray(
+                points
+            ) ||
+            points.length ===
+            0
         ) {
 
-            throw new Error(
-                "Point HPGL tidak valid."
-            );
+            return [];
 
         }
 
 
-        const config =
-            mergeOptions(
-                options
+        const result =
+            points.map(
+                point => [
+
+                    num(
+                        point[0]
+                    ),
+
+                    num(
+                        point[1]
+                    )
+
+                ]
             );
 
 
+        const first =
+            result[0];
+
+
+        const last =
+            result[
+                result.length - 1
+            ];
+
+
+        if (
+            Math.abs(
+                first[0] -
+                last[0]
+            ) > 1e-9
+
+            ||
+
+            Math.abs(
+                first[1] -
+                last[1]
+            ) > 1e-9
+        ) {
+
+            result.push([
+
+                first[0],
+
+                first[1]
+
+            ]);
+
+        }
+
+
+        return result;
+
+    }
+
+
+    /* ========================================================
+       UNIT CONVERSION
+       ======================================================== */
+
+    function cmToPlotter(
+        value,
+        options
+    ) {
+
+        return Math.round(
+
+            num(value) *
+            num(
+                options.unitsPerCm,
+                DEFAULT_OPTIONS.unitsPerCm
+            )
+
+        );
+
+    }
+
+
+    /* ========================================================
+       TRANSFORM POINT
+       ======================================================== */
+
+    function transformPoint(
+        point,
+        options
+    ) {
+
         let x =
-            cmToHpgl(
-                point[0],
-                config
+            num(
+                point[0]
             );
 
 
         let y =
-            cmToHpgl(
-                point[1],
-                config
+            num(
+                point[1]
             );
 
 
         if (
-            config.flipY
+            options.invertY
         ) {
 
             y =
@@ -280,587 +353,39 @@
         }
 
 
-        x +=
-            num(
-                config.originX,
-                0
-            );
+        return [
 
+            cmToPlotter(
+                x +
+                options.originX,
 
-        y +=
-            num(
-                config.originY,
-                0
-            );
-
-
-        return {
-
-            x:
-                round(x),
-
-            y:
-                round(y)
-
-        };
-
-    }
-
-
-    /* ========================================================
-       HPGL COMMAND
-       ======================================================== */
-
-    function command(
-        code,
-        value = ""
-    ) {
-
-        return (
-
-            String(code) +
-            String(value) +
-            ";"
-
-        );
-
-    }
-
-
-    /* ========================================================
-       COORDINATE PAIR
-       ======================================================== */
-
-    function coordinate(
-        point,
-        options = {}
-    ) {
-
-        const converted =
-            pointToHpgl(
-                point,
                 options
-            );
+            ),
 
+            cmToPlotter(
+                y +
+                options.originY,
 
-        return (
-
-            String(
-                converted.x
-            ) +
-
-            "," +
-
-            String(
-                converted.y
+                options
             )
 
-        );
-
-    }
-
-
-    /* ========================================================
-       PEN SELECT
-       ======================================================== */
-
-    function selectPen(
-        pen
-    ) {
-
-        const value =
-            Math.max(
-                0,
-                Math.round(
-                    num(
-                        pen,
-                        1
-                    )
-                )
-            );
-
-
-        return command(
-            "SP",
-            value
-        );
-
-    }
-
-
-    /* ========================================================
-       PEN UP
-       ======================================================== */
-
-    function penUp(
-        point,
-        options = {}
-    ) {
-
-        return (
-
-            command(
-                "PU",
-                coordinate(
-                    point,
-                    options
-                )
-            )
-
-        );
-
-    }
-
-
-    /* ========================================================
-       PEN DOWN
-       ======================================================== */
-
-    function penDown(
-        points,
-        options = {}
-    ) {
-
-        if (
-            !Array.isArray(points) ||
-            !points.length
-        ) {
-
-            return "";
-
-        }
-
-
-        let output =
-            "";
-
-
-        output +=
-            command(
-                "PD",
-                points
-                    .map(
-                        point =>
-                            coordinate(
-                                point,
-                                options
-                            )
-                    )
-                    .join(",")
-            );
-
-
-        return output;
-
-    }
-
-
-    /* ========================================================
-       POLYLINE
-       ======================================================== */
-
-    function createPolyline(
-        points,
-        options = {}
-    ) {
-
-        if (
-            !Array.isArray(points) ||
-            points.length < 2
-        ) {
-
-            return "";
-
-        }
-
-
-        const config =
-            mergeOptions(
-                options
-            );
-
-
-        let output =
-            "";
-
-
-        output +=
-            penUp(
-                points[0],
-                config
-            );
-
-
-        output +=
-            penDown(
-                points,
-                config
-            );
-
-
-        /*
-         * Close polygon.
-         *
-         * Cutting boundary should be closed.
-         */
-
-        if (
-            config.closed !== false &&
-            points.length >= 3
-        ) {
-
-            output +=
-                command(
-                    "PD",
-                    coordinate(
-                        points[0],
-                        config
-                    )
-                );
-
-        }
-
-
-        output +=
-            command(
-                "PU"
-            );
-
-
-        return output;
-
-    }
-
-
-    /* ========================================================
-       LINE
-       ======================================================== */
-
-    function createLine(
-        start,
-        end,
-        options = {}
-    ) {
-
-        if (
-            !start ||
-            !end
-        ) {
-
-            return "";
-
-        }
-
-
-        const config =
-            mergeOptions(
-                options
-            );
-
-
-        let output =
-            "";
-
-
-        output +=
-            penUp(
-                start,
-                config
-            );
-
-
-        output +=
-            penDown(
-                [
-                    end
-                ],
-                config
-            );
-
-
-        output +=
-            command(
-                "PU"
-            );
-
-
-        return output;
-
-    }
-
-
-    /* ========================================================
-       NOTCH
-       ======================================================== */
-
-    function createNotch(
-        point,
-        options = {}
-    ) {
-
-        if (
-            !Array.isArray(point)
-        ) {
-
-            return "";
-
-        }
-
-
-        const config =
-            mergeOptions(
-                options
-            );
-
-
-        const size =
-            num(
-                config.notchSize,
-                0.6
-            );
-
-
-        const a = [
-
-            point[0] -
-            size,
-
-            point[1] -
-            size
-
         ];
 
-
-        const b = [
-
-            point[0] +
-            size,
-
-            point[1] +
-            size
-
-        ];
-
-
-        return createLine(
-
-            a,
-
-            b,
-
-            config
-
-        );
-
     }
 
 
     /* ========================================================
-       DRILL POINT
+       HPGL HEADER
        ======================================================== */
 
-    function createDrillPoint(
-        point,
-        options = {}
+    function createHeader(
+        options
     ) {
-
-        if (
-            !Array.isArray(point)
-        ) {
-
-            return "";
-
-        }
-
-
-        const config =
-            mergeOptions(
-                options
-            );
-
-
-        /*
-         * HPGL does not provide a universal
-         * filled point primitive.
-         *
-         * We make a tiny cross marker.
-         */
-
-        const size =
-            num(
-                config.drillSize,
-                0.7
-            );
-
-
-        const horizontalA = [
-
-            point[0] -
-            size,
-
-            point[1]
-
-        ];
-
-
-        const horizontalB = [
-
-            point[0] +
-            size,
-
-            point[1]
-
-        ];
-
-
-        const verticalA = [
-
-            point[0],
-
-            point[1] -
-            size
-
-        ];
-
-
-        const verticalB = [
-
-            point[0],
-
-            point[1] +
-            size
-
-        ];
-
-
-        let output =
-            "";
-
-
-        output +=
-            createLine(
-
-                horizontalA,
-
-                horizontalB,
-
-                config
-
-            );
-
-
-        output +=
-            createLine(
-
-                verticalA,
-
-                verticalB,
-
-                config
-
-            );
-
-
-        return output;
-
-    }
-
-
-    /* ========================================================
-       PIECE LABEL
-       ======================================================== */
-
-    function getPieceLabelPoint(
-        piece
-    ) {
-
-        if (
-            piece.bounds
-        ) {
-
-            return [
-
-                (
-                    Number(
-                        piece.bounds.minX
-                    ) +
-
-                    Number(
-                        piece.bounds.maxX
-                    )
-                ) / 2,
-
-                Number(
-                    piece.bounds.minY
-                ) - 2
-
-            ];
-
-        }
-
-
-        const points =
-            piece.points || [];
-
-
-        if (
-            !points.length
-        ) {
-
-            return [
-                0,
-                0
-            ];
-
-        }
-
-
-        let minX =
-            Infinity;
-
-        let maxX =
-            -Infinity;
-
-        let minY =
-            Infinity;
-
-
-        points.forEach(
-            point => {
-
-                minX =
-                    Math.min(
-                        minX,
-                        point[0]
-                    );
-
-
-                maxX =
-                    Math.max(
-                        maxX,
-                        point[0]
-                    );
-
-
-                minY =
-                    Math.min(
-                        minY,
-                        point[1]
-                    );
-
-            }
-        );
-
 
         return [
 
-            (
-                minX +
-                maxX
-            ) / 2,
-
-            minY -
-            2
+            "IN;",
+            `SP${num(options.penSelect, 1)};`
 
         ];
 
@@ -868,426 +393,597 @@
 
 
     /* ========================================================
-       SIMPLE TEXT LABEL
+       MOVE
        ======================================================== */
 
-    function createLabel(
-        text,
-        point,
-        options = {}
+    function penUp(
+        point
     ) {
 
-        /*
-         * HPGL text support varies considerably.
-         *
-         * The feature is therefore OFF by default.
-         *
-         * When enabled, use:
-         *
-         *     LBtext\x03
-         *
-         * with an explicit ETX termination character.
-         */
+        return (
 
-        const config =
-            mergeOptions(
-                options
-            );
+            `PU${point[0]},${point[1]};`
+
+        );
+
+    }
 
 
-        if (
-            config.includeLabels !==
-            true
-        ) {
+    function penDown(
+        point
+    ) {
 
-            return "";
+        return (
 
-        }
+            `PD${point[0]},${point[1]};`
 
-
-        if (
-            !text
-        ) {
-
-            return "";
-
-        }
-
-
-        const coordinateText =
-            coordinate(
-                point,
-                config
-            );
-
-
-        let output =
-            "";
-
-
-        output +=
-            penUp(
-                point,
-                config
-            );
-
-
-        output +=
-            command(
-                "LB",
-                String(text) +
-                "\x03"
-            );
-
-
-        output +=
-            command(
-                "PU"
-            );
-
-
-        return output;
+        );
 
     }
 
 
     /* ========================================================
-       PIECE BOUNDARY
+       POLYGON
        ======================================================== */
 
-    function getCutPoints(
-        piece
+    function createPolygonCommands(
+        points,
+        options
     ) {
 
-        if (
-            piece.cutPoints &&
-            Array.isArray(
-                piece.cutPoints
-            ) &&
-            piece.cutPoints.length >= 3
-        ) {
-
-            return piece.cutPoints;
-
-        }
-
-
-        if (
-            piece.points &&
-            Array.isArray(
-                piece.points
-            ) &&
-            piece.points.length >= 3
-        ) {
-
-            return piece.points;
-
-        }
-
-
-        return [];
-
-    }
-
-
-    /* ========================================================
-       EXPORT PIECE
-       ======================================================== */
-
-    function exportPiece(
-        piece,
-        options = {}
-    ) {
-
-        const config =
-            mergeOptions(
-                options
-            );
-
-
-        const points =
-            getCutPoints(
-                piece
+        const closed =
+            closePoints(
+                points
             );
 
 
         if (
-            points.length < 3
+            closed.length <
+            2
         ) {
 
             throw new Error(
-
-                `Piece "${piece?.name || "unknown"}" ` +
-                "tidak memiliki cut geometry."
-
+                "Polygon membutuhkan minimal dua titik."
             );
 
         }
 
 
-        let output =
-            "";
+        const commands = [];
 
 
-        /*
-         * CUTTING BOUNDARY
-         */
-
-        output +=
-            selectPen(
-                config.penCut
+        const first =
+            transformPoint(
+                closed[0],
+                options
             );
 
 
-        output +=
-            createPolyline(
+        commands.push(
 
-                points,
+            penUp(
+                first
+            ),
 
-                {
-
-                    ...config,
-
-                    closed:
-                        true
-
-                }
-
-            );
-
-
-        /*
-         * GRAINLINE
-         */
-
-        if (
-            config.includeGrainline &&
-            Array.isArray(
-                piece.grainline
-            ) &&
-            piece.grainline.length >= 2
-        ) {
-
-            output +=
-                selectPen(
-                    config.penGrainline
-                );
-
-
-            output +=
-                createLine(
-
-                    piece.grainline[0],
-
-                    piece.grainline[1],
-
-                    config
-
-                );
-
-        }
-
-
-        /*
-         * NOTCH
-         */
-
-        if (
-            config.includeNotches &&
-            Array.isArray(
-                piece.notches
+            penDown(
+                first
             )
+
+        );
+
+
+        for (
+            let i = 1;
+            i < closed.length;
+            i++
         ) {
 
-            output +=
-                selectPen(
-                    config.penNotch
+            const current =
+                transformPoint(
+
+                    closed[i],
+
+                    options
+
                 );
 
 
-            piece.notches.forEach(
-                notch => {
+            commands.push(
 
-                    output +=
-                        createNotch(
+                `${current[0]},${current[1]},`
 
-                            notch,
-
-                            config
-
-                        );
-
-                }
             );
 
         }
 
 
         /*
-         * DRILL
+         * HPGL PD supports coordinate pairs
+         * separated by commas.
+         *
+         * We rebuild the command as a single
+         * PD sequence for deterministic output.
          */
 
-        if (
-            config.includeDrillPoints &&
-            Array.isArray(
-                piece.drillPoints
-            )
+        const coordinates = [];
+
+
+        for (
+            let i = 1;
+            i < closed.length;
+            i++
         ) {
 
-            output +=
-                selectPen(
-                    config.penDrill
+            const current =
+                transformPoint(
+
+                    closed[i],
+
+                    options
+
                 );
 
 
-            piece.drillPoints.forEach(
-                point => {
+            coordinates.push(
 
-                    output +=
-                        createDrillPoint(
+                `${current[0]},${current[1]}`
 
-                            point,
-
-                            config
-
-                        );
-
-                }
             );
 
         }
 
 
         /*
-         * LABEL
+         * Replace the preliminary commands with
+         * clean HPGL.
          */
 
-        if (
-            config.includeLabels
-        ) {
-
-            output +=
-                selectPen(
-                    config.penLabel
-                );
+        commands.length = 0;
 
 
-            const labelPoint =
-                getPieceLabelPoint(
-                    piece
-                );
+        commands.push(
+
+            penUp(
+                first
+            ),
+
+            "PD" +
+            coordinates.join(",") +
+            ";",
+
+            "PU;"
+
+        );
 
 
-            output +=
-                createLabel(
-
-                    piece.label ||
-                    piece.name ||
-                    "PATTERN",
-
-                    labelPoint,
-
-                    config
-
-                );
-
-        }
-
-
-        /*
-         * Safe final pen-up.
-         */
-
-        output +=
-            command(
-                "PU"
-            );
-
-
-        return output;
+        return commands;
 
     }
 
 
     /* ========================================================
-       VALIDATE BEFORE EXPORT
+       PRODUCTION PIECES
        ======================================================== */
 
-    function validatePattern(
+    function getProductionPieces(
         pattern
     ) {
 
         if (
-            !pattern
+            !pattern ||
+            !Array.isArray(
+                pattern.pieces
+            )
         ) {
 
             throw new Error(
-                "Pattern belum tersedia."
+                "Production pattern tidak valid."
             );
 
         }
 
 
-        const validation =
-            ProductionValidator
+        return pattern.pieces.map(
+            (
+                piece,
+                index
+            ) => {
+
+                const points =
+
+                    piece.cutPoints
+
+                    ||
+
+                    piece.seamPoints
+
+                    ||
+
+                    piece.points
+
+                    ||
+
+                    [];
+
+
+                if (
+                    !validatePoints(
+                        points
+                    )
+                ) {
+
+                    throw new Error(
+
+                        `Piece ${
+                            piece.name ||
+                            index + 1
+                        } memiliki geometry invalid.`
+
+                    );
+
+                }
+
+
+                return {
+
+                    id:
+                        piece.name ||
+                        `PIECE-${index + 1}`,
+
+                    name:
+                        piece.name ||
+                        `PIECE-${index + 1}`,
+
+                    points:
+                        closePoints(
+                            points
+                        ),
+
+                    metadata:
+                        piece.metadata ||
+                        {}
+
+                };
+
+            }
+        );
+
+    }
+
+
+    /* ========================================================
+       MARKER PLACEMENTS
+       ======================================================== */
+
+    function getMarkerPieces(
+        marker
+    ) {
+
+        if (
+            !marker ||
+            !Array.isArray(
+                marker.placements
+            )
+        ) {
+
+            throw new Error(
+                "Marker result tidak valid."
+            );
+
+        }
+
+
+        return marker.placements.map(
+            (
+                placement,
+                index
+            ) => {
+
+                const points =
+                    placement.points ||
+                    [];
+
+
+                if (
+                    !validatePoints(
+                        points
+                    )
+                ) {
+
+                    throw new Error(
+
+                        `Placement ${
+                            placement.name ||
+                            index + 1
+                        } memiliki geometry invalid.`
+
+                    );
+
+                }
+
+
+                return {
+
+                    id:
+                        placement.id ||
+                        `PLACEMENT-${index + 1}`,
+
+                    name:
+                        placement.name ||
+                        `PLACEMENT-${index + 1}`,
+
+                    points:
+                        closePoints(
+                            points
+                        ),
+
+                    metadata:
+                        placement.metadata ||
+                        {}
+
+                };
+
+            }
+        );
+
+    }
+
+
+    /* ========================================================
+       MARKER BORDER
+       ======================================================== */
+
+    function createMarkerBoundary(
+        marker,
+        options
+    ) {
+
+        if (
+            !marker ||
+            !options.includeMarkerBoundary
+        ) {
+
+            return [];
+
+        }
+
+
+        const width =
+            num(
+                marker.width
+            );
+
+
+        const length =
+            num(
+                marker.length
+            );
+
+
+        if (
+            width <=
+            0 ||
+            length <=
+            0
+        ) {
+
+            throw new Error(
+                "Marker dimensions invalid."
+            );
+
+        }
+
+
+        return createPolygonCommands(
+
+            [
+
+                [0, 0],
+
+                [width, 0],
+
+                [width, length],
+
+                [0, length]
+
+            ],
+
+            options
+
+        );
+
+    }
+
+
+    /* ========================================================
+       VALIDATE SOURCE
+       ======================================================== */
+
+    function validateSource(
+        source,
+        type,
+        options
+    ) {
+
+        if (
+            !options.validateBeforeExport
+        ) {
+
+            return {
+
+                valid:
+                    true,
+
+                errors: [],
+
+                warnings: []
+
+            };
+
+        }
+
+
+        if (
+            type ===
+            "production"
+        ) {
+
+            if (
+                !ProductionValidator
+            ) {
+
+                return {
+
+                    valid:
+                        false,
+
+                    errors: [
+
+                        "ProductionValidator tidak tersedia."
+
+                    ],
+
+                    warnings: []
+
+                };
+
+            }
+
+
+            return ProductionValidator
                 .validateForProduction(
 
-                    pattern,
+                    source,
 
                     {
 
                         requireCutPoints:
                             true,
 
+                        requireClosed:
+                            true,
+
                         requireSeam:
-                            true
+                            options.requireProductionPass,
+
+                        requireTrueOffset:
+                            options.requireProductionPass,
+
+                        allowLegacyRadial:
+                            false
 
                     }
 
                 );
+
+        }
+
+
+        if (
+            type ===
+            "marker"
+        ) {
+
+            if (
+                !NestingValidator
+            ) {
+
+                return {
+
+                    valid:
+                        false,
+
+                    errors: [
+
+                        "NestingValidator tidak tersedia."
+
+                    ],
+
+                    warnings: []
+
+                };
+
+            }
+
+
+            return NestingValidator.validate(
+
+                source,
+
+                {
+
+                    requireAllPlaced:
+                        options.requireNestingPass,
+
+                    requireInsideMarker:
+                        true,
+
+                    checkOverlap:
+                        true,
+
+                    checkDuplicateIds:
+                        true,
+
+                    respectGrainline:
+                        true
+
+                }
+
+            );
+
+        }
+
+
+        throw new Error(
+
+            `sourceType "${type}" tidak didukung.`
+
+        );
+
+    }
+
+
+    /* ========================================================
+       CREATE PLOTTER DATA
+       ======================================================== */
+
+    function createPlotter(
+        source,
+        options = {}
+    ) {
+
+        const config =
+            normalizeOptions(
+                options
+            );
+
+
+        const type =
+            config.sourceType ||
+            "production";
+
+
+        const validation =
+            validateSource(
+
+                source,
+
+                type,
+
+                config
+
+            );
 
 
         if (
             !validation.valid
         ) {
 
-            const messages =
-                validation.errors
-                    .slice(
-                        0,
-                        5
-                    )
-                    .map(
-                        error => {
-
-                            if (
-                                typeof error ===
-                                "string"
-                            ) {
-
-                                return error;
-
-                            }
-
-
-                            return (
-
-                                error.message ||
-                                error.check ||
-                                "Production geometry invalid."
-
-                            );
-
-                        }
-                    );
-
-
             throw new Error(
 
-                "PLT export dihentikan karena " +
-                "geometry belum lulus validasi: " +
+                "Plotter export dibatalkan: " +
 
-                messages.join(
+                validation.errors.join(
                     " | "
                 )
 
@@ -1296,172 +992,151 @@
         }
 
 
-        return validation;
+        const commands = [
 
-    }
+            ...createHeader(
+                config
+            )
 
-
-    /* ========================================================
-       HEADER
-       ======================================================== */
-
-    function createHeader(
-        options = {}
-    ) {
-
-        const config =
-            mergeOptions(
-                options
-            );
+        ];
 
 
-        let output =
-            "";
-
+        /*
+         * Marker boundary.
+         */
 
         if (
-            config.initialize
+            type ===
+            "marker"
         ) {
 
-            output +=
-                command(
-                    "IN"
-                );
+            commands.push(
+
+                ...createMarkerBoundary(
+
+                    source.marker,
+
+                    config
+
+                )
+
+            );
 
         }
 
 
         /*
-         * Select default cut pen.
+         * Geometry.
          */
 
-        output +=
-            selectPen(
-                config.penCut
-            );
+        const pieces =
+
+            type ===
+            "marker"
+
+                ? getMarkerPieces(
+                    source
+                  )
+
+                : getProductionPieces(
+                    source
+                  );
 
 
-        output +=
-            command(
-                "PU"
-            );
-
-
-        return output;
-
-    }
-
-
-    /* ========================================================
-       FOOTER
-       ======================================================== */
-
-    function createFooter(
-        options = {}
-    ) {
-
-        const config =
-            mergeOptions(
-                options
-            );
-
-
-        let output =
-            "";
-
-
-        output +=
-            command(
-                "PU"
-            );
-
-
-        if (
-            config.resetPen
-        ) {
-
-            output +=
-                selectPen(
-                    0
-                );
-
-        }
-
-
-        if (
-            config.terminate
-        ) {
-
-            /*
-             * HPGL files do not require EOF in
-             * the same sense as DXF. A final semicolon
-             * terminated command is sufficient.
-             */
-
-            output +=
-                "\n";
-
-        }
-
-
-        return output;
-
-    }
-
-
-    /* ========================================================
-       BUILD HPGL
-       ======================================================== */
-
-    function buildHPGL(
-        pattern,
-        options = {}
-    ) {
-
-        const config =
-            mergeOptions(
-                options
-            );
-
-
-        validatePattern(
-            pattern
-        );
-
-
-        let output =
-            "";
-
-
-        output +=
-            createHeader(
-                config
-            );
-
-
-        pattern.pieces.forEach(
+        pieces.forEach(
             piece => {
 
-                output +=
-                    exportPiece(
+                commands.push(
 
-                        piece,
+                    ...createPolygonCommands(
+
+                        piece.points,
 
                         config
 
-                    );
+                    )
+
+                );
 
             }
         );
 
 
-        output +=
-            createFooter(
-                config
-            );
+        /*
+         * End plotter.
+         */
+
+        commands.push(
+
+            "SP0;",
+            "IN;"
+
+        );
 
 
-        return output;
+        return {
+
+            type:
+                "plotter-output",
+
+            version:
+                VERSION,
+
+            format:
+                HPGL_VERSION,
+
+            sourceType:
+                type,
+
+            unit:
+                "cm",
+
+            unitsPerCm:
+                config.unitsPerCm,
+
+            commands,
+
+            text:
+                commands.join(
+                    "\n"
+                ),
+
+            pieceCount:
+                pieces.length,
+
+            metadata: {
+
+                source:
+                    source.metadata ||
+                    {},
+
+                exportedAt:
+                    new Date()
+                        .toISOString()
+
+            }
+
+        };
+
+    }
+
+
+    /* ========================================================
+       TEXT
+       ======================================================== */
+
+    function getText(
+        source,
+        options = {}
+    ) {
+
+        return createPlotter(
+
+            source,
+
+            options
+
+        ).text;
 
     }
 
@@ -1470,22 +1145,26 @@
        BLOB
        ======================================================== */
 
-    function createHPGLBlob(
-        pattern,
+    function createBlob(
+        source,
         options = {}
     ) {
 
-        const hpgl =
-            buildHPGL(
-                pattern,
+        const text =
+            getText(
+
+                source,
+
                 options
+
             );
 
 
         return new Blob(
 
             [
-                hpgl
+                text
+
             ],
 
             {
@@ -1501,152 +1180,50 @@
 
 
     /* ========================================================
-       DOWNLOAD
+       SUMMARY
        ======================================================== */
 
-    function downloadHPGL(
-        pattern,
-        filename =
-            "PatternMaker-Pattern.plt",
+    function getSummary(
+        source,
         options = {}
     ) {
 
-        const blob =
-            createHPGLBlob(
+        const output =
+            createPlotter(
 
-                pattern,
+                source,
 
-                options
+                {
 
-            );
+                    ...options,
 
+                    validateBeforeExport:
+                        false
 
-        const url =
-            URL.createObjectURL(
-                blob
-            );
+                }
 
-
-        const link =
-            document.createElement(
-                "a"
-            );
-
-
-        link.href =
-            url;
-
-
-        link.download =
-            filename;
-
-
-        document.body.appendChild(
-            link
-        );
-
-
-        link.click();
-
-
-        document.body.removeChild(
-            link
-        );
-
-
-        setTimeout(
-            () => {
-
-                URL.revokeObjectURL(
-                    url
-                );
-
-            },
-
-            1000
-
-        );
-
-
-        return {
-
-            success:
-                true,
-
-            filename,
-
-            format:
-                "HPGL / PLT",
-
-            sourceUnit:
-                "cm",
-
-            plotterUnit:
-                "HPGL",
-
-            unitsPerMm:
-                mergeOptions(
-                    options
-                ).unitsPerMm
-
-        };
-
-    }
-
-
-    /* ========================================================
-       EXPORT INFORMATION
-       ======================================================== */
-
-    function getExportInfo(
-        options = {}
-    ) {
-
-        const config =
-            mergeOptions(
-                options
             );
 
 
         return {
 
+            version:
+                VERSION,
+
             format:
-                "PLT / HPGL",
+                HPGL_VERSION,
 
-            sourceUnit:
-                "cm",
+            sourceType:
+                output.sourceType,
 
-            millimetersPerCm:
-                10,
+            pieceCount:
+                output.pieceCount,
 
-            unitsPerMm:
-                config.unitsPerMm,
+            unit:
+                output.unit,
 
-            hpglUnitsPerCm:
-                config.unitsPerMm *
-                10,
-
-            defaultPens: {
-
-                cut:
-                    config.penCut,
-
-                grainline:
-                    config.penGrainline,
-
-                notch:
-                    config.penNotch,
-
-                drill:
-                    config.penDrill,
-
-                label:
-                    config.penLabel
-
-            },
-
-            yFlipped:
-                config.flipY
+            unitsPerCm:
+                output.unitsPerCm
 
         };
 
@@ -1657,49 +1234,39 @@
        PUBLIC API
        ======================================================== */
 
-    window.PatternMakerPlotter = {
+    window.PatternMakerPlotterExporter = {
 
-        DEFAULTS,
+        VERSION,
 
-        cmToHpgl,
+        HPGL_VERSION,
 
-        pointToHpgl,
+        DEFAULT_OPTIONS,
 
-        command,
+        cmToPlotter,
 
-        coordinate,
+        transformPoint,
 
-        selectPen,
+        closePoints,
 
-        penUp,
+        validatePoints,
 
-        penDown,
+        createPolygonCommands,
 
-        createPolyline,
+        createMarkerBoundary,
 
-        createLine,
+        getProductionPieces,
 
-        createNotch,
+        getMarkerPieces,
 
-        createDrillPoint,
+        validateSource,
 
-        createLabel,
+        createPlotter,
 
-        exportPiece,
+        getText,
 
-        validatePattern,
+        createBlob,
 
-        createHeader,
-
-        createFooter,
-
-        buildHPGL,
-
-        createHPGLBlob,
-
-        downloadHPGL,
-
-        getExportInfo
+        getSummary
 
     };
 
