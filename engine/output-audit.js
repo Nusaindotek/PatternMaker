@@ -1,34 +1,42 @@
 /**
  * ============================================================
- * PATTERNMAKER UNIVERSAL
- * KODE 33 — engine/output-audit.js
+ * PATTERMAKER UNIVERSAL
+ * BASELINE FINAL v1
+ * KODE 84
+ *
+ * FILE:
+ *   engine/output-audit.js
  * ============================================================
  *
- * OUTPUT CONSISTENCY AUDITOR
+ * OUTPUT CONSISTENCY AUDIT
  *
- * Membandingkan:
- *
- *   Cutting Geometry
+ * Production / Marker
  *        ↓
- *   DXF
- *   PLT
- *   SVG
- *
- * Fokus:
- *
- * - Piece count
- * - Piece identity
- * - Point count
- * - Bounds
- * - Width
- * - Height
- * - Unit
- * - Scale
- * - Cutting boundary
+ *   DXF / HPGL / SVG
+ *        ↓
+ *   THIS AUDITOR
  *
  * ============================================================
  *
- * AUDITOR TIDAK MENGUBAH PATTERN.
+ * Audit:
+ *
+ * - piece count
+ * - piece names
+ * - geometry point count
+ * - bounds
+ * - marker dimensions
+ * - output source type
+ * - unit
+ * - duplicate pieces
+ * - missing pieces
+ * - non-finite geometry
+ *
+ * ============================================================
+ *
+ * IMPORTANT:
+ *
+ * Auditor TIDAK memperbaiki output.
+ * Auditor hanya PASS / FAIL.
  *
  * ============================================================
  */
@@ -42,103 +50,72 @@
        DEPENDENCIES
        ======================================================== */
 
-    const Geometry =
-        window.PatternMakerProductionGeometry;
-
-    const Validator =
-        window.PatternMakerProductionValidator;
-
-    const DXF =
-        window.PatternMakerDXF;
+    const Dxf =
+        window.PatternMakerDxfExporter;
 
     const Plotter =
-        window.PatternMakerPlotter;
+        window.PatternMakerPlotterExporter;
 
-    const SVG =
-        window.PatternMakerSVG;
+    const Svg =
+        window.PatternMakerSvgExporter;
+
+
+    if (
+        !Dxf ||
+        !Plotter ||
+        !Svg
+    ) {
+
+        throw new Error(
+            "output-audit.js membutuhkan DXF, Plotter, dan SVG exporter."
+        );
+
+    }
 
 
     /* ========================================================
-       RESULT
+       VERSION
        ======================================================== */
 
-    function createResult() {
-
-        return {
-
-            valid:
-                true,
-
-            errors:
-                [],
-
-            warnings:
-                [],
-
-            checks:
-                [],
-
-            summary:
-                null
-
-        };
-
-    }
+    const VERSION =
+        "FINAL-v1";
 
 
-    function addCheck(
-        result,
-        name,
-        passed,
-        message = ""
-    ) {
-
-        result.checks.push({
-
-            name,
-
-            passed,
-
-            message
-
-        });
+    const EPSILON =
+        1e-7;
 
 
-        if (!passed) {
+    /* ========================================================
+       DEFAULT OPTIONS
+       ======================================================== */
 
-            result.valid =
-                false;
+    const DEFAULT_OPTIONS = {
 
-            result.errors.push({
+        requireSamePieceCount:
+            true,
 
-                check:
-                    name,
+        requireSamePieceNames:
+            true,
 
-                message
+        requireSamePointCounts:
+            true,
 
-            });
+        checkFiniteGeometry:
+            true,
 
-        }
+        checkBounds:
+            true,
 
-    }
+        checkUnit:
+            true,
 
+        expectedUnit:
+            "cm",
 
-    function addWarning(
-        result,
-        name,
-        message
-    ) {
+        sourceType:
+            "production"
 
-        result.warnings.push({
-
-            check:
-                name,
-
-            message
-
-        });
-
-    }
+    };
 
 
     /* ========================================================
@@ -153,7 +130,6 @@
         const n =
             Number(value);
 
-
         return Number.isFinite(n)
             ? n
             : fallback;
@@ -162,96 +138,231 @@
 
 
     /* ========================================================
-       ROUND
+       OPTIONS
        ======================================================== */
 
-    function round(
-        value,
-        decimals = 4
+    function normalizeOptions(
+        options = {}
     ) {
 
-        const factor =
-            10 ** decimals;
+        return {
 
+            ...DEFAULT_OPTIONS,
 
-        return Math.round(
-            Number(value) *
-            factor
-        ) / factor;
+            ...options
+
+        };
 
     }
 
 
     /* ========================================================
-       CUT POINTS
+       POINTS
        ======================================================== */
 
-    function getCutPoints(
+    function getPoints(
         piece
     ) {
 
-        if (
-            piece?.cutPoints &&
-            Array.isArray(
-                piece.cutPoints
-            ) &&
-            piece.cutPoints.length >= 3
-        ) {
+        return (
 
-            return piece.cutPoints;
+            piece?.cutPoints ||
 
-        }
+            piece?.points ||
 
+            piece?.seamPoints ||
 
-        if (
-            piece?.points &&
-            Array.isArray(
-                piece.points
-            ) &&
-            piece.points.length >= 3
-        ) {
+            []
 
-            return piece.points;
-
-        }
-
-
-        return [];
+        );
 
     }
 
 
     /* ========================================================
-       PIECE SIGNATURE
+       BOUNDS
        ======================================================== */
 
-    function getPieceSignature(
-        piece
+    function getBounds(
+        points
+    ) {
+
+        if (
+            !Array.isArray(points) ||
+            points.length ===
+            0
+        ) {
+
+            return {
+
+                minX:
+                    0,
+
+                minY:
+                    0,
+
+                maxX:
+                    0,
+
+                maxY:
+                    0,
+
+                width:
+                    0,
+
+                height:
+                    0
+
+            };
+
+        }
+
+
+        const xs =
+            points.map(
+                point =>
+                    Number(
+                        point[0]
+                    )
+            );
+
+
+        const ys =
+            points.map(
+                point =>
+                    Number(
+                        point[1]
+                    )
+            );
+
+
+        const minX =
+            Math.min(
+                ...xs
+            );
+
+
+        const minY =
+            Math.min(
+                ...ys
+            );
+
+
+        const maxX =
+            Math.max(
+                ...xs
+            );
+
+
+        const maxY =
+            Math.max(
+                ...ys
+            );
+
+
+        return {
+
+            minX,
+
+            minY,
+
+            maxX,
+
+            maxY,
+
+            width:
+                maxX -
+                minX,
+
+            height:
+                maxY -
+                minY
+
+        };
+
+    }
+
+
+    /* ========================================================
+       FINITE POINTS
+       ======================================================== */
+
+    function hasFinitePoints(
+        points
+    ) {
+
+        if (
+            !Array.isArray(points) ||
+            points.length ===
+            0
+        ) {
+
+            return false;
+
+        }
+
+
+        return points.every(
+            point =>
+
+                Array.isArray(
+                    point
+                ) &&
+
+                point.length >=
+                2 &&
+
+                Number.isFinite(
+                    Number(
+                        point[0]
+                    )
+                ) &&
+
+                Number.isFinite(
+                    Number(
+                        point[1]
+                    )
+                )
+
+        );
+
+    }
+
+
+    /* ========================================================
+       PIECE SNAPSHOT
+       ======================================================== */
+
+    function createPieceSnapshot(
+        piece,
+        index
     ) {
 
         const points =
-            getCutPoints(
+            getPoints(
                 piece
             );
 
 
         return {
 
+            index,
+
             name:
                 piece?.name ||
-                "",
-
-            type:
-                piece?.type ||
-                "",
+                `PIECE-${index + 1}`,
 
             pointCount:
                 points.length,
 
-            quantity:
-                num(
-                    piece?.quantity,
-                    1
+            finite:
+                hasFinitePoints(
+                    points
+                ),
+
+            bounds:
+                getBounds(
+                    points
                 )
 
         };
@@ -260,139 +371,839 @@
 
 
     /* ========================================================
-       PATTERN SUMMARY
+       PRODUCTION SNAPSHOT
        ======================================================== */
 
-    function summarizePattern(
-        pattern
+    function createProductionSnapshot(
+        source
     ) {
 
-        if (
-            !pattern ||
-            !Array.isArray(
-                pattern.pieces
+        const pieces =
+            Array.isArray(
+                source?.pieces
             )
+
+                ? source.pieces
+
+                : [];
+
+
+        return {
+
+            sourceType:
+                "production",
+
+            unit:
+                source?.metadata?.unit ||
+                "cm",
+
+            engine:
+                source?.engine ||
+                null,
+
+            pieceCount:
+                pieces.length,
+
+            pieces:
+                pieces.map(
+                    createPieceSnapshot
+                )
+
+        };
+
+    }
+
+
+    /* ========================================================
+       MARKER SNAPSHOT
+       ======================================================== */
+
+    function createMarkerSnapshot(
+        source
+    ) {
+
+        const placements =
+            Array.isArray(
+                source?.placements
+            )
+
+                ? source.placements
+
+                : [];
+
+
+        return {
+
+            sourceType:
+                "marker",
+
+            unit:
+                source?.metadata?.unit ||
+                "cm",
+
+            engine:
+                source?.metadata?.engine ||
+                null,
+
+            pieceCount:
+                placements.length,
+
+            marker: {
+
+                width:
+                    num(
+                        source?.marker?.width
+                    ),
+
+                length:
+                    num(
+                        source?.marker?.length
+                    ),
+
+                area:
+                    num(
+                        source?.marker?.area
+                    )
+
+            },
+
+            pieces:
+
+                placements.map(
+                    (
+                        placement,
+                        index
+                    ) => ({
+
+                        index,
+
+                        name:
+                            placement?.name ||
+                            placement?.id ||
+                            `PLACEMENT-${index + 1}`,
+
+                        pointCount:
+                            Array.isArray(
+                                placement?.points
+                            )
+                                ? placement.points.length
+                                : 0,
+
+                        finite:
+                            hasFinitePoints(
+                                placement?.points ||
+                                []
+                            ),
+
+                        bounds:
+                            getBounds(
+                                placement?.points ||
+                                []
+                            )
+
+                    })
+
+                )
+
+        };
+
+    }
+
+
+    /* ========================================================
+       NAME MAP
+       ======================================================== */
+
+    function createNameMap(
+        pieces
+    ) {
+
+        const map =
+            new Map();
+
+
+        pieces.forEach(
+            piece => {
+
+                map.set(
+
+                    String(
+                        piece.name
+                    ),
+
+                    piece
+
+                );
+
+            }
+        );
+
+
+        return map;
+
+    }
+
+
+    /* ========================================================
+       DUPLICATE NAMES
+       ======================================================== */
+
+    function findDuplicateNames(
+        pieces
+    ) {
+
+        const seen =
+            new Set();
+
+        const duplicates =
+            [];
+
+
+        pieces.forEach(
+            piece => {
+
+                const name =
+                    String(
+                        piece.name
+                    );
+
+
+                if (
+                    seen.has(
+                        name
+                    )
+                ) {
+
+                    duplicates.push(
+                        name
+                    );
+
+                }
+                else {
+
+                    seen.add(
+                        name
+                    );
+
+                }
+
+            }
+        );
+
+
+        return duplicates;
+
+    }
+
+
+    /* ========================================================
+       COMPARE SNAPSHOTS
+       ======================================================== */
+
+    function compareSnapshots(
+        expected,
+        actual,
+        options
+    ) {
+
+        const errors =
+            [];
+
+        const warnings =
+            [];
+
+
+        /* ----------------------------------------------------
+           PIECE COUNT
+           ---------------------------------------------------- */
+
+        if (
+            options.requireSamePieceCount &&
+            expected.pieceCount !==
+            actual.pieceCount
         ) {
 
-            return {
+            errors.push(
 
-                valid:
-                    false,
+                `Piece count mismatch: ` +
 
-                pieceCount:
-                    0,
+                `${expected.pieceCount} vs ` +
 
-                pieces:
-                    [],
+                `${actual.pieceCount}.`
 
-                bounds:
-                    null
-
-            };
+            );
 
         }
 
 
-        const pieces =
-            pattern.pieces.map(
+        /* ----------------------------------------------------
+           UNIT
+           ---------------------------------------------------- */
+
+        if (
+            options.checkUnit
+        ) {
+
+            if (
+                String(
+                    expected.unit
+                )
+                .toLowerCase() !==
+                String(
+                    options.expectedUnit
+                )
+                .toLowerCase()
+            ) {
+
+                errors.push(
+
+                    `Expected source unit "${options.expectedUnit}", ` +
+
+                    `received "${expected.unit}".`
+
+                );
+
+            }
+
+
+            if (
+                String(
+                    actual.unit
+                )
+                .toLowerCase() !==
+                String(
+                    options.expectedUnit
+                )
+                .toLowerCase()
+            ) {
+
+                errors.push(
+
+                    `Output unit "${actual.unit}" ` +
+                    `tidak sesuai expected unit ` +
+                    `"${options.expectedUnit}".`
+
+                );
+
+            }
+
+        }
+
+
+        /* ----------------------------------------------------
+           NAMES
+           ---------------------------------------------------- */
+
+        if (
+            options.requireSamePieceNames
+        ) {
+
+            const expectedNames =
+                expected.pieces
+                    .map(
+                        piece =>
+                            piece.name
+                    )
+                    .sort();
+
+
+            const actualNames =
+                actual.pieces
+                    .map(
+                        piece =>
+                            piece.name
+                    )
+                    .sort();
+
+
+            if (
+                JSON.stringify(
+                    expectedNames
+                ) !==
+                JSON.stringify(
+                    actualNames
+                )
+            ) {
+
+                errors.push(
+
+                    "Piece names tidak konsisten " +
+                    "antara source dan output."
+
+                );
+
+            }
+
+        }
+
+
+        /* ----------------------------------------------------
+           DUPLICATES
+           ---------------------------------------------------- */
+
+        const expectedDuplicates =
+            findDuplicateNames(
+                expected.pieces
+            );
+
+
+        if (
+            expectedDuplicates.length
+        ) {
+
+            errors.push(
+
+                "Source memiliki duplicate piece names: " +
+
+                expectedDuplicates.join(
+                    ", "
+                )
+
+            );
+
+        }
+
+
+        const actualDuplicates =
+            findDuplicateNames(
+                actual.pieces
+            );
+
+
+        if (
+            actualDuplicates.length
+        ) {
+
+            errors.push(
+
+                "Output memiliki duplicate piece names: " +
+
+                actualDuplicates.join(
+                    ", "
+                )
+
+            );
+
+        }
+
+
+        /* ----------------------------------------------------
+           FINITE GEOMETRY
+           ---------------------------------------------------- */
+
+        if (
+            options.checkFiniteGeometry
+        ) {
+
+            expected.pieces.forEach(
                 piece => {
 
-                    const points =
-                        getCutPoints(
-                            piece
-                        );
-
-
-                    let bounds =
-                        null;
-
-
                     if (
-                        Geometry &&
-                        points.length >= 3
+                        !piece.finite
                     ) {
 
-                        bounds =
-                            Geometry.getBounds(
-                                points
-                            );
+                        errors.push(
+
+                            `Source piece "${piece.name}" ` +
+                            "memiliki geometry non-finite."
+
+                        );
 
                     }
-
-
-                    return {
-
-                        ...getPieceSignature(
-                            piece
-                        ),
-
-                        bounds:
-                            bounds
-
-                                ? {
-
-                                    minX:
-                                        round(
-                                            bounds.minX
-                                        ),
-
-                                    maxX:
-                                        round(
-                                            bounds.maxX
-                                        ),
-
-                                    minY:
-                                        round(
-                                            bounds.minY
-                                        ),
-
-                                    maxY:
-                                        round(
-                                            bounds.maxY
-                                        ),
-
-                                    width:
-                                        round(
-                                            bounds.width
-                                        ),
-
-                                    height:
-                                        round(
-                                            bounds.height
-                                        )
-
-                                }
-
-                                : null
-
-                    };
 
                 }
             );
 
 
-        let overallBounds =
-            null;
+            actual.pieces.forEach(
+                piece => {
+
+                    if (
+                        !piece.finite
+                    ) {
+
+                        errors.push(
+
+                            `Output piece "${piece.name}" ` +
+                            "memiliki geometry non-finite."
+
+                        );
+
+                    }
+
+                }
+            );
+
+        }
+
+
+        /* ----------------------------------------------------
+           POINT COUNT
+           ---------------------------------------------------- */
+
+        if (
+            options.requireSamePointCounts
+        ) {
+
+            const expectedMap =
+                createNameMap(
+                    expected.pieces
+                );
+
+
+            actual.pieces.forEach(
+                piece => {
+
+                    const sourcePiece =
+                        expectedMap.get(
+                            String(
+                                piece.name
+                            )
+                        );
+
+
+                    if (
+                        !sourcePiece
+                    ) {
+
+                        return;
+
+                    }
+
+
+                    /*
+                     * Marker/exporters may close polygons
+                     * by repeating the first point.
+                     */
+
+                    const sourceCount =
+                        sourcePiece.pointCount;
+
+
+                    const actualCount =
+                        piece.pointCount;
+
+
+                    const difference =
+                        Math.abs(
+
+                            actualCount -
+                            sourceCount
+
+                        );
+
+
+                    if (
+                        difference > 1
+                    ) {
+
+                        warnings.push(
+
+                            `Point count "${piece.name}" ` +
+                            `berubah dari ${sourceCount} ` +
+                            `menjadi ${actualCount}.`
+
+                        );
+
+                    }
+
+                }
+            );
+
+        }
+
+
+        /* ----------------------------------------------------
+           BOUNDS
+           ---------------------------------------------------- */
+
+        if (
+            options.checkBounds
+        ) {
+
+            expected.pieces.forEach(
+                piece => {
+
+                    if (
+                        piece.bounds.width <= 0 ||
+                        piece.bounds.height <= 0
+                    ) {
+
+                        errors.push(
+
+                            `Source piece "${piece.name}" ` +
+                            "memiliki bounds invalid."
+
+                        );
+
+                    }
+
+                }
+            );
+
+
+            actual.pieces.forEach(
+                piece => {
+
+                    if (
+                        piece.bounds.width <= 0 ||
+                        piece.bounds.height <= 0
+                    ) {
+
+                        errors.push(
+
+                            `Output piece "${piece.name}" ` +
+                            "memiliki bounds invalid."
+
+                        );
+
+                    }
+
+                }
+            );
+
+        }
+
+
+        return {
+
+            valid:
+                errors.length ===
+                0,
+
+            errors,
+
+            warnings
+
+        };
+
+    }
+
+
+    /* ========================================================
+       BUILD OUTPUT SNAPSHOT
+       ======================================================== */
+
+    function snapshotOutput(
+        output,
+        type
+    ) {
+
+        /*
+         * Exporter outputs are intentionally represented
+         * through the same geometry source used to create
+         * the file.
+         *
+         * This avoids parsing DXF/SVG textual syntax merely
+         * for structural verification.
+         */
+
+        if (
+            type ===
+            "marker"
+        ) {
+
+            return createMarkerSnapshot(
+                output
+            );
+
+        }
+
+
+        return createProductionSnapshot(
+            output
+        );
+
+    }
+
+
+    /* ========================================================
+       AUDIT PRODUCTION
+       ======================================================== */
+
+    function auditProduction(
+        source,
+        options = {}
+    ) {
+
+        const config =
+            normalizeOptions(
+                options
+            );
+
+
+        const errors =
+            [];
+
+        const warnings =
+            [];
+
+
+        const sourceSnapshot =
+            createProductionSnapshot(
+                source
+            );
+
+
+        /*
+         * Generate exporter summaries.
+         */
+
+        let dxfSummary;
+
+        let plotterSummary;
+
+        let svgSummary;
+
+
+        try {
+
+            dxfSummary =
+                Dxf.getSummary(
+
+                    source,
+
+                    {
+
+                        sourceType:
+                            "production"
+
+                    }
+
+                );
+
+        }
+        catch (
+            error
+        ) {
+
+            errors.push(
+
+                `DXF audit gagal: ${error.message}`
+
+            );
+
+        }
+
+
+        try {
+
+            plotterSummary =
+                Plotter.getSummary(
+
+                    source,
+
+                    {
+
+                        sourceType:
+                            "production"
+
+                    }
+
+                );
+
+        }
+        catch (
+            error
+        ) {
+
+            errors.push(
+
+                `Plotter audit gagal: ${error.message}`
+
+            );
+
+        }
+
+
+        try {
+
+            svgSummary =
+                Svg.getSummary(
+
+                    source,
+
+                    {
+
+                        sourceType:
+                            "production"
+
+                    }
+
+                );
+
+        }
+        catch (
+            error
+        ) {
+
+            errors.push(
+
+                `SVG audit gagal: ${error.message}`
+
+            );
+
+        }
+
+
+        /*
+         * Cross-export piece count.
+         */
+
+        if (
+            dxfSummary
+        ) {
+
+            if (
+                dxfSummary.pieceCount !==
+                sourceSnapshot.pieceCount
+            ) {
+
+                errors.push(
+
+                    "DXF piece count mismatch."
+
+                );
+
+            }
+
+        }
 
 
         if (
-            Geometry
+            plotterSummary
         ) {
 
-            try {
-
-                overallBounds =
-                    Geometry.getPatternBounds(
-                        pattern
-                    );
-
-            }
-            catch (
-                error
+            if (
+                plotterSummary.pieceCount !==
+                sourceSnapshot.pieceCount
             ) {
 
-                overallBounds =
-                    null;
+                errors.push(
+
+                    "Plotter piece count mismatch."
+
+                );
+
+            }
+
+        }
+
+
+        if (
+            svgSummary
+        ) {
+
+            if (
+                svgSummary.pieceCount !==
+                sourceSnapshot.pieceCount
+            ) {
+
+                errors.push(
+
+                    "SVG piece count mismatch."
+
+                );
 
             }
 
@@ -402,69 +1213,34 @@
         return {
 
             valid:
-                true,
+                errors.length ===
+                0,
 
-            pieceCount:
-                pieces.length,
+            version:
+                VERSION,
 
-            pieces,
+            source:
+                sourceSnapshot,
 
-            bounds:
-                overallBounds
+            outputs: {
 
-                    ? {
-
-                        minX:
-                            round(
-                                overallBounds.minX
-                            ),
-
-                        maxX:
-                            round(
-                                overallBounds.maxX
-                            ),
-
-                        minY:
-                            round(
-                                overallBounds.minY
-                            ),
-
-                        maxY:
-                            round(
-                                overallBounds.maxY
-                            ),
-
-                        width:
-                            round(
-                                overallBounds.width
-                            ),
-
-                        height:
-                            round(
-                                overallBounds.height
-                            )
-
-                    }
-
-                    : null,
-
-            metadata: {
-
-                unit:
-                    pattern.metadata?.unit ||
+                dxf:
+                    dxfSummary ||
                     null,
 
-                scale:
-                    num(
-                        pattern.metadata?.scale,
-                        1
-                    ),
+                plotter:
+                    plotterSummary ||
+                    null,
 
-                geometryType:
-                    pattern.metadata?.geometryType ||
+                svg:
+                    svgSummary ||
                     null
 
-            }
+            },
+
+            errors,
+
+            warnings
 
         };
 
@@ -472,1040 +1248,247 @@
 
 
     /* ========================================================
-       PIECE COMPARISON
+       AUDIT MARKER
        ======================================================== */
 
-    function comparePiece(
-        referencePiece,
-        targetPiece,
-        index,
-        result,
-        tolerance = 0.001
+    function auditMarker(
+        source,
+        options = {}
     ) {
 
-        const reference =
-            getPieceSignature(
-                referencePiece
+        const config =
+            normalizeOptions(
+
+                {
+
+                    ...options,
+
+                    sourceType:
+                        "marker"
+
+                }
+
             );
 
 
-        const target =
-            getPieceSignature(
-                targetPiece
+        const errors =
+            [];
+
+        const warnings =
+            [];
+
+
+        const sourceSnapshot =
+            createMarkerSnapshot(
+                source
             );
 
 
-        addCheck(
+        let dxfSummary;
 
-            result,
+        let plotterSummary;
 
-            `Piece ${index + 1} name`,
-
-            reference.name ===
-            target.name,
-
-            `Reference "${reference.name}" != ` +
-            `Target "${target.name}".`
-
-        );
+        let svgSummary;
 
 
-        addCheck(
+        try {
 
-            result,
+            dxfSummary =
+                Dxf.getSummary(
 
-            `Piece ${index + 1} type`,
+                    source,
 
-            reference.type ===
-            target.type,
+                    {
 
-            `Reference "${reference.type}" != ` +
-            `Target "${target.type}".`
+                        sourceType:
+                            "marker"
 
-        );
+                    }
 
+                );
 
-        addCheck(
-
-            result,
-
-            `Piece ${index + 1} point count`,
-
-            reference.pointCount ===
-            target.pointCount,
-
-            `Reference ${reference.pointCount} points != ` +
-            `Target ${target.pointCount} points.`
-
-        );
-
-
-        /*
-         * Bounds.
-         */
-
-        const referencePoints =
-            getCutPoints(
-                referencePiece
-            );
-
-
-        const targetPoints =
-            getCutPoints(
-                targetPiece
-            );
-
-
-        if (
-            Geometry &&
-            referencePoints.length >= 3 &&
-            targetPoints.length >= 3
+        }
+        catch (
+            error
         ) {
 
-            const a =
-                Geometry.getBounds(
-                    referencePoints
+            errors.push(
+
+                `DXF marker audit gagal: ${error.message}`
+
+            );
+
+        }
+
+
+        try {
+
+            plotterSummary =
+                Plotter.getSummary(
+
+                    source,
+
+                    {
+
+                        sourceType:
+                            "marker"
+
+                    }
+
                 );
 
+        }
+        catch (
+            error
+        ) {
 
-            const b =
-                Geometry.getBounds(
-                    targetPoints
+            errors.push(
+
+                `Plotter marker audit gagal: ${error.message}`
+
+            );
+
+        }
+
+
+        try {
+
+            svgSummary =
+                Svg.getSummary(
+
+                    source,
+
+                    {
+
+                        sourceType:
+                            "marker"
+
+                    }
+
                 );
 
+        }
+        catch (
+            error
+        ) {
 
-            const fields = [
+            errors.push(
 
-                "minX",
-                "maxX",
-                "minY",
-                "maxY",
-                "width",
-                "height"
+                `SVG marker audit gagal: ${error.message}`
 
-            ];
+            );
 
-
-            fields.forEach(
-                field => {
-
-                    const delta =
-                        Math.abs(
-
-                            Number(a[field]) -
-                            Number(b[field])
-
-                        );
+        }
 
 
-                    addCheck(
+        const expectedCount =
+            sourceSnapshot.pieceCount;
 
-                        result,
 
-                        `Piece ${index + 1} ${field}`,
+        [
+            [
+                "DXF",
+                dxfSummary
+            ],
+            [
+                "Plotter",
+                plotterSummary
+            ],
+            [
+                "SVG",
+                svgSummary
+            ]
 
-                        delta <=
-                            tolerance,
+        ]
+        .forEach(
+            (
+                [
+                    name,
+                    summary
+                ]
+            ) => {
 
-                        `Reference ${field}=${a[field]}, ` +
-                        `Target ${field}=${b[field]}, ` +
-                        `delta=${delta}.`
+                if (
+                    !summary
+                ) {
+
+                    return;
+
+                }
+
+
+                if (
+                    summary.pieceCount !==
+                    expectedCount
+                ) {
+
+                    errors.push(
+
+                        `${name} marker piece count mismatch.`
 
                     );
 
                 }
-            );
 
-        }
-
-    }
-
-
-    /* ========================================================
-       COMPARE PATTERNS
-       ======================================================== */
-
-    function comparePatterns(
-        referencePattern,
-        targetPattern,
-        label,
-        tolerance = 0.001
-    ) {
-
-        const result =
-            createResult();
-
-
-        const reference =
-            summarizePattern(
-                referencePattern
-            );
-
-
-        const target =
-            summarizePattern(
-                targetPattern
-            );
-
-
-        addCheck(
-
-            result,
-
-            `${label} piece count`,
-
-            reference.pieceCount ===
-            target.pieceCount,
-
-            `Reference=${reference.pieceCount}, ` +
-            `Target=${target.pieceCount}.`
-
+            }
         );
 
 
-        const count =
-            Math.min(
-
-                reference.pieces.length,
-
-                target.pieces.length
-
-            );
-
-
-        for (
-            let i = 0;
-            i < count;
-            i++
+        if (
+            config.checkUnit &&
+            String(
+                sourceSnapshot.unit
+            )
+            .toLowerCase() !==
+            String(
+                config.expectedUnit
+            )
+            .toLowerCase()
         ) {
 
-            comparePiece(
+            errors.push(
 
-                referencePattern.pieces[i],
-
-                targetPattern.pieces[i],
-
-                i,
-
-                result,
-
-                tolerance
+                `Marker unit "${sourceSnapshot.unit}" ` +
+                `tidak sesuai "${config.expectedUnit}".`
 
             );
 
         }
 
 
-        result.summary = {
+        return {
 
-            reference,
+            valid:
+                errors.length ===
+                0,
 
-            target
+            version:
+                VERSION,
+
+            source:
+                sourceSnapshot,
+
+            outputs: {
+
+                dxf:
+                    dxfSummary ||
+                    null,
+
+                plotter:
+                    plotterSummary ||
+                    null,
+
+                svg:
+                    svgSummary ||
+                    null
+
+            },
+
+            errors,
+
+            warnings
 
         };
-
-
-        return result;
-
-    }
-
-
-    /* ========================================================
-       VALIDATE SOURCE PATTERN
-       ======================================================== */
-
-    function validateSourcePattern(
-        pattern
-    ) {
-
-        const result =
-            createResult();
-
-
-        if (
-            !Validator
-        ) {
-
-            addCheck(
-
-                result,
-
-                "Production validator",
-
-                false,
-
-                "Production Validator belum tersedia."
-
-            );
-
-
-            return result;
-
-        }
-
-
-        const validation =
-            Validator.validateForProduction(
-
-                pattern,
-
-                {
-
-                    requireCutPoints:
-                        true,
-
-                    requireSeam:
-                        true
-
-                }
-
-            );
-
-
-        result.checks.push(
-            ...validation.checks
-        );
-
-
-        result.errors.push(
-            ...validation.errors
-        );
-
-
-        result.warnings.push(
-            ...validation.warnings
-        );
-
-
-        result.valid =
-            validation.valid;
-
-
-        return result;
-
-    }
-
-
-    /* ========================================================
-       EXPORTER AVAILABILITY
-       ======================================================== */
-
-    function validateExporters() {
-
-        const result =
-            createResult();
-
-
-        addCheck(
-
-            result,
-
-            "DXF exporter",
-
-            Boolean(
-                DXF &&
-                typeof DXF.buildDXF ===
-                    "function"
-            ),
-
-            "DXF exporter belum tersedia."
-
-        );
-
-
-        addCheck(
-
-            result,
-
-            "PLT exporter",
-
-            Boolean(
-                Plotter &&
-                typeof Plotter.buildHPGL ===
-                    "function"
-            ),
-
-            "PLT exporter belum tersedia."
-
-        );
-
-
-        addCheck(
-
-            result,
-
-            "SVG exporter",
-
-            Boolean(
-                SVG &&
-                typeof SVG.buildSVG ===
-                    "function"
-            ),
-
-            "SVG exporter belum tersedia."
-
-        );
-
-
-        return result;
-
-    }
-
-
-    /* ========================================================
-       UNIT AUDIT
-       ======================================================== */
-
-    function auditUnits() {
-
-        const result =
-            createResult();
-
-
-        /*
-         * DXF
-         */
-
-        if (
-            DXF &&
-            typeof DXF.getExportInfo ===
-                "function"
-        ) {
-
-            const info =
-                DXF.getExportInfo();
-
-
-            addCheck(
-
-                result,
-
-                "DXF source unit",
-
-                info.sourceUnit ===
-                    "cm",
-
-                `DXF sourceUnit=${info.sourceUnit}.`
-
-            );
-
-
-            addCheck(
-
-                result,
-
-                "DXF output unit",
-
-                info.outputUnit ===
-                    "mm",
-
-                `DXF outputUnit=${info.outputUnit}.`
-
-            );
-
-
-            addCheck(
-
-                result,
-
-                "DXF conversion",
-
-                Number(info.conversion) ===
-                    10,
-
-                `DXF conversion=${info.conversion}.`
-
-            );
-
-        }
-
-
-        /*
-         * SVG
-         */
-
-        if (
-            SVG &&
-            typeof SVG.getExportInfo ===
-                "function"
-        ) {
-
-            const info =
-                SVG.getExportInfo();
-
-
-            addCheck(
-
-                result,
-
-                "SVG source unit",
-
-                info.sourceUnit ===
-                    "cm",
-
-                `SVG sourceUnit=${info.sourceUnit}.`
-
-            );
-
-
-            addCheck(
-
-                result,
-
-                "SVG output unit",
-
-                info.outputUnit ===
-                    "mm",
-
-                `SVG outputUnit=${info.outputUnit}.`
-
-            );
-
-
-            addCheck(
-
-                result,
-
-                "SVG conversion",
-
-                Number(info.conversion) ===
-                    10,
-
-                `SVG conversion=${info.conversion}.`
-
-            );
-
-
-            addCheck(
-
-                result,
-
-                "SVG scale",
-
-                Number(info.scale) ===
-                    1,
-
-                `SVG scale=${info.scale}.`
-
-            );
-
-        }
-
-
-        /*
-         * PLT
-         *
-         * HPGL itself does not carry physical mm
-         * metadata consistently across all devices,
-         * so we validate the configured conversion.
-         */
-
-        if (
-            Plotter &&
-            typeof Plotter.getExportInfo ===
-                "function"
-        ) {
-
-            const info =
-                Plotter.getExportInfo();
-
-
-            addCheck(
-
-                result,
-
-                "PLT source unit",
-
-                info.sourceUnit ===
-                    "cm",
-
-                `PLT sourceUnit=${info.sourceUnit}.`
-
-            );
-
-
-            addCheck(
-
-                result,
-
-                "PLT mm conversion",
-
-                Number(
-                    info.millimetersPerCm
-                ) === 10,
-
-                `PLT millimetersPerCm=` +
-                `${info.millimetersPerCm}.`
-
-            );
-
-
-            addCheck(
-
-                result,
-
-                "PLT units/mm positive",
-
-                Number(
-                    info.unitsPerMm
-                ) > 0,
-
-                `PLT unitsPerMm=${info.unitsPerMm}.`
-
-            );
-
-        }
-
-
-        return result;
-
-    }
-
-
-    /* ========================================================
-       SERIALIZE EXPORTER SOURCE
-       ======================================================== */
-
-    function auditDXFText(
-        pattern
-    ) {
-
-        const result =
-            createResult();
-
-
-        if (
-            !DXF
-        ) {
-
-            addCheck(
-
-                result,
-
-                "DXF object",
-
-                false,
-
-                "DXF exporter tidak tersedia."
-
-            );
-
-
-            return result;
-
-        }
-
-
-        try {
-
-            const dxf =
-                DXF.buildDXF(
-                    pattern,
-
-                    {
-
-                        includeGrainline:
-                            false,
-
-                        includeNotches:
-                            false,
-
-                        includeDrillPoints:
-                            false,
-
-                        includeLabels:
-                            false
-
-                    }
-
-                );
-
-
-            addCheck(
-
-                result,
-
-                "DXF output exists",
-
-                typeof dxf ===
-                    "string" &&
-                dxf.length > 0,
-
-                "DXF output kosong."
-
-            );
-
-
-            addCheck(
-
-                result,
-
-                "DXF contains ENTITIES",
-
-                dxf.includes(
-                    "ENTITIES"
-                ),
-
-                "DXF tidak memiliki ENTITIES section."
-
-            );
-
-
-            addCheck(
-
-                result,
-
-                "DXF contains LWPOLYLINE",
-
-                dxf.includes(
-                    "LWPOLYLINE"
-                ),
-
-                "DXF tidak memiliki cutting polyline."
-
-            );
-
-
-            addCheck(
-
-                result,
-
-                "DXF terminates EOF",
-
-                dxf.trim()
-                    .endsWith(
-                        "EOF"
-                    ),
-
-                "DXF tidak diakhiri EOF."
-
-            );
-
-        }
-        catch (
-            error
-        ) {
-
-            addCheck(
-
-                result,
-
-                "DXF build",
-
-                false,
-
-                error.message
-
-            );
-
-        }
-
-
-        return result;
-
-    }
-
-
-    /* ========================================================
-       PLT TEXT AUDIT
-       ======================================================== */
-
-    function auditPLTText(
-        pattern
-    ) {
-
-        const result =
-            createResult();
-
-
-        if (
-            !Plotter
-        ) {
-
-            addCheck(
-
-                result,
-
-                "PLT object",
-
-                false,
-
-                "PLT exporter tidak tersedia."
-
-            );
-
-
-            return result;
-
-        }
-
-
-        try {
-
-            const hpgl =
-                Plotter.buildHPGL(
-
-                    pattern,
-
-                    {
-
-                        includeGrainline:
-                            false,
-
-                        includeNotches:
-                            false,
-
-                        includeDrillPoints:
-                            false,
-
-                        includeLabels:
-                            false
-
-                    }
-
-                );
-
-
-            addCheck(
-
-                result,
-
-                "PLT output exists",
-
-                typeof hpgl ===
-                    "string" &&
-                hpgl.length > 0,
-
-                "PLT output kosong."
-
-            );
-
-
-            addCheck(
-
-                result,
-
-                "PLT initialize",
-
-                hpgl.includes(
-                    "IN;"
-                ),
-
-                "PLT tidak memiliki initialize command."
-
-            );
-
-
-            addCheck(
-
-                result,
-
-                "PLT pen up",
-
-                hpgl.includes(
-                    "PU"
-                ),
-
-                "PLT tidak memiliki pen-up command."
-
-            );
-
-
-            addCheck(
-
-                result,
-
-                "PLT pen down",
-
-                hpgl.includes(
-                    "PD"
-                ),
-
-                "PLT tidak memiliki pen-down command."
-
-            );
-
-
-        }
-        catch (
-            error
-        ) {
-
-            addCheck(
-
-                result,
-
-                "PLT build",
-
-                false,
-
-                error.message
-
-            );
-
-        }
-
-
-        return result;
-
-    }
-
-
-    /* ========================================================
-       SVG TEXT AUDIT
-       ======================================================== */
-
-    function auditSVGText(
-        pattern
-    ) {
-
-        const result =
-            createResult();
-
-
-        if (
-            !SVG
-        ) {
-
-            addCheck(
-
-                result,
-
-                "SVG object",
-
-                false,
-
-                "SVG exporter tidak tersedia."
-
-            );
-
-
-            return result;
-
-        }
-
-
-        try {
-
-            const svg =
-                SVG.buildSVG(
-
-                    pattern,
-
-                    {
-
-                        includeGrainline:
-                            false,
-
-                        includeNotches:
-                            false,
-
-                        includeDrillPoints:
-                            false,
-
-                        includeLabels:
-                            false
-
-                    }
-
-                );
-
-
-            addCheck(
-
-                result,
-
-                "SVG output exists",
-
-                typeof svg ===
-                    "string" &&
-                svg.length > 0,
-
-                "SVG output kosong."
-
-            );
-
-
-            addCheck(
-
-                result,
-
-                "SVG element",
-
-                svg.includes(
-                    "<svg"
-                ),
-
-                "SVG root tidak ditemukan."
-
-            );
-
-
-            addCheck(
-
-                result,
-
-                "SVG cutting polygon",
-
-                svg.includes(
-                    'data-layer="CUT"'
-                ),
-
-                "SVG cutting layer tidak ditemukan."
-
-            );
-
-
-            addCheck(
-
-                result,
-
-                "SVG metadata unit",
-
-                svg.includes(
-                    "data-patternmaker-unit=\"mm\""
-                ),
-
-                "SVG unit metadata tidak ditemukan."
-
-            );
-
-
-            addCheck(
-
-                result,
-
-                "SVG scale",
-
-                svg.includes(
-                    "data-patternmaker-scale=\"1\""
-                ),
-
-                "SVG scale 1:1 tidak ditemukan."
-
-            );
-
-        }
-        catch (
-            error
-        ) {
-
-            addCheck(
-
-                result,
-
-                "SVG build",
-
-                false,
-
-                error.message
-
-            );
-
-        }
-
-
-        return result;
 
     }
 
@@ -1514,210 +1497,40 @@
        FULL AUDIT
        ======================================================== */
 
-    function auditPattern(
-        pattern,
+    function audit(
+        source,
         options = {}
     ) {
 
-        const result =
-            createResult();
-
-
-        /*
-         * Source validation.
-         */
-
-        const sourceResult =
-            validateSourcePattern(
-                pattern
+        const config =
+            normalizeOptions(
+                options
             );
 
 
-        result.checks.push(
-            ...sourceResult.checks
-        );
+        if (
+            config.sourceType ===
+            "marker"
+        ) {
 
+            return auditMarker(
 
-        result.errors.push(
-            ...sourceResult.errors
-        );
+                source,
 
+                config
 
-        result.warnings.push(
-            ...sourceResult.warnings
-        );
-
-
-        /*
-         * Exporters.
-         */
-
-        const exportersResult =
-            validateExporters();
-
-
-        result.checks.push(
-            ...exportersResult.checks
-        );
-
-
-        result.errors.push(
-            ...exportersResult.errors
-        );
-
-
-        result.warnings.push(
-            ...exportersResult.warnings
-        );
-
-
-        /*
-         * Units.
-         */
-
-        const unitResult =
-            auditUnits();
-
-
-        result.checks.push(
-            ...unitResult.checks
-        );
-
-
-        result.errors.push(
-            ...unitResult.errors
-        );
-
-
-        result.warnings.push(
-            ...unitResult.warnings
-        );
-
-
-        /*
-         * Text construction audit.
-         */
-
-        const dxfResult =
-            auditDXFText(
-                pattern
             );
 
+        }
 
-        result.checks.push(
-            ...dxfResult.checks
+
+        return auditProduction(
+
+            source,
+
+            config
+
         );
-
-
-        result.errors.push(
-            ...dxfResult.errors
-        );
-
-
-        result.warnings.push(
-            ...dxfResult.warnings
-        );
-
-
-        const pltResult =
-            auditPLTText(
-                pattern
-            );
-
-
-        result.checks.push(
-            ...pltResult.checks
-        );
-
-
-        result.errors.push(
-            ...pltResult.errors
-        );
-
-
-        result.warnings.push(
-            ...pltResult.warnings
-        );
-
-
-        const svgResult =
-            auditSVGText(
-                pattern
-            );
-
-
-        result.checks.push(
-            ...svgResult.checks
-        );
-
-
-        result.errors.push(
-            ...svgResult.errors
-        );
-
-
-        result.warnings.push(
-            ...svgResult.warnings
-        );
-
-
-        /*
-         * Summary.
-         */
-
-        result.summary =
-            summarizePattern(
-                pattern
-            );
-
-
-        result.valid =
-            result.errors.length === 0;
-
-
-        return result;
-
-    }
-
-
-    /* ========================================================
-       FORMAT
-       ======================================================== */
-
-    function formatResult(
-        result
-    ) {
-
-        return {
-
-            valid:
-                result.valid,
-
-            totalChecks:
-                result.checks.length,
-
-            passedChecks:
-                result.checks.filter(
-                    check =>
-                        check.passed
-                ).length,
-
-            failedChecks:
-                result.checks.filter(
-                    check =>
-                        !check.passed
-                ).length,
-
-            errors:
-                result.errors,
-
-            warnings:
-                result.warnings,
-
-            summary:
-                result.summary
-
-        };
 
     }
 
@@ -1726,73 +1539,18 @@
        DEBUG
        ======================================================== */
 
-    function runDebug(
-        pattern = null
+    function debug(
+        source,
+        options = {}
     ) {
 
-        const target =
-            pattern ||
-            window.PatternMakerApp?.state
-                ?.cuttingPattern;
+        const report =
+            audit(
 
+                source,
 
-        if (
-            !target
-        ) {
+                options
 
-            console.warn(
-                "PatternMaker Output Audit: " +
-                "belum ada cuttingPattern."
-            );
-
-
-            return {
-
-                valid:
-                    false,
-
-                totalChecks:
-                    0,
-
-                passedChecks:
-                    0,
-
-                failedChecks:
-                    1,
-
-                errors: [
-
-                    {
-
-                        check:
-                            "Pattern",
-
-                        message:
-                            "Belum ada cuttingPattern."
-
-                    }
-
-                ],
-
-                warnings: [],
-
-                summary:
-                    null
-
-            };
-
-        }
-
-
-        const result =
-            auditPattern(
-                target
-            );
-
-
-        const formatted =
-            formatResult(
-                result
             );
 
 
@@ -1802,63 +1560,84 @@
 
 
         console.log(
+            "Version:",
+            VERSION
+        );
+
+
+        console.log(
             "Valid:",
-            formatted.valid
+            report.valid
         );
 
 
         console.log(
-            "Checks:",
-            formatted.totalChecks
+            "Errors:",
+            report.errors
         );
 
 
         console.log(
-            "Passed:",
-            formatted.passedChecks
+            "Warnings:",
+            report.warnings
         );
 
 
         console.log(
-            "Failed:",
-            formatted.failedChecks
+            "Source:",
+            report.source
         );
 
 
         console.log(
-            "Summary:",
-            formatted.summary
+            "Outputs:",
+            report.outputs
         );
-
-
-        if (
-            formatted.errors.length
-        ) {
-
-            console.error(
-                "Errors:",
-                formatted.errors
-            );
-
-        }
-
-
-        if (
-            formatted.warnings.length
-        ) {
-
-            console.warn(
-                "Warnings:",
-                formatted.warnings
-            );
-
-        }
 
 
         console.groupEnd();
 
 
-        return formatted;
+        return report;
+
+    }
+
+
+    /* ========================================================
+       ASSERT
+       ======================================================== */
+
+    function assert(
+        source,
+        options = {}
+    ) {
+
+        const report =
+            audit(
+
+                source,
+
+                options
+
+            );
+
+
+        if (
+            !report.valid
+        ) {
+
+            throw new Error(
+
+                report.errors.join(
+                    " | "
+                )
+
+            );
+
+        }
+
+
+        return true;
 
     }
 
@@ -1869,27 +1648,31 @@
 
     window.PatternMakerOutputAudit = {
 
-        summarizePattern,
+        VERSION,
 
-        comparePatterns,
+        DEFAULT_OPTIONS,
 
-        validateSourcePattern,
+        getBounds,
 
-        validateExporters,
+        hasFinitePoints,
 
-        auditUnits,
+        createPieceSnapshot,
 
-        auditDXFText,
+        createProductionSnapshot,
 
-        auditPLTText,
+        createMarkerSnapshot,
 
-        auditSVGText,
+        compareSnapshots,
 
-        auditPattern,
+        auditProduction,
 
-        formatResult,
+        auditMarker,
 
-        runDebug
+        audit,
+
+        debug,
+
+        assert
 
     };
 
