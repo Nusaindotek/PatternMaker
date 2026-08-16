@@ -1,19 +1,22 @@
-```javascript id="6p8m2r"
 /**
  * ============================================================
  * PATTERNMAKER UNIVERSAL
- * KODE 8 — engine/legacy-pattern-adapter.js
+ * KODE 23 — engine/legacy-pattern-adapter.js
  * ============================================================
  *
- * Adapter untuk engine PatternMaker lama.
+ * LEGACY ENGINE BRIDGE
  *
- * ENGINE ASLI:
- *   bodice.js  -> makeBodice(m)
- *   sleeve.js  -> makeSleeve(m, bodice)
+ * Menghubungkan ES Module lama:
  *
- * Tujuan:
- *   Menghubungkan engine lama ke Pattern Registry baru
- *   tanpa mengubah bodice.js atau sleeve.js.
+ *     bodice.js
+ *     sleeve.js
+ *
+ * ke arsitektur Universal:
+ *
+ *     Pattern Registry
+ *     main.js
+ *     validator
+ *     garment engines
  *
  * ============================================================
  */
@@ -29,101 +32,67 @@ import {
 
 
 /* ============================================================
-   VALIDASI GLOBAL REGISTRY
+   DEPENDENCY
    ============================================================ */
-
-if (
-    !window.PatternMakerPatternRegistry
-) {
-
-    throw new Error(
-        "PatternMakerPatternRegistry belum tersedia. " +
-        "Pastikan pattern-registry.js dimuat sebelum " +
-        "legacy-pattern-adapter.js."
-    );
-
-}
-
-
-if (
-    !window.PatternMakerMeasurements
-) {
-
-    throw new Error(
-        "PatternMakerMeasurements belum tersedia."
-    );
-
-}
-
 
 const Registry =
     window.PatternMakerPatternRegistry;
 
 
-const Measurements =
-    window.PatternMakerMeasurements;
+if (
+    !Registry
+) {
+
+    throw new Error(
+        "PatternMakerPatternRegistry belum tersedia."
+    );
+
+}
 
 
 /* ============================================================
-   LEGACY BODICE INPUT NORMALIZER
+   BODICE INPUT ADAPTER
    ============================================================ */
 
-/**
- * Engine bodice lama mengharapkan:
- *
- * {
- *     bust,
- *     waist,
- *     shoulder,
- *     neck,
- *     bodyLength,
- *     negativeEase
- * }
- *
- * Universal PatternMaker mungkin menyediakan lebih banyak data.
- * Adapter hanya mengambil data yang diperlukan.
- */
-
 function buildBodiceMeasurements(
-    context
+    context = {}
 ) {
 
     const m =
-        context.measurements || {};
+        context.measurements ||
+        {};
 
 
     return {
 
         bust:
-            Number(m.bust || 0),
+            Number(
+                m.bust || 0
+            ),
 
         waist:
-            Number(m.waist || 0),
+            Number(
+                m.waist || 0
+            ),
 
         shoulder:
-            Number(m.shoulder || 0),
+            Number(
+                m.shoulder || 0
+            ),
 
         neck:
-            Number(m.neck || 0),
+            Number(
+                m.neck || 0
+            ),
 
         bodyLength:
-            Number(m.bodyLength || 0),
-
-        /*
-         * Engine lama menggunakan negativeEase
-         * dalam bentuk percentage.
-         *
-         * Untuk kompatibilitas awal:
-         * default = 0.
-         *
-         * Engine universal berikutnya akan
-         * menentukan nilai ini dari fabric + fit.
-         */
+            Number(
+                m.bodyLength || 0
+            ),
 
         negativeEase:
             Number(
-                context.options?.negativeEase ??
-                0
+                context.options?.negativeEase || 0
             )
 
     };
@@ -132,62 +101,53 @@ function buildBodiceMeasurements(
 
 
 /* ============================================================
-   LEGACY SLEEVE INPUT NORMALIZER
+   SLEEVE INPUT ADAPTER
    ============================================================ */
 
-/**
- * sleeve.js lama menggunakan:
- *
- *   fabric
- *   negativeEase
- *   upperArm
- *   wrist
- *   sleeveLength
- *
- * dan membutuhkan object bodice sebagai input kedua.
- */
-
 function buildSleeveMeasurements(
-    context
+    context = {}
 ) {
 
     const m =
-        context.measurements || {};
+        context.measurements ||
+        {};
+
+
+    const fabric =
+        String(
+            context.fabric?.material ||
+            context.options?.fabric ||
+            "woven"
+        )
+        .toLowerCase();
 
 
     return {
 
         upperArm:
-            Number(m.upperArm || 0),
+            Number(
+                m.upperArm || 0
+            ),
 
         wrist:
-            Number(m.wrist || 0),
+            Number(
+                m.wrist || 0
+            ),
 
         sleeveLength:
-            Number(m.sleeveLength || 0),
+            Number(
+                m.sleeveLength || 0
+            ),
 
         negativeEase:
             Number(
-                context.options?.negativeEase ??
-                0
+                context.options?.negativeEase || 0
             ),
 
-        /*
-         * Legacy sleeve.js membedakan:
-         *
-         * fabric === "rib"
-         *
-         * dengan fabric woven.
-         *
-         * Kita pertahankan kontrak lama dahulu.
-         */
-
         fabric:
-            normalizeLegacyFabric(
-                context.options?.fabric ||
-                context.fabric?.material ||
-                "woven"
-            )
+            fabric.includes("rib")
+                ? "rib"
+                : "woven"
 
     };
 
@@ -195,49 +155,123 @@ function buildSleeveMeasurements(
 
 
 /* ============================================================
-   LEGACY FABRIC NORMALIZER
+   VALIDATE BODICE INPUT
    ============================================================ */
 
-function normalizeLegacyFabric(
-    fabric
+function validateBodiceInput(
+    measurements
 ) {
 
+    const required = [
+
+        "bust",
+        "waist",
+        "shoulder",
+        "neck",
+        "bodyLength"
+
+    ];
+
+
+    const missing =
+        required.filter(
+            key => {
+
+                const value =
+                    Number(
+                        measurements[key]
+                    );
+
+
+                return (
+
+                    !Number.isFinite(
+                        value
+                    ) ||
+
+                    value <= 0
+
+                );
+
+            }
+        );
+
+
     if (
-        !fabric
+        missing.length
     ) {
 
-        return "woven";
+        throw new Error(
+
+            "Bodice membutuhkan ukuran: " +
+            missing.join(", ")
+
+        );
 
     }
-
-
-    const value =
-        String(
-            fabric
-        ).toLowerCase();
-
-
-    /*
-     * Legacy sleeve.js secara spesifik
-     * memeriksa "rib".
-     */
-
-    if (
-        value.includes("rib")
-    ) {
-
-        return "rib";
-
-    }
-
-
-    return "woven";
 
 }
 
 
 /* ============================================================
-   BODICE ENGINE ADAPTER
+   VALIDATE SLEEVE INPUT
+   ============================================================ */
+
+function validateSleeveInput(
+    measurements
+) {
+
+    const required = [
+
+        "upperArm",
+        "wrist",
+        "sleeveLength"
+
+    ];
+
+
+    const missing =
+        required.filter(
+            key => {
+
+                const value =
+                    Number(
+                        measurements[key]
+                    );
+
+
+                return (
+
+                    !Number.isFinite(
+                        value
+                    ) ||
+
+                    value <= 0
+
+                );
+
+            }
+        );
+
+
+    if (
+        missing.length
+    ) {
+
+        throw new Error(
+
+            "Sleeve membutuhkan ukuran: " +
+            missing.join(", ")
+
+        );
+
+    }
+
+}
+
+
+/* ============================================================
+   BODICE ADAPTER
    ============================================================ */
 
 const BodiceAdapter = {
@@ -246,13 +280,13 @@ const BodiceAdapter = {
         "bodice",
 
     label:
-        "Legacy Bodice Engine",
+        "Legacy Bodice Engine Adapter",
 
     version:
-        "PatternMaker V1.2 Adapter",
+        "2.0",
 
     generate(
-        context
+        context = {}
     ) {
 
         const measurements =
@@ -266,10 +300,21 @@ const BodiceAdapter = {
         );
 
 
-        const result =
+        const geometry =
             makeBodice(
                 measurements
             );
+
+
+        if (
+            !geometry
+        ) {
+
+            throw new Error(
+                "makeBodice() tidak menghasilkan geometry."
+            );
+
+        }
 
 
         return {
@@ -278,33 +323,22 @@ const BodiceAdapter = {
                 "bodice",
 
             engine:
-                "legacy",
+                "bodice",
 
-            source:
-                "engine/bodice.js",
+            geometry,
 
             measurements,
 
-            geometry:
-                result,
-
             metadata: {
 
-                front:
-                    Boolean(
-                        result.front
-                    ),
+                source:
+                    "engine/bodice.js",
 
-                back:
-                    Boolean(
-                        result.back
-                    ),
+                adapter:
+                    "legacy-pattern-adapter",
 
-                armholeLength:
-                    result.armholeLength,
-
-                armDepth:
-                    result.armDepth
+                version:
+                    "2.0"
 
             }
 
@@ -316,7 +350,7 @@ const BodiceAdapter = {
 
 
 /* ============================================================
-   SLEEVE ENGINE ADAPTER
+   SLEEVE ADAPTER
    ============================================================ */
 
 const SleeveAdapter = {
@@ -325,52 +359,73 @@ const SleeveAdapter = {
         "sleeve",
 
     label:
-        "Legacy Sleeve Engine",
+        "Legacy Sleeve Engine Adapter",
 
     version:
-        "PatternMaker V1.2 Adapter",
+        "2.0",
 
     generate(
-        context
+        context = {}
     ) {
 
-        const bodiceInput =
+        const bodiceMeasurements =
             buildBodiceMeasurements(
                 context
             );
 
 
-        const sleeveInput =
+        const sleeveMeasurements =
             buildSleeveMeasurements(
                 context
             );
 
 
         validateBodiceInput(
-            bodiceInput
+            bodiceMeasurements
         );
 
 
         validateSleeveInput(
-            sleeveInput
+            sleeveMeasurements
         );
 
 
-        /*
-         * Sleeve membutuhkan hasil bodice.
-         */
-
         const bodice =
             makeBodice(
-                bodiceInput
+                bodiceMeasurements
             );
 
 
-        const sleeve =
+        if (
+            !bodice
+        ) {
+
+            throw new Error(
+                "makeBodice() gagal menghasilkan base."
+            );
+
+        }
+
+
+        const geometry =
             makeSleeve(
-                sleeveInput,
+
+                sleeveMeasurements,
+
                 bodice
+
             );
+
+
+        if (
+            !geometry
+        ) {
+
+            throw new Error(
+                "makeSleeve() tidak menghasilkan geometry."
+            );
+
+        }
 
 
         return {
@@ -379,13 +434,12 @@ const SleeveAdapter = {
                 "sleeve",
 
             engine:
-                "legacy",
+                "sleeve",
 
-            source:
-                "engine/sleeve.js",
+            geometry,
 
             measurements:
-                sleeveInput,
+                sleeveMeasurements,
 
             bodiceReference: {
 
@@ -397,8 +451,18 @@ const SleeveAdapter = {
 
             },
 
-            geometry:
-                sleeve
+            metadata: {
+
+                source:
+                    "engine/sleeve.js",
+
+                adapter:
+                    "legacy-pattern-adapter",
+
+                version:
+                    "2.0"
+
+            }
 
         };
 
@@ -408,103 +472,57 @@ const SleeveAdapter = {
 
 
 /* ============================================================
-   BODICE INPUT VALIDATION
-   ============================================================ */
-
-function validateBodiceInput(
-    m
-) {
-
-    const required = [
-        "bust",
-        "waist",
-        "shoulder",
-        "neck",
-        "bodyLength"
-    ];
-
-
-    const missing =
-        required.filter(
-            key =>
-                !Number.isFinite(
-                    Number(m[key])
-                ) ||
-                Number(m[key]) <= 0
-        );
-
-
-    if (
-        missing.length
-    ) {
-
-        throw new Error(
-            "Bodice membutuhkan ukuran: " +
-            missing.join(", ")
-        );
-
-    }
-
-}
-
-
-/* ============================================================
-   SLEEVE INPUT VALIDATION
-   ============================================================ */
-
-function validateSleeveInput(
-    m
-) {
-
-    const required = [
-        "upperArm",
-        "wrist",
-        "sleeveLength"
-    ];
-
-
-    const missing =
-        required.filter(
-            key =>
-                !Number.isFinite(
-                    Number(m[key])
-                ) ||
-                Number(m[key]) <= 0
-        );
-
-
-    if (
-        missing.length
-    ) {
-
-        throw new Error(
-            "Sleeve membutuhkan ukuran: " +
-            missing.join(", ")
-        );
-
-    }
-
-}
-
-
-/* ============================================================
-   REGISTER ENGINE
+   REGISTER
    ============================================================ */
 
 Registry.registerEngine(
+
     "bodice",
+
     BodiceAdapter
+
 );
 
 
+/*
+ * Sleeve didaftarkan untuk kebutuhan adapter,
+ * walaupun garment saat ini memakai bodice sebagai
+ * primary engine.
+ */
+
 Registry.registerEngine(
+
     "sleeve",
+
     SleeveAdapter
+
 );
 
 
 /* ============================================================
-   DEBUG INFORMATION
+   GLOBAL COMPATIBILITY API
+   ============================================================
+ *
+ * Ini bagian penting dari KODE 23.
+ *
+ * Engine lama adalah ES Module.
+ * Controller lama/universal membutuhkan API global.
+ *
+ * Kita expose hanya melalui bridge ini.
+ *
+ * Bodice.js dan sleeve.js sendiri TIDAK diubah.
+ */
+
+window.makeBodice =
+    makeBodice;
+
+
+window.makeSleeve =
+    makeSleeve;
+
+
+/* ============================================================
+   UNIVERSAL LEGACY API
    ============================================================ */
 
 window.PatternMakerLegacyAdapters = {
@@ -517,7 +535,31 @@ window.PatternMakerLegacyAdapters = {
 
     buildSleeveMeasurements,
 
-    normalizeLegacyFabric
+    validateBodiceInput,
+
+    validateSleeveInput,
+
+    makeBodice,
+
+    makeSleeve
 
 };
-```
+
+
+/* ============================================================
+   READY INFORMATION
+   ============================================================ */
+
+console.log(
+    "PatternMaker Legacy Adapter ready.",
+    {
+        bodice:
+            typeof window.makeBodice ===
+            "function",
+
+        sleeve:
+            typeof window.makeSleeve ===
+            "function"
+
+    }
+);
