@@ -1,18 +1,41 @@
-```javascript id="8m9x2k"
 /**
  * ============================================================
  * PATTERNMAKER UNIVERSAL
- * KODE 4 — engine/profile.js
+ * BASELINE FINAL v1
+ * KODE 46
+ *
+ * FILE:
+ *   engine/profile.js
  * ============================================================
  *
- * Fungsi:
- * - Membuat Body Profile universal.
- * - Mendukung Anak / Remaja / Wanita / Pria / Custom.
- * - Menyimpan sistem unit.
- * - Menyimpan ukuran tubuh dalam satu standar internal: CM.
- * - Umur hanya sebagai metadata.
+ * RESPONSIBILITY:
  *
- * Tidak bergantung pada DOM.
+ *   Canonical Body Profile
+ *
+ * Flow:
+ *
+ *   Raw Input
+ *       ↓
+ *   Measurement Mapper
+ *       ↓
+ *   Profile
+ *
+ * ============================================================
+ *
+ * Profile menyimpan:
+ *
+ * - category
+ * - age
+ * - size metadata
+ * - canonical measurements
+ * - unit internal
+ * - source
+ * - validation
+ *
+ * Internal measurement unit:
+ *
+ *   cm
+ *
  * ============================================================
  */
 
@@ -22,239 +45,359 @@
 
 
     /* ========================================================
-       VALIDASI DEPENDENCY
+       DEPENDENCIES
        ======================================================== */
 
-    if (!window.PatternMakerMeasurementSchema) {
+    const Schema =
+        window.PatternMakerMeasurementSchema;
+
+    const Mapper =
+        window.PatternMakerMeasurementMapper;
+
+
+    if (
+        !Schema
+    ) {
 
         throw new Error(
-            "PatternMakerMeasurementSchema belum dimuat. " +
-            "Pastikan measurement-schema.js dimuat sebelum profile.js."
+            "measurement-schema.js harus dimuat sebelum profile.js."
         );
 
     }
 
 
-    const Schema =
-        window.PatternMakerMeasurementSchema;
+    if (
+        !Mapper
+    ) {
+
+        throw new Error(
+            "measurement-mapper.js harus dimuat sebelum profile.js."
+        );
+
+    }
 
 
     /* ========================================================
-       CLASS BODY PROFILE
+       VERSION
+       ======================================================== */
+
+    const VERSION =
+        "FINAL-v1";
+
+
+    /* ========================================================
+       CONSTANTS
+       ======================================================== */
+
+    const INTERNAL_UNIT =
+        "cm";
+
+
+    /* ========================================================
+       UTILITY
+       ======================================================== */
+
+    function clone(
+        value
+    ) {
+
+        if (
+            value === null ||
+            value === undefined
+        ) {
+
+            return value;
+
+        }
+
+
+        if (
+            typeof structuredClone ===
+            "function"
+        ) {
+
+            return structuredClone(
+                value
+            );
+
+        }
+
+
+        return JSON.parse(
+            JSON.stringify(
+                value
+            )
+        );
+
+    }
+
+
+    function numberOrNull(
+        value
+    ) {
+
+        const number =
+            Number(
+                value
+            );
+
+
+        return Number.isFinite(
+            number
+        )
+            ? number
+            : null;
+
+    }
+
+
+    /* ========================================================
+       BODY PROFILE CLASS
        ======================================================== */
 
     class BodyProfile {
 
-        constructor(options = {}) {
+        constructor(
+            options = {}
+        ) {
+
+            this.version =
+                VERSION;
+
 
             this.id =
                 options.id ||
-                createProfileId();
-
-
-            this.category =
-                options.category || "custom";
+                BodyProfile.createId();
 
 
             this.name =
-                options.name || "Custom Profile";
+                options.name ||
+                "Unnamed Profile";
+
+
+            this.category =
+                options.category ||
+                "custom";
 
 
             this.age =
-                Number.isFinite(Number(options.age))
-                    ? Number(options.age)
-                    : null;
+                numberOrNull(
+                    options.age
+                );
+
+
+            this.sizeId =
+                options.sizeId ||
+                null;
+
+
+            this.sizeLabel =
+                options.sizeLabel ||
+                null;
+
+
+            this.source =
+                options.source ||
+                "manual";
 
 
             this.unit =
-                options.unit || "cm";
+                INTERNAL_UNIT;
+
+
+            this.createdAt =
+                options.createdAt ||
+                new Date()
+                    .toISOString();
+
+
+            this.updatedAt =
+                new Date()
+                    .toISOString();
 
 
             this.measurements = {};
 
 
-            this.metadata = {
+            this.metadata =
+                clone(
+                    options.metadata ||
+                    {}
+                );
 
-                createdAt:
-                    options.createdAt ||
-                    new Date().toISOString(),
 
-                updatedAt:
-                    new Date().toISOString(),
+            /*
+             * Canonicalize initial measurements.
+             */
 
-                source:
-                    options.source ||
-                    "manual",
+            if (
+                options.measurements
+            ) {
 
-                version:
-                    "1.0"
+                this.setMeasurements(
+
+                    options.measurements,
+
+                    {
+
+                        unit:
+                            options.unit ||
+                            INTERNAL_UNIT
+
+                    }
+
+                );
+
+            }
+
+        }
+
+
+        /* ====================================================
+           ID
+           ==================================================== */
+
+        static createId() {
+
+            return (
+
+                "PROFILE-" +
+
+                Date.now() +
+
+                "-" +
+
+                Math.random()
+                    .toString(36)
+                    .slice(2, 8)
+
+            );
+
+        }
+
+
+        /* ====================================================
+           SET ALL MEASUREMENTS
+           ==================================================== */
+
+        setMeasurements(
+            measurements,
+            options = {}
+        ) {
+
+            const unit =
+                options.unit ||
+                INTERNAL_UNIT;
+
+
+            const mapped =
+                Mapper.canonicalizeToCm(
+
+                    measurements,
+
+                    {
+                        unit
+                    }
+
+                );
+
+
+            this.measurements =
+                {
+
+                    ...this.measurements,
+
+                    ...mapped.measurements
+
+                };
+
+
+            this.updatedAt =
+                new Date()
+                    .toISOString();
+
+
+            return {
+
+                measurements:
+                    clone(
+                        this.measurements
+                    ),
+
+                warnings:
+                    mapped.warnings || [],
+
+                conflicts:
+                    mapped.conflicts || []
 
             };
 
-
-            if (options.measurements) {
-
-                this.setMeasurements(
-                    options.measurements,
-                    this.unit
-                );
-
-            }
-
         }
 
 
         /* ====================================================
-           SET CATEGORY
-           ==================================================== */
-
-        setCategory(category) {
-
-            if (!Schema.USER_CATEGORIES[category]) {
-
-                throw new Error(
-                    `Kategori profile tidak valid: ${category}`
-                );
-
-            }
-
-            this.category = category;
-
-            return this;
-
-        }
-
-
-        /* ====================================================
-           SET UNIT
-           ==================================================== */
-
-        setUnit(unit) {
-
-            if (!Schema.MEASUREMENT_UNITS[unit]) {
-
-                throw new Error(
-                    `Unit tidak didukung: ${unit}`
-                );
-
-            }
-
-
-            /*
-             * Semua measurement internal selalu disimpan CM.
-             *
-             * Jadi perubahan unit hanya mengubah
-             * cara input/output ditampilkan.
-             */
-
-            this.unit = unit;
-
-            this.metadata.updatedAt =
-                new Date().toISOString();
-
-
-            return this;
-
-        }
-
-
-        /* ====================================================
-           SET AGE
-           ==================================================== */
-
-        setAge(age) {
-
-            if (
-                age !== null &&
-                (
-                    !Number.isFinite(Number(age)) ||
-                    Number(age) < 0 ||
-                    Number(age) > 120
-                )
-            ) {
-
-                throw new Error(
-                    "Umur harus berada antara 0–120 tahun."
-                );
-
-            }
-
-
-            this.age =
-                age === null
-                    ? null
-                    : Number(age);
-
-
-            this.metadata.updatedAt =
-                new Date().toISOString();
-
-
-            return this;
-
-        }
-
-
-        /* ====================================================
-           SET SINGLE MEASUREMENT
+           SET ONE MEASUREMENT
            ==================================================== */
 
         setMeasurement(
-            measurementId,
+            id,
             value,
-            unit = this.unit
+            unit = INTERNAL_UNIT
         ) {
 
-            const definition =
-                Schema.getMeasurementDefinition(
-                    measurementId
+            const canonicalId =
+                Mapper.resolve(
+                    id
                 );
 
 
-            if (!definition) {
+            if (
+                !canonicalId
+            ) {
 
                 throw new Error(
-                    `Measurement tidak ditemukan: ${measurementId}`
+
+                    `Measurement "${id}" ` +
+                    "tidak dikenal."
+
                 );
 
             }
 
 
-            const numericValue =
-                Number(value);
-
-
-            if (!Number.isFinite(numericValue)) {
-
-                throw new Error(
-                    `${definition.label} harus berupa angka.`
-                );
-
-            }
-
-
-            /*
-             * Validasi dilakukan terhadap nilai dalam unit input.
-             *
-             * Schema menyimpan batas dasar dalam CM,
-             * sehingga untuk INCH kita konversi dulu.
-             */
-
-            const valueInCm =
+            const cm =
                 Schema.measurementToCm(
-                    numericValue,
+                    value,
                     unit
                 );
 
 
+            if (
+                cm === null
+            ) {
+
+                throw new Error(
+
+                    `${canonicalId} harus berupa angka.`
+
+                );
+
+            }
+
+
             const validation =
                 Schema.validateMeasurementValue(
-                    measurementId,
-                    valueInCm
+
+                    canonicalId,
+
+                    cm
+
                 );
 
 
-            if (!validation.valid) {
+            if (
+                !validation.valid
+            ) {
 
                 throw new Error(
                     validation.message
@@ -263,67 +406,39 @@
             }
 
 
-            /*
-             * INTERNAL FORMAT
-             *
-             * Seluruh engine pattern menerima CM.
-             */
-
-            this.measurements[measurementId] =
-                valueInCm;
+            this.measurements[
+                canonicalId
+            ] =
+                cm;
 
 
-            this.metadata.updatedAt =
-                new Date().toISOString();
+            this.updatedAt =
+                new Date()
+                    .toISOString();
 
 
-            return this;
+            return cm;
 
         }
 
 
         /* ====================================================
-           SET MULTIPLE MEASUREMENTS
-           ==================================================== */
-
-        setMeasurements(
-            measurements = {},
-            unit = this.unit
-        ) {
-
-            Object.entries(measurements)
-                .forEach(
-                    ([id, value]) => {
-
-                        this.setMeasurement(
-                            id,
-                            value,
-                            unit
-                        );
-
-                    }
-                );
-
-
-            return this;
-
-        }
-
-
-        /* ====================================================
-           GET MEASUREMENT
+           GET ONE MEASUREMENT
            ==================================================== */
 
         getMeasurement(
-            measurementId,
-            outputUnit = "cm"
+            id,
+            unit = INTERNAL_UNIT
         ) {
 
+            const canonicalId =
+                Mapper.resolve(
+                    id
+                );
+
+
             if (
-                !Object.prototype.hasOwnProperty.call(
-                    this.measurements,
-                    measurementId
-                )
+                !canonicalId
             ) {
 
                 return null;
@@ -331,94 +446,200 @@
             }
 
 
-            const cmValue =
+            const valueCm =
                 this.measurements[
-                    measurementId
+                    canonicalId
                 ];
 
 
-            return Schema.measurementFromCm(
-                cmValue,
-                outputUnit
+            if (
+                valueCm ===
+                undefined
+            ) {
+
+                return null;
+
+            }
+
+
+            return Schema.cmToUnit(
+                valueCm,
+                unit
             );
 
         }
 
 
         /* ====================================================
-           CHECK MEASUREMENT
+           HAS
            ==================================================== */
 
         hasMeasurement(
-            measurementId
+            id
         ) {
 
-            return Object.prototype.hasOwnProperty.call(
-                this.measurements,
-                measurementId
+            const canonicalId =
+                Mapper.resolve(
+                    id
+                );
+
+
+            if (
+                !canonicalId
+            ) {
+
+                return false;
+
+            }
+
+
+            return (
+
+                this.measurements[
+                    canonicalId
+                ] !==
+                undefined
+
             );
 
         }
 
 
         /* ====================================================
-           GET REQUIRED MEASUREMENTS
+           REMOVE
            ==================================================== */
 
-        getRequiredMeasurements(
-            garmentType
+        removeMeasurement(
+            id
         ) {
 
-            return Schema.getRequiredMeasurements(
-                garmentType
+            const canonicalId =
+                Mapper.resolve(
+                    id
+                );
+
+
+            if (
+                !canonicalId
+            ) {
+
+                return false;
+
+            }
+
+
+            if (
+                this.measurements[
+                    canonicalId
+                ] ===
+                undefined
+            ) {
+
+                return false;
+
+            }
+
+
+            delete this.measurements[
+                canonicalId
+            ];
+
+
+            this.updatedAt =
+                new Date()
+                    .toISOString();
+
+
+            return true;
+
+        }
+
+
+        /* ====================================================
+           GET CANONICAL MEASUREMENTS
+           ==================================================== */
+
+        getCanonicalMeasurements() {
+
+            return clone(
+                this.measurements
             );
 
         }
 
 
         /* ====================================================
-           CHECK GARMENT COMPLETENESS
+           EXPORT IN UNIT
            ==================================================== */
 
-        validateForGarment(
-            garmentType
+        getMeasurements(
+            unit = INTERNAL_UNIT
+        ) {
+
+            const output = {};
+
+
+            Object.entries(
+                this.measurements
+            )
+            .forEach(
+                (
+                    [
+                        id,
+                        valueCm
+                    ]
+                ) => {
+
+                    output[
+                        id
+                    ] =
+                        Schema.cmToUnit(
+                            valueCm,
+                            unit
+                        );
+
+                }
+            );
+
+
+            return output;
+
+        }
+
+
+        /* ====================================================
+           REQUIRED VALIDATION
+           ==================================================== */
+
+        validateRequired(
+            requiredMeasurements = []
         ) {
 
             const required =
-                this.getRequiredMeasurements(
-                    garmentType
-                );
+                requiredMeasurements
+                    .map(
+                        Mapper.resolve
+                    )
+                    .filter(
+                        Boolean
+                    );
 
 
             const missing = [];
 
 
             required.forEach(
-                measurementId => {
+                id => {
 
                     if (
                         !this.hasMeasurement(
-                            measurementId
+                            id
                         )
                     ) {
 
-                        const definition =
-                            Schema.getMeasurementDefinition(
-                                measurementId
-                            );
-
-
-                        missing.push({
-
-                            id:
-                                measurementId,
-
-                            label:
-                                definition
-                                    ? definition.label
-                                    : measurementId
-
-                        });
+                        missing.push(
+                            id
+                        );
 
                     }
 
@@ -431,7 +652,24 @@
                 valid:
                     missing.length === 0,
 
-                missing
+                missing,
+
+                labels:
+                    missing.map(
+                        id => {
+
+                            const definition =
+                                Schema.getMeasurementDefinition(
+                                    id
+                                );
+
+
+                            return definition
+                                ? definition.label
+                                : id;
+
+                        }
+                    )
 
             };
 
@@ -439,12 +677,123 @@
 
 
         /* ====================================================
-           EXPORT DATA
+           FULL VALIDATION
+           ==================================================== */
+
+        validate() {
+
+            const errors = [];
+
+            const warnings = [];
+
+
+            /*
+             * Category
+             */
+
+            if (
+                !Schema.getCategoryDefinition(
+                    this.category
+                )
+            ) {
+
+                errors.push(
+
+                    `Category "${this.category}" tidak dikenal.`
+
+                );
+
+            }
+
+
+            /*
+             * Age
+             */
+
+            if (
+                this.age !== null
+            ) {
+
+                if (
+                    this.age < 0
+                ) {
+
+                    errors.push(
+                        "Umur tidak boleh negatif."
+                    );
+
+                }
+
+            }
+
+
+            /*
+             * Measurements
+             */
+
+            const measurementValidation =
+                Schema.validateMeasurementObject(
+                    this.measurements
+                );
+
+
+            if (
+                !measurementValidation.valid
+            ) {
+
+                errors.push(
+                    ...measurementValidation.errors
+                );
+
+            }
+
+
+            warnings.push(
+                ...measurementValidation.warnings
+            );
+
+
+            /*
+             * Empty profile
+             */
+
+            if (
+                Object.keys(
+                    this.measurements
+                ).length === 0
+            ) {
+
+                warnings.push(
+                    "Profile belum memiliki measurement."
+                );
+
+            }
+
+
+            return {
+
+                valid:
+                    errors.length === 0,
+
+                errors,
+
+                warnings
+
+            };
+
+        }
+
+
+        /* ====================================================
+           TO JSON
            ==================================================== */
 
         toJSON() {
 
             return {
+
+                version:
+                    this.version,
 
                 id:
                     this.id,
@@ -455,30 +804,36 @@
                 category:
                     this.category,
 
-                categoryLabel:
-                    Schema.getCategoryLabel(
-                        this.category
-                    ),
-
                 age:
                     this.age,
+
+                sizeId:
+                    this.sizeId,
+
+                sizeLabel:
+                    this.sizeLabel,
+
+                source:
+                    this.source,
 
                 unit:
                     this.unit,
 
-                /*
-                 * Internal values selalu CM.
-                 */
-
                 measurements:
-                    {
-                        ...this.measurements
-                    },
+                    clone(
+                        this.measurements
+                    ),
 
                 metadata:
-                    {
-                        ...this.metadata
-                    }
+                    clone(
+                        this.metadata
+                    ),
+
+                createdAt:
+                    this.createdAt,
+
+                updatedAt:
+                    this.updatedAt
 
             };
 
@@ -486,44 +841,113 @@
 
 
         /* ====================================================
-           CLONE PROFILE
+           CLONE
            ==================================================== */
 
-        clone(
-            newName = null
+        clone() {
+
+            return BodyProfile.fromJSON(
+                this.toJSON()
+            );
+
+        }
+
+
+        /* ====================================================
+           APPLY SIZE PROFILE
+           ==================================================== */
+
+        applySizeProfile(
+            sizeProfile
         ) {
 
-            const copy =
-                new BodyProfile({
+            if (
+                !sizeProfile
+            ) {
 
-                    id:
-                        createProfileId(),
+                throw new Error(
+                    "Size profile kosong."
+                );
 
-                    name:
-                        newName ||
-                        `${this.name} Copy`,
-
-                    category:
-                        this.category,
-
-                    age:
-                        this.age,
-
-                    unit:
-                        this.unit,
-
-                    measurements:
-                        {
-                            ...this.measurements
-                        },
-
-                    source:
-                        "clone"
-
-                });
+            }
 
 
-            return copy;
+            const mapped =
+                Mapper.mapSizeProfile(
+                    sizeProfile
+                );
+
+
+            this.category =
+                sizeProfile.category ||
+                this.category;
+
+
+            this.sizeId =
+                sizeProfile.sizeId ||
+                sizeProfile.id ||
+                null;
+
+
+            this.sizeLabel =
+                sizeProfile.sizeLabel ||
+                sizeProfile.label ||
+                null;
+
+
+            this.age =
+                numberOrNull(
+                    sizeProfile.age
+                );
+
+
+            this.source =
+                sizeProfile.source ||
+                "size-system";
+
+
+            this.measurements =
+                {
+
+                    ...this.measurements,
+
+                    ...(
+                        Mapper.canonicalizeToCm(
+
+                            mapped.measurements,
+
+                            {
+
+                                unit:
+                                    mapped.unit ||
+                                    INTERNAL_UNIT
+
+                            }
+
+                        ).measurements
+
+                    )
+
+                };
+
+
+            this.updatedAt =
+                new Date()
+                    .toISOString();
+
+
+            return {
+
+                profile:
+                    this,
+
+                warnings:
+                    mapped.warnings || [],
+
+                conflicts:
+                    mapped.conflicts || []
+
+            };
 
         }
 
@@ -531,25 +955,7 @@
 
 
     /* ========================================================
-       PROFILE ID
-       ======================================================== */
-
-    function createProfileId() {
-
-        return (
-            "PM-" +
-            Date.now().toString(36) +
-            "-" +
-            Math.random()
-                .toString(36)
-                .substring(2, 8)
-        ).toUpperCase();
-
-    }
-
-
-    /* ========================================================
-       PROFILE FACTORY
+       FACTORY
        ======================================================== */
 
     function createBodyProfile(
@@ -564,23 +970,21 @@
 
 
     /* ========================================================
-       PROFILE CATEGORY HELPERS
+       FROM JSON
        ======================================================== */
 
-    function getDefaultProfile(
-        category = "custom"
+    function fromJSON(
+        data
     ) {
 
-        const categoryData =
-            Schema.USER_CATEGORIES[
-                category
-            ];
-
-
-        if (!categoryData) {
+        if (
+            !data ||
+            typeof data !==
+                "object"
+        ) {
 
             throw new Error(
-                `Kategori tidak valid: ${category}`
+                "Profile JSON tidak valid."
             );
 
         }
@@ -588,18 +992,41 @@
 
         return new BodyProfile({
 
+            id:
+                data.id,
+
             name:
-                `${categoryData.label} Profile`,
+                data.name,
 
             category:
+                data.category,
 
-                category,
+            age:
+                data.age,
 
-            unit:
-                "cm",
+            sizeId:
+                data.sizeId,
+
+            sizeLabel:
+                data.sizeLabel,
 
             source:
-                "default"
+                data.source,
+
+            unit:
+                data.unit ||
+                INTERNAL_UNIT,
+
+            measurements:
+                data.measurements ||
+                {},
+
+            metadata:
+                data.metadata ||
+                {},
+
+            createdAt:
+                data.createdAt
 
         });
 
@@ -607,19 +1034,271 @@
 
 
     /* ========================================================
-       EXPORT GLOBAL
+       PROFILE VALIDATION
+       ======================================================== */
+
+    function validateProfile(
+        profile
+    ) {
+
+        if (
+            !profile
+        ) {
+
+            return {
+
+                valid:
+                    false,
+
+                errors:
+                    [
+                        "Profile tidak tersedia."
+                    ],
+
+                warnings:
+                    []
+
+            };
+
+        }
+
+
+        if (
+            profile instanceof
+            BodyProfile
+        ) {
+
+            return profile.validate();
+
+        }
+
+
+        /*
+         * Accept plain object.
+         */
+
+        try {
+
+            const converted =
+                fromJSON(
+                    profile
+                );
+
+
+            return converted.validate();
+
+        }
+        catch (
+            error
+        ) {
+
+            return {
+
+                valid:
+                    false,
+
+                errors:
+                    [
+                        error.message
+                    ],
+
+                warnings:
+                    []
+
+            };
+
+        }
+
+    }
+
+
+    /* ========================================================
+       PROFILE → LEGACY
+       ======================================================== */
+
+    function toLegacyMeasurements(
+        profile
+    ) {
+
+        if (
+            !profile
+        ) {
+
+            return {};
+
+        }
+
+
+        const source =
+            profile instanceof
+            BodyProfile
+
+                ? profile.measurements
+
+                : profile.measurements ||
+                  {};
+
+
+        return Mapper.toLegacyObject(
+            source
+        );
+
+    }
+
+
+    /* ========================================================
+       PROFILE REGISTRY
+       ======================================================== */
+
+    const PROFILE_REGISTRY =
+        new Map();
+
+
+    function registerProfile(
+        profile
+    ) {
+
+        const instance =
+            profile instanceof
+            BodyProfile
+
+                ? profile
+
+                : fromJSON(
+                    profile
+                );
+
+
+        PROFILE_REGISTRY.set(
+            instance.id,
+            instance
+        );
+
+
+        return instance;
+
+    }
+
+
+    function getProfile(
+        id
+    ) {
+
+        return (
+            PROFILE_REGISTRY.get(
+                id
+            ) ||
+            null
+        );
+
+    }
+
+
+    function removeProfile(
+        id
+    ) {
+
+        return PROFILE_REGISTRY.delete(
+            id
+        );
+
+    }
+
+
+    function clearProfiles() {
+
+        PROFILE_REGISTRY.clear();
+
+    }
+
+
+    /* ========================================================
+       SERIALIZATION
+       ======================================================== */
+
+    function serialize(
+        profile
+    ) {
+
+        const instance =
+            profile instanceof
+            BodyProfile
+
+                ? profile
+
+                : fromJSON(
+                    profile
+                );
+
+
+        return JSON.stringify(
+
+            instance.toJSON(),
+
+            null,
+
+            2
+
+        );
+
+    }
+
+
+    function deserialize(
+        json
+    ) {
+
+        const data =
+            typeof json ===
+                "string"
+
+                ? JSON.parse(
+                    json
+                )
+
+                : json;
+
+
+        return fromJSON(
+            data
+        );
+
+    }
+
+
+    /* ========================================================
+       PUBLIC API
        ======================================================== */
 
     window.PatternMakerProfile = {
+
+        VERSION,
+
+        INTERNAL_UNIT,
 
         BodyProfile,
 
         createBodyProfile,
 
-        getDefaultProfile
+        fromJSON,
+
+        validateProfile,
+
+        toLegacyMeasurements,
+
+        registerProfile,
+
+        getProfile,
+
+        removeProfile,
+
+        clearProfiles,
+
+        serialize,
+
+        deserialize
 
     };
 
 
 })();
-```
