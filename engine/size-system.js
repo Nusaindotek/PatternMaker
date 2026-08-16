@@ -1,41 +1,32 @@
 /**
  * ============================================================
  * PATTERNMAKER UNIVERSAL
- * KODE 42 — engine/size-system.js
- * ============================================================
+ * BASELINE FINAL v1
+ * KODE 45
  *
- * UNIVERSAL SIZE SYSTEM
- *
- * Memisahkan:
- *
- * CATEGORY
- *    ↓
- * SIZE SYSTEM
- *    ↓
- * SIZE CHART
- *    ↓
- * MEASUREMENTS
+ * FILE:
+ *   engine/size-system.js
  *
  * ============================================================
  *
- * CATEGORY:
+ * SINGLE RESPONSIBILITY:
  *
- *   child
- *   teen
- *   women
- *   men
- *   custom
+ *   CATEGORY
+ *      ↓
+ *   SIZE TABLE
+ *      ↓
+ *   MEASUREMENT MAPPER
+ *      ↓
+ *   CANONICAL MEASUREMENTS
  *
  * ============================================================
  *
- * CATATAN:
+ * SIZE SYSTEM TIDAK BOLEH:
  *
- * Nilai contoh di file ini adalah DATA DEMO / DEFAULT
- * untuk arsitektur sistem.
- *
- * Untuk production garment, size chart harus diganti
- * dengan tabel ukuran yang benar-benar digunakan oleh
- * brand / pattern department / standar perusahaan.
+ * - membuat formula pola
+ * - mengubah cutting geometry
+ * - melakukan grading geometry
+ * - mengandung logic UI
  *
  * ============================================================
  */
@@ -46,18 +37,59 @@
 
 
     /* ========================================================
+       DEPENDENCIES
+       ======================================================== */
+
+    const Schema =
+        window.PatternMakerMeasurementSchema;
+
+    const Mapper =
+        window.PatternMakerMeasurementMapper;
+
+
+    if (
+        !Schema
+    ) {
+
+        throw new Error(
+            "measurement-schema.js harus dimuat sebelum size-system.js."
+        );
+
+    }
+
+
+    if (
+        !Mapper
+    ) {
+
+        throw new Error(
+            "measurement-mapper.js harus dimuat sebelum size-system.js."
+        );
+
+    }
+
+
+    /* ========================================================
        VERSION
        ======================================================== */
 
     const VERSION =
-        "1.0";
+        "FINAL-v1";
+
+
+    /* ========================================================
+       UNIT
+       ======================================================== */
+
+    const INTERNAL_UNIT =
+        "cm";
 
 
     /* ========================================================
        CATEGORY DEFINITIONS
        ======================================================== */
 
-    const CATEGORIES = {
+    const CATEGORY_DEFINITIONS = {
 
         child: {
 
@@ -68,17 +100,13 @@
                 "Anak",
 
             description:
-                "Size system anak.",
+                "Ukuran pakaian anak.",
 
-            ageRange: {
+            ageMin:
+                1,
 
-                min:
-                    1,
-
-                max:
-                    12
-
-            }
+            ageMax:
+                12
 
         },
 
@@ -92,17 +120,13 @@
                 "Remaja",
 
             description:
-                "Size system remaja.",
+                "Ukuran pakaian remaja.",
 
-            ageRange: {
+            ageMin:
+                12,
 
-                min:
-                    12,
-
-                max:
-                    19
-
-            }
+            ageMax:
+                19
 
         },
 
@@ -116,17 +140,13 @@
                 "Wanita",
 
             description:
-                "Size system wanita dewasa.",
+                "Ukuran pakaian wanita dewasa.",
 
-            ageRange: {
+            ageMin:
+                13,
 
-                min:
-                    13,
-
-                max:
-                    null
-
-            }
+            ageMax:
+                null
 
         },
 
@@ -140,17 +160,13 @@
                 "Pria",
 
             description:
-                "Size system pria dewasa.",
+                "Ukuran pakaian pria dewasa.",
 
-            ageRange: {
+            ageMin:
+                13,
 
-                min:
-                    13,
-
-                max:
-                    null
-
-            }
+            ageMax:
+                null
 
         },
 
@@ -164,17 +180,13 @@
                 "Custom",
 
             description:
-                "Size system bebas.",
+                "Ukuran custom / manual.",
 
-            ageRange: {
+            ageMin:
+                null,
 
-                min:
-                    null,
-
-                max:
-                    null
-
-            }
+            ageMax:
+                null
 
         }
 
@@ -182,717 +194,686 @@
 
 
     /* ========================================================
-       CHILD SIZE CHART
+       RAW SIZE TABLES
        ========================================================
-       UNIT:
-           cm
-
-       measurement values are body measurements,
-       not finished garment measurements.
+       IMPORTANT:
+       Nilai berikut adalah contoh data sistem.
+       Mereka bukan standar produksi universal.
        ======================================================== */
 
-    const CHILD_SIZES = [
+    const RAW_SIZE_TABLES = {
 
-        {
-            id:
-                "C02",
+        child: [
 
-            label:
-                "2",
+            {
+                id:
+                    "C02",
 
-            age:
-                2,
+                label:
+                    "2",
 
-            measurements: {
+                age:
+                    2,
 
-                chest:
-                    54,
+                measurements: {
 
-                waist:
-                    52,
+                    chest:
+                        54,
 
-                hip:
-                    56,
+                    waist:
+                        52,
 
-                shoulder:
-                    24,
+                    hip:
+                        56,
 
-                backLength:
-                    25,
+                    shoulder:
+                        24,
 
-                sleeveLength:
-                    28
+                    backLength:
+                        25,
+
+                    sleeveLength:
+                        28
+
+                }
+
+            },
+
+            {
+                id:
+                    "C04",
+
+                label:
+                    "4",
+
+                age:
+                    4,
+
+                measurements: {
+
+                    chest:
+                        58,
+
+                    waist:
+                        54,
+
+                    hip:
+                        60,
+
+                    shoulder:
+                        26,
+
+                    backLength:
+                        29,
+
+                    sleeveLength:
+                        34
+
+                }
+
+            },
+
+            {
+                id:
+                    "C06",
+
+                label:
+                    "6",
+
+                age:
+                    6,
+
+                measurements: {
+
+                    chest:
+                        62,
+
+                    waist:
+                        56,
+
+                    hip:
+                        64,
+
+                    shoulder:
+                        28,
+
+                    backLength:
+                        33,
+
+                    sleeveLength:
+                        39
+
+                }
+
+            },
+
+            {
+                id:
+                    "C08",
+
+                label:
+                    "8",
+
+                age:
+                    8,
+
+                measurements: {
+
+                    chest:
+                        66,
+
+                    waist:
+                        58,
+
+                    hip:
+                        68,
+
+                    shoulder:
+                        30,
+
+                    backLength:
+                        37,
+
+                    sleeveLength:
+                        44
+
+                }
+
+            },
+
+            {
+                id:
+                    "C10",
+
+                label:
+                    "10",
+
+                age:
+                    10,
+
+                measurements: {
+
+                    chest:
+                        70,
+
+                    waist:
+                        60,
+
+                    hip:
+                        72,
+
+                    shoulder:
+                        32,
+
+                    backLength:
+                        41,
+
+                    sleeveLength:
+                        49
+
+                }
+
+            },
+
+            {
+                id:
+                    "C12",
+
+                label:
+                    "12",
+
+                age:
+                    12,
+
+                measurements: {
+
+                    chest:
+                        74,
+
+                    waist:
+                        64,
+
+                    hip:
+                        76,
+
+                    shoulder:
+                        34,
+
+                    backLength:
+                        45,
+
+                    sleeveLength:
+                        54
+
+                }
 
             }
 
-        },
+        ],
 
-        {
-            id:
-                "C04",
 
-            label:
-                "4",
+        teen: [
 
-            age:
-                4,
+            {
+                id:
+                    "TXS",
 
-            measurements: {
+                label:
+                    "XS",
 
-                chest:
-                    58,
+                age:
+                    12,
 
-                waist:
-                    54,
+                measurements: {
 
-                hip:
-                    60,
+                    chest:
+                        76,
 
-                shoulder:
-                    26,
+                    waist:
+                        62,
 
-                backLength:
-                    29,
+                    hip:
+                        80,
 
-                sleeveLength:
-                    34
+                    shoulder:
+                        35,
 
-            }
+                    backLength:
+                        47,
 
-        },
+                    sleeveLength:
+                        55
 
-        {
-            id:
-                "C06",
+                }
 
-            label:
-                "6",
+            },
 
-            age:
-                6,
+            {
+                id:
+                    "TS",
 
-            measurements: {
+                label:
+                    "S",
 
-                chest:
-                    62,
+                age:
+                    14,
 
-                waist:
-                    56,
+                measurements: {
 
-                hip:
-                    64,
+                    chest:
+                        80,
 
-                shoulder:
-                    28,
+                    waist:
+                        66,
 
-                backLength:
-                    33,
+                    hip:
+                        84,
 
-                sleeveLength:
-                    39
+                    shoulder:
+                        36,
 
-            }
+                    backLength:
+                        49,
 
-        },
+                    sleeveLength:
+                        57
 
-        {
-            id:
-                "C08",
+                }
 
-            label:
-                "8",
+            },
 
-            age:
-                8,
+            {
+                id:
+                    "TM",
 
-            measurements: {
+                label:
+                    "M",
 
-                chest:
-                    66,
+                age:
+                    16,
 
-                waist:
-                    58,
+                measurements: {
 
-                hip:
-                    68,
+                    chest:
+                        84,
 
-                shoulder:
-                    30,
+                    waist:
+                        70,
 
-                backLength:
-                    37,
+                    hip:
+                        88,
 
-                sleeveLength:
-                    44
+                    shoulder:
+                        38,
 
-            }
+                    backLength:
+                        51,
 
-        },
+                    sleeveLength:
+                        59
 
-        {
-            id:
-                "C10",
+                }
 
-            label:
-                "10",
+            },
 
-            age:
-                10,
+            {
+                id:
+                    "TL",
 
-            measurements: {
+                label:
+                    "L",
 
-                chest:
-                    70,
+                age:
+                    18,
 
-                waist:
-                    60,
+                measurements: {
 
-                hip:
-                    72,
+                    chest:
+                        88,
 
-                shoulder:
-                    32,
+                    waist:
+                        74,
 
-                backLength:
-                    41,
+                    hip:
+                        92,
 
-                sleeveLength:
-                    49
+                    shoulder:
+                        40,
 
-            }
+                    backLength:
+                        53,
 
-        },
+                    sleeveLength:
+                        61
 
-        {
-            id:
-                "C12",
-
-            label:
-                "12",
-
-            age:
-                12,
-
-            measurements: {
-
-                chest:
-                    74,
-
-                waist:
-                    64,
-
-                hip:
-                    76,
-
-                shoulder:
-                    34,
-
-                backLength:
-                    45,
-
-                sleeveLength:
-                    54
+                }
 
             }
 
-        }
-
-    ];
+        ],
 
 
-    /* ========================================================
-       TEEN SIZE CHART
-       ======================================================== */
+        women: [
 
-    const TEEN_SIZES = [
+            {
+                id:
+                    "WXS",
 
-        {
-            id:
-                "TXS",
+                label:
+                    "XS",
 
-            label:
-                "XS",
+                measurements: {
 
-            age:
-                12,
+                    bust:
+                        80,
 
-            measurements: {
+                    waist:
+                        60,
 
-                chest:
-                    76,
+                    hip:
+                        86,
 
-                waist:
-                    62,
+                    shoulder:
+                        35,
 
-                hip:
-                    80,
+                    backLength:
+                        38,
 
-                shoulder:
-                    35,
+                    sleeveLength:
+                        57
 
-                backLength:
-                    47,
+                }
 
-                sleeveLength:
-                    55
+            },
+
+            {
+                id:
+                    "WS",
+
+                label:
+                    "S",
+
+                measurements: {
+
+                    bust:
+                        84,
+
+                    waist:
+                        64,
+
+                    hip:
+                        90,
+
+                    shoulder:
+                        36,
+
+                    backLength:
+                        39,
+
+                    sleeveLength:
+                        58
+
+                }
+
+            },
+
+            {
+                id:
+                    "WM",
+
+                label:
+                    "M",
+
+                measurements: {
+
+                    bust:
+                        88,
+
+                    waist:
+                        68,
+
+                    hip:
+                        94,
+
+                    shoulder:
+                        37,
+
+                    backLength:
+                        40,
+
+                    sleeveLength:
+                        59
+
+                }
+
+            },
+
+            {
+                id:
+                    "WL",
+
+                label:
+                    "L",
+
+                measurements: {
+
+                    bust:
+                        94,
+
+                    waist:
+                        74,
+
+                    hip:
+                        100,
+
+                    shoulder:
+                        38,
+
+                    backLength:
+                        41,
+
+                    sleeveLength:
+                        60
+
+                }
+
+            },
+
+            {
+                id:
+                    "WXL",
+
+                label:
+                    "XL",
+
+                measurements: {
+
+                    bust:
+                        100,
+
+                    waist:
+                        80,
+
+                    hip:
+                        106,
+
+                    shoulder:
+                        39,
+
+                    backLength:
+                        42,
+
+                    sleeveLength:
+                        61
+
+                }
 
             }
 
-        },
-
-        {
-            id:
-                "TS",
-
-            label:
-                "S",
-
-            age:
-                14,
-
-            measurements: {
-
-                chest:
-                    80,
-
-                waist:
-                    66,
-
-                hip:
-                    84,
-
-                shoulder:
-                    36,
-
-                backLength:
-                    49,
-
-                sleeveLength:
-                    57
-
-            }
-
-        },
-
-        {
-            id:
-                "TM",
-
-            label:
-                "M",
-
-            age:
-                16,
-
-            measurements: {
-
-                chest:
-                    84,
-
-                waist:
-                    70,
-
-                hip:
-                    88,
-
-                shoulder:
-                    38,
-
-                backLength:
-                    51,
-
-                sleeveLength:
-                    59
-
-            }
-
-        },
-
-        {
-            id:
-                "TL",
-
-            label:
-                "L",
-
-            age:
-                18,
-
-            measurements: {
-
-                chest:
-                    88,
-
-                waist:
-                    74,
-
-                hip:
-                    92,
-
-                shoulder:
-                    40,
-
-                backLength:
-                    53,
-
-                sleeveLength:
-                    61
-
-            }
-
-        }
-
-    ];
+        ],
 
 
-    /* ========================================================
-       WOMEN SIZE CHART
-       ======================================================== */
+        men: [
 
-    const WOMEN_SIZES = [
+            {
+                id:
+                    "MS",
 
-        {
-            id:
-                "WXS",
+                label:
+                    "S",
 
-            label:
-                "XS",
+                measurements: {
 
-            measurements: {
+                    chest:
+                        88,
 
-                bust:
-                    80,
+                    waist:
+                        76,
 
-                waist:
-                    60,
+                    hip:
+                        90,
 
-                hip:
-                    86,
+                    shoulder:
+                        42,
 
-                shoulder:
-                    35,
+                    backLength:
+                        43,
 
-                backLength:
-                    38,
+                    sleeveLength:
+                        60
 
-                sleeveLength:
-                    57
+                }
 
-            }
+            },
 
-        },
+            {
+                id:
+                    "MM",
 
-        {
-            id:
-                "WS",
+                label:
+                    "M",
 
-            label:
-                "S",
+                measurements: {
 
-            measurements: {
+                    chest:
+                        94,
 
-                bust:
-                    84,
+                    waist:
+                        82,
 
-                waist:
-                    64,
+                    hip:
+                        96,
 
-                hip:
-                    90,
+                    shoulder:
+                        44,
 
-                shoulder:
-                    36,
+                    backLength:
+                        45,
 
-                backLength:
-                    39,
+                    sleeveLength:
+                        61
 
-                sleeveLength:
-                    58
+                }
+
+            },
+
+            {
+                id:
+                    "ML",
+
+                label:
+                    "L",
+
+                measurements: {
+
+                    chest:
+                        100,
+
+                    waist:
+                        88,
+
+                    hip:
+                        102,
+
+                    shoulder:
+                        46,
+
+                    backLength:
+                        47,
+
+                    sleeveLength:
+                        62
+
+                }
+
+            },
+
+            {
+                id:
+                    "MXL",
+
+                label:
+                    "XL",
+
+                measurements: {
+
+                    chest:
+                        108,
+
+                    waist:
+                        96,
+
+                    hip:
+                        110,
+
+                    shoulder:
+                        48,
+
+                    backLength:
+                        49,
+
+                    sleeveLength:
+                        63
+
+                }
+
+            },
+
+            {
+                id:
+                    "MXXL",
+
+                label:
+                    "XXL",
+
+                measurements: {
+
+                    chest:
+                        116,
+
+                    waist:
+                        104,
+
+                    hip:
+                        118,
+
+                    shoulder:
+                        50,
+
+                    backLength:
+                        51,
+
+                    sleeveLength:
+                        64
+
+                }
 
             }
 
-        },
+        ],
 
-        {
-            id:
-                "WM",
 
-            label:
-                "M",
-
-            measurements: {
-
-                bust:
-                    88,
-
-                waist:
-                    68,
-
-                hip:
-                    94,
-
-                shoulder:
-                    37,
-
-                backLength:
-                    40,
-
-                sleeveLength:
-                    59
-
-            }
-
-        },
-
-        {
-            id:
-                "WL",
-
-            label:
-                "L",
-
-            measurements: {
-
-                bust:
-                    94,
-
-                waist:
-                    74,
-
-                hip:
-                    100,
-
-                shoulder:
-                    38,
-
-                backLength:
-                    41,
-
-                sleeveLength:
-                    60
-
-            }
-
-        },
-
-        {
-            id:
-                "WXL",
-
-            label:
-                "XL",
-
-            measurements: {
-
-                bust:
-                    100,
-
-                waist:
-                    80,
-
-                hip:
-                    106,
-
-                shoulder:
-                    39,
-
-                backLength:
-                    42,
-
-                sleeveLength:
-                    61
-
-            }
-
-        }
-
-    ];
-
-
-    /* ========================================================
-       MEN SIZE CHART
-       ======================================================== */
-
-    const MEN_SIZES = [
-
-        {
-            id:
-                "MS",
-
-            label:
-                "S",
-
-            measurements: {
-
-                chest:
-                    88,
-
-                waist:
-                    76,
-
-                hip:
-                    90,
-
-                shoulder:
-                    42,
-
-                backLength:
-                    43,
-
-                sleeveLength:
-                    60
-
-            }
-
-        },
-
-        {
-            id:
-                "MM",
-
-            label:
-                "M",
-
-            measurements: {
-
-                chest:
-                    94,
-
-                waist:
-                    82,
-
-                hip:
-                    96,
-
-                shoulder:
-                    44,
-
-                backLength:
-                    45,
-
-                sleeveLength:
-                    61
-
-            }
-
-        },
-
-        {
-            id:
-                "ML",
-
-            label:
-                "L",
-
-            measurements: {
-
-                chest:
-                    100,
-
-                waist:
-                    88,
-
-                hip:
-                    102,
-
-                shoulder:
-                    46,
-
-                backLength:
-                    47,
-
-                sleeveLength:
-                    62
-
-            }
-
-        },
-
-        {
-            id:
-                "MXL",
-
-            label:
-                "XL",
-
-            measurements: {
-
-                chest:
-                    108,
-
-                waist:
-                    96,
-
-                hip:
-                    110,
-
-                shoulder:
-                    48,
-
-                backLength:
-                    49,
-
-                sleeveLength:
-                    63
-
-            }
-
-        },
-
-        {
-            id:
-                "MXXL",
-
-            label:
-                "XXL",
-
-            measurements: {
-
-                chest:
-                    116,
-
-                waist:
-                    104,
-
-                hip:
-                    118,
-
-                shoulder:
-                    50,
-
-                backLength:
-                    51,
-
-                sleeveLength:
-                    64
-
-            }
-
-        }
-
-    ];
-
-
-    /* ========================================================
-       SIZE TABLE REGISTRY
-       ======================================================== */
-
-    const SIZE_TABLES = {
-
-        child:
-            CHILD_SIZES,
-
-        teen:
-            TEEN_SIZES,
-
-        women:
-            WOMEN_SIZES,
-
-        men:
-            MEN_SIZES,
-
-        custom:
-            []
+        custom: []
 
     };
 
@@ -907,9 +888,9 @@
 
         if (
             value ===
-            undefined ||
+            null ||
             value ===
-            null
+            undefined
         ) {
 
             return value;
@@ -939,19 +920,24 @@
 
 
     /* ========================================================
-       CATEGORY
+       CATEGORY API
        ======================================================== */
 
     function getCategory(
         categoryId
     ) {
 
-        return (
-            CATEGORIES[
+        const category =
+            CATEGORY_DEFINITIONS[
                 categoryId
-            ] ||
-            null
-        );
+            ];
+
+
+        return category
+            ? clone(
+                category
+            )
+            : null;
 
     }
 
@@ -959,7 +945,7 @@
     function getCategories() {
 
         return Object.values(
-            CATEGORIES
+            CATEGORY_DEFINITIONS
         )
         .map(
             clone
@@ -968,22 +954,33 @@
     }
 
 
-    /* ========================================================
-       SIZE TABLE
-       ======================================================== */
-
-    function getSizeTable(
+    function hasCategory(
         categoryId
     ) {
 
-        const table =
-            SIZE_TABLES[
-                categoryId
-            ];
+        return Boolean(
 
+            CATEGORY_DEFINITIONS[
+                categoryId
+            ]
+
+        );
+
+    }
+
+
+    /* ========================================================
+       RAW TABLE ACCESS
+       ======================================================== */
+
+    function getRawTable(
+        categoryId
+    ) {
 
         if (
-            !table
+            !hasCategory(
+                categoryId
+            )
         ) {
 
             return [];
@@ -992,14 +989,188 @@
 
 
         return clone(
-            table
+
+            RAW_SIZE_TABLES[
+                categoryId
+            ] ||
+            []
+
         );
 
     }
 
 
     /* ========================================================
-       SIZE
+       NORMALIZE SIZE
+       ======================================================== */
+
+    function normalizeSize(
+        categoryId,
+        rawSize
+    ) {
+
+        if (
+            !rawSize
+        ) {
+
+            throw new Error(
+                "Raw size kosong."
+            );
+
+        }
+
+
+        /*
+         * Canonicalize all measurements
+         * through the mapper.
+         */
+
+        const mapped =
+            Mapper.mapSizeProfile(
+
+                rawSize,
+
+                {
+
+                    category:
+                        categoryId,
+
+                    unit:
+                        rawSize.unit ||
+                        INTERNAL_UNIT
+
+                }
+
+            );
+
+
+        const measurements =
+            mapped.measurements;
+
+
+        return {
+
+            id:
+                rawSize.id,
+
+            label:
+                rawSize.label ||
+                rawSize.id,
+
+            age:
+                rawSize.age ??
+                null,
+
+            measurements:
+                measurements,
+
+            unit:
+                INTERNAL_UNIT,
+
+            category:
+                categoryId,
+
+            source:
+                "PatternMaker Size System",
+
+            version:
+                VERSION,
+
+            mappingWarnings:
+                mapped.warnings || [],
+
+            mappingConflicts:
+                mapped.conflicts || []
+
+        };
+
+    }
+
+
+    /* ========================================================
+       BUILD CATEGORY TABLE
+       ======================================================== */
+
+    function buildCategoryTable(
+        categoryId
+    ) {
+
+        if (
+            !hasCategory(
+                categoryId
+            )
+        ) {
+
+            return [];
+
+        }
+
+
+        return getRawTable(
+            categoryId
+        )
+        .map(
+            raw =>
+                normalizeSize(
+                    categoryId,
+                    raw
+                )
+        );
+
+    }
+
+
+    /* ========================================================
+       CACHE
+       ======================================================== */
+
+    const NORMALIZED_TABLES = {};
+
+
+    function getSizeTable(
+        categoryId
+    ) {
+
+        if (
+            !hasCategory(
+                categoryId
+            )
+        ) {
+
+            return [];
+
+        }
+
+
+        if (
+            !NORMALIZED_TABLES[
+                categoryId
+            ]
+        ) {
+
+            NORMALIZED_TABLES[
+                categoryId
+            ] =
+                buildCategoryTable(
+                    categoryId
+                );
+
+        }
+
+
+        return clone(
+
+            NORMALIZED_TABLES[
+                categoryId
+            ]
+
+        );
+
+    }
+
+
+    /* ========================================================
+       GET SIZE
        ======================================================== */
 
     function getSize(
@@ -1008,9 +1179,9 @@
     ) {
 
         const table =
-            SIZE_TABLES[
+            getSizeTable(
                 categoryId
-            ] || [];
+            );
 
 
         const found =
@@ -1029,7 +1200,7 @@
 
 
     /* ========================================================
-       FIND BY LABEL
+       GET SIZE BY LABEL
        ======================================================== */
 
     function getSizeByLabel(
@@ -1037,17 +1208,18 @@
         label
     ) {
 
-        const table =
-            SIZE_TABLES[
-                categoryId
-            ] || [];
-
-
         const target =
             String(
-                label
+                label || ""
             )
+            .trim()
             .toLowerCase();
+
+
+        const table =
+            getSizeTable(
+                categoryId
+            );
 
 
         const found =
@@ -1056,6 +1228,7 @@
                     String(
                         size.label
                     )
+                    .trim()
                     .toLowerCase() ===
                     target
             );
@@ -1076,12 +1249,8 @@
         categoryId
     ) {
 
-        return (
-
-            SIZE_TABLES[
-                categoryId
-            ] || []
-
+        return getSizeTable(
+            categoryId
         )
         .map(
             size => ({
@@ -1093,11 +1262,276 @@
                     size.label,
 
                 age:
-                    size.age ??
-                    null
+                    size.age
 
             })
         );
+
+    }
+
+
+    /* ========================================================
+       CUSTOM SIZE
+       ======================================================== */
+
+    function createCustomSize(
+        options = {}
+    ) {
+
+        const result = {
+
+            id:
+                options.id ||
+                `CUSTOM-${Date.now()}`,
+
+            label:
+                options.label ||
+                "Custom",
+
+            age:
+                options.age ??
+                null,
+
+            measurements:
+                {},
+
+            unit:
+                options.unit ||
+                INTERNAL_UNIT,
+
+            category:
+                options.category ||
+                "custom",
+
+            custom:
+                true,
+
+            source:
+                "PatternMaker Custom Size",
+
+            version:
+                VERSION
+
+        };
+
+
+        /*
+         * Map user supplied measurements
+         * into canonical IDs.
+         */
+
+        const mapped =
+            Mapper.mapObject(
+
+                options.measurements ||
+                {},
+
+                {
+
+                    unit:
+                        options.unit ||
+                        INTERNAL_UNIT
+
+                }
+
+            );
+
+
+        /*
+         * Convert to internal cm.
+         */
+
+        const canonical =
+            Mapper.canonicalizeToCm(
+
+            options.measurements ||
+            {},
+
+            {
+
+                unit:
+                    options.unit ||
+                    INTERNAL_UNIT
+
+            }
+
+        );
+
+
+        result.measurements =
+            canonical.measurements;
+
+
+        result.mappingWarnings =
+            mapped.warnings || [];
+
+
+        result.mappingConflicts =
+            mapped.conflicts || [];
+
+
+        return result;
+
+    }
+
+
+    /* ========================================================
+       REGISTER CUSTOM SIZE
+       ======================================================== */
+
+    const CUSTOM_REGISTRY = [];
+
+
+    function registerCustomSize(
+        size
+    ) {
+
+        const custom =
+            createCustomSize(
+                size
+            );
+
+
+        const index =
+            CUSTOM_REGISTRY.findIndex(
+                item =>
+                    item.id ===
+                    custom.id
+            );
+
+
+        if (
+            index >=
+            0
+        ) {
+
+            CUSTOM_REGISTRY[
+                index
+            ] =
+                custom;
+
+        }
+        else {
+
+            CUSTOM_REGISTRY.push(
+                custom
+            );
+
+        }
+
+
+        return clone(
+            custom
+        );
+
+    }
+
+
+    function getCustomSizes() {
+
+        return clone(
+            CUSTOM_REGISTRY
+        );
+
+    }
+
+
+    function getCustomSize(
+        id
+    ) {
+
+        const found =
+            CUSTOM_REGISTRY.find(
+                size =>
+                    size.id ===
+                    id
+            );
+
+
+        return found
+            ? clone(found)
+            : null;
+
+    }
+
+
+    /* ========================================================
+       PROFILE CONVERSION
+       ======================================================== */
+
+    function toMeasurementProfile(
+        categoryId,
+        sizeId
+    ) {
+
+        let size =
+            getSize(
+                categoryId,
+                sizeId
+            );
+
+
+        /*
+         * Custom registry fallback.
+         */
+
+        if (
+            !size &&
+            categoryId ===
+                "custom"
+        ) {
+
+            size =
+                getCustomSize(
+                    sizeId
+                );
+
+        }
+
+
+        if (
+            !size
+        ) {
+
+            throw new Error(
+
+                `Size "${sizeId}" tidak ditemukan ` +
+                `untuk category "${categoryId}".`
+
+            );
+
+        }
+
+
+        return {
+
+            category:
+                categoryId,
+
+            sizeId:
+                size.id,
+
+            sizeLabel:
+                size.label,
+
+            age:
+                size.age,
+
+            measurements:
+                clone(
+                    size.measurements
+                ),
+
+            unit:
+                INTERNAL_UNIT,
+
+            source:
+                size.source,
+
+            version:
+                VERSION
+
+        };
 
     }
 
@@ -1112,31 +1546,21 @@
         ratio
     ) {
 
-        const start =
-            Number(a);
-
-
-        const end =
-            Number(b);
-
-
         return (
 
-            start +
+            Number(a) +
+
             (
-                end -
-                start
+                Number(b) -
+                Number(a)
             ) *
+
             Number(ratio)
 
         );
 
     }
 
-
-    /* ========================================================
-       MEASUREMENT INTERPOLATION
-       ======================================================== */
 
     function interpolateSizes(
         categoryId,
@@ -1166,29 +1590,26 @@
 
             throw new Error(
 
-                "Size untuk interpolasi tidak ditemukan."
+                "Size interpolasi tidak ditemukan."
 
             );
 
         }
 
 
-        const measurements =
-            {};
+        const measurements = {};
 
 
-        const keys = [
+        const ids = [
 
             ...new Set([
 
                 ...Object.keys(
-                    first.measurements ||
-                    {}
+                    first.measurements
                 ),
 
                 ...Object.keys(
-                    second.measurements ||
-                    {}
+                    second.measurements
                 )
 
             ])
@@ -1196,18 +1617,18 @@
         ];
 
 
-        keys.forEach(
-            key => {
+        ids.forEach(
+            id => {
 
                 const a =
-                    first.measurements?.[
-                        key
+                    first.measurements[
+                        id
                     ];
 
 
                 const b =
-                    second.measurements?.[
-                        key
+                    second.measurements[
+                        id
                     ];
 
 
@@ -1220,11 +1641,17 @@
                     )
                 ) {
 
-                    measurements[key] =
+                    measurements[
+                        id
+                    ] =
                         interpolate(
+
                             a,
+
                             b,
+
                             ratio
+
                         );
 
                 }
@@ -1234,7 +1661,9 @@
                     )
                 ) {
 
-                    measurements[key] =
+                    measurements[
+                        id
+                    ] =
                         Number(a);
 
                 }
@@ -1244,7 +1673,9 @@
                     )
                 ) {
 
-                    measurements[key] =
+                    measurements[
+                        id
+                    ] =
                         Number(b);
 
                 }
@@ -1261,74 +1692,28 @@
             label:
                 `${first.label}/${second.label}`,
 
+            category:
+                categoryId,
+
+            age:
+                null,
+
             measurements,
+
+            unit:
+                INTERNAL_UNIT,
 
             interpolated:
                 true,
 
             ratio:
-                Number(ratio)
-
-        };
-
-    }
-
-
-    /* ========================================================
-       SIZE → PROFILE DATA
-       ======================================================== */
-
-    function toMeasurementProfile(
-        categoryId,
-        sizeId
-    ) {
-
-        const size =
-            getSize(
-                categoryId,
-                sizeId
-            );
-
-
-        if (
-            !size
-        ) {
-
-            throw new Error(
-
-                `Size "${sizeId}" ` +
-                `tidak ditemukan untuk ${categoryId}.`
-
-            );
-
-        }
-
-
-        return {
-
-            category:
-                categoryId,
-
-            sizeId:
-                size.id,
-
-            sizeLabel:
-                size.label,
-
-            age:
-                size.age ??
-                null,
-
-            measurements:
-                clone(
-                    size.measurements
-                ),
-
-            unit:
-                "cm",
+                ratio,
 
             source:
-                "PatternMaker Size System"
+                "PatternMaker Size Interpolation",
+
+            version:
+                VERSION
 
         };
 
@@ -1336,99 +1721,92 @@
 
 
     /* ========================================================
-       CUSTOM SIZE
+       SIZE SERIES
        ======================================================== */
 
-    function createCustomSize(
-        options = {}
+    function createNumericSeries(
+        start,
+        end,
+        step = 1
     ) {
 
-        const id =
-            options.id ||
-            `CUSTOM-${Date.now()}`;
+        const output = [];
 
 
-        const label =
-            options.label ||
-            "Custom";
+        const direction =
+            end >= start
+                ? 1
+                : -1;
 
 
-        const measurements =
-            clone(
-                options.measurements ||
-                {}
-            );
+        const delta =
+            Math.abs(
+                Number(step)
+            ) *
+            direction;
 
-
-        return {
-
-            id,
-
-            label,
-
-            age:
-                options.age ??
-                null,
-
-            measurements,
-
-            unit:
-                options.unit ||
-                "cm",
-
-            custom:
-                true
-
-        };
-
-    }
-
-
-    /* ========================================================
-       REGISTER CUSTOM SIZE
-       ======================================================== */
-
-    function registerCustomSize(
-        categoryId,
-        size
-    ) {
 
         if (
-            !SIZE_TABLES[
-                categoryId
-            ]
+            !delta
         ) {
 
-            SIZE_TABLES[
-                categoryId
-            ] = [];
+            return [
+
+                String(start)
+
+            ];
 
         }
 
 
-        const custom =
-            createCustomSize(
-                size
+        let current =
+            Number(start);
+
+
+        while (
+
+            (
+                direction >
+                0 &&
+
+                current <=
+                Number(end)
+
+            )
+
+            ||
+
+            (
+                direction <
+                0 &&
+
+                current >=
+                Number(end)
+
+            )
+
+        ) {
+
+            output.push(
+                String(
+                    current
+                )
             );
 
 
-        SIZE_TABLES[
-            categoryId
-        ]
-        .push(
-            custom
-        );
+            current +=
+                delta;
+
+        }
 
 
-        return clone(
-            custom
-        );
+        return output;
 
     }
 
 
     /* ========================================================
-       VALIDATE SIZE
+       VALIDATION
        ======================================================== */
 
     function validateSize(
@@ -1436,18 +1814,15 @@
         size
     ) {
 
-        const errors =
-            [];
+        const errors = [];
 
-
-        const warnings =
-            [];
+        const warnings = [];
 
 
         if (
-            !CATEGORIES[
+            !hasCategory(
                 categoryId
-            ]
+            )
         ) {
 
             errors.push(
@@ -1476,7 +1851,7 @@
         ) {
 
             errors.push(
-                "Size tidak tersedia."
+                "Size kosong."
             );
 
 
@@ -1516,55 +1891,51 @@
         }
 
 
-        const measurements =
-            size.measurements ||
-            {};
+        const mapped =
+            Mapper.mapObject(
+                size.measurements || {}
+            );
 
 
-        Object.entries(
-            measurements
-        )
-        .forEach(
-            (
-                [
-                    key,
-                    value
-                ]
-            ) => {
+        if (
+            mapped.warnings?.length
+        ) {
 
-                if (
-                    !Number.isFinite(
-                        Number(value)
-                    )
-                ) {
+            warnings.push(
+                ...mapped.warnings
+            );
 
-                    errors.push(
-
-                        `Measurement "${key}" ` +
-                        "harus berupa angka."
-
-                    );
-
-                    return;
-
-                }
+        }
 
 
-                if (
-                    Number(value) <= 0
-                ) {
+        if (
+            mapped.conflicts?.length
+        ) {
 
-                    warnings.push(
+            errors.push(
 
-                        `Measurement "${key}" ` +
-                        "tidak positif."
+                `Measurement conflict pada size "${size.id}".`
 
-                    );
+            );
 
-                }
+        }
 
-            }
-        );
+
+        const validation =
+            Schema.validateMeasurementObject(
+                mapped.measurements
+            );
+
+
+        if (
+            !validation.valid
+        ) {
+
+            errors.push(
+                ...validation.errors
+            );
+
+        }
 
 
         return {
@@ -1624,7 +1995,7 @@
 
             result.errors.push(
 
-                `Size table ${categoryId} kosong.`
+                `Size table "${categoryId}" kosong.`
 
             );
 
@@ -1656,6 +2027,9 @@
                     id:
                         size.id,
 
+                    label:
+                        size.label,
+
                     valid:
                         validation.valid
 
@@ -1674,7 +2048,7 @@
 
                     result.errors.push(
 
-                        `Duplicate size id: ${size.id}`
+                        `Duplicate size ID "${size.id}".`
 
                     );
 
@@ -1701,9 +2075,15 @@
                 }
 
 
-                result.warnings.push(
-                    ...validation.warnings
-                );
+                if (
+                    validation.warnings.length
+                ) {
+
+                    result.warnings.push(
+                        ...validation.warnings
+                    );
+
+                }
 
             }
         );
@@ -1738,7 +2118,7 @@
 
 
         Object.keys(
-            CATEGORIES
+            CATEGORY_DEFINITIONS
         )
         .forEach(
             categoryId => {
@@ -1761,6 +2141,7 @@
 
                     result.valid =
                         false;
+
 
                     result.errors.push(
                         ...validation.errors
@@ -1790,13 +2171,19 @@
 
         VERSION,
 
-        CATEGORIES,
+        INTERNAL_UNIT,
 
-        SIZE_TABLES,
+        CATEGORY_DEFINITIONS,
+
+        RAW_SIZE_TABLES,
 
         getCategory,
 
         getCategories,
+
+        hasCategory,
+
+        getRawTable,
 
         getSizeTable,
 
@@ -1806,13 +2193,19 @@
 
         getSizeOptions,
 
-        interpolateSizes,
-
-        toMeasurementProfile,
-
         createCustomSize,
 
         registerCustomSize,
+
+        getCustomSizes,
+
+        getCustomSize,
+
+        toMeasurementProfile,
+
+        interpolateSizes,
+
+        createNumericSeries,
 
         validateSize,
 
