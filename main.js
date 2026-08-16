@@ -1,16 +1,16 @@
 /**
  * ============================================================
- * PATTERMAKER UNIVERSAL
- * KODE 27 — main.js
+ * PATTERNMAKER UNIVERSAL
+ * KODE 29 — main.js
  * ============================================================
  *
- * UNIVERSAL APPLICATION CONTROLLER
+ * APPLICATION CONTROLLER
  *
- * QUALITY GATE:
+ * PIPELINE:
  *
  * UI
  *  ↓
- * Profile
+ * Body Profile
  *  ↓
  * Garment
  *  ↓
@@ -25,6 +25,8 @@
  * Production Validator
  *  ↓
  * Full / Open Preview
+ *  ↓
+ * DXF R12
  *
  * ============================================================
  */
@@ -60,6 +62,9 @@ const SeamProduction =
 const ProductionValidator =
     window.PatternMakerProductionValidator;
 
+const DXF =
+    window.PatternMakerDXF;
+
 
 /* ============================================================
    DEPENDENCY VALIDATION
@@ -83,15 +88,15 @@ function validateDependencies() {
 
         SeamProduction,
 
-        ProductionValidator
+        ProductionValidator,
+
+        DXF
 
     };
 
 
     const missing =
-        Object.entries(
-            required
-        )
+        Object.entries(required)
         .filter(
             ([, value]) =>
                 !value
@@ -130,6 +135,9 @@ const AppState = {
     generating:
         false,
 
+    exporting:
+        false,
+
     mode:
         "tailor",
 
@@ -158,6 +166,9 @@ const AppState = {
         null,
 
     productionValidation:
+        null,
+
+    lastExport:
         null,
 
     error:
@@ -229,6 +240,49 @@ function setDraftStatus(
 
     const node =
         $("draftEngineStatus");
+
+
+    if (
+        !node
+    ) {
+
+        return;
+
+    }
+
+
+    node.textContent =
+        message;
+
+
+    node.className =
+        "status";
+
+
+    if (
+        type
+    ) {
+
+        node.classList.add(
+            type
+        );
+
+    }
+
+}
+
+
+/* ============================================================
+   PRODUCTION OUTPUT STATUS
+   ============================================================ */
+
+function setPlotterStatus(
+    message,
+    type = ""
+) {
+
+    const node =
+        $("plotterStatus");
 
 
     if (
@@ -746,8 +800,11 @@ function collectMeasurementInput() {
 
             const cm =
                 Schema.measurementToCm(
+
                     value,
+
                     unit
+
                 );
 
 
@@ -1025,93 +1082,38 @@ function renderFabricResult() {
     container.innerHTML = `
 
         <div class="kv">
-
-            <b>
-                Material
-            </b>
-
-            <span>
-                ${fabric.material}
-            </span>
-
+            <b>Material</b>
+            <span>${fabric.material}</span>
         </div>
 
-
         <div class="kv">
-
-            <b>
-                Lebar Kain
-            </b>
-
-            <span>
-                ${fabric.width} cm
-            </span>
-
+            <b>Lebar Kain</b>
+            <span>${fabric.width} cm</span>
         </div>
 
-
         <div class="kv">
-
-            <b>
-                Panjang Kain
-            </b>
-
-            <span>
-                ${fabric.length} cm
-            </span>
-
+            <b>Panjang Kain</b>
+            <span>${fabric.length} cm</span>
         </div>
 
-
         <div class="kv">
-
-            <b>
-                Stretch
-            </b>
-
-            <span>
-                ${fabric.stretch}
-            </span>
-
+            <b>Stretch</b>
+            <span>${fabric.stretch}</span>
         </div>
 
-
         <div class="kv">
-
-            <b>
-                Arah Stretch
-            </b>
-
-            <span>
-                ${fabric.stretchDirection}
-            </span>
-
+            <b>Arah Stretch</b>
+            <span>${fabric.stretchDirection}</span>
         </div>
 
-
         <div class="kv">
-
-            <b>
-                Ease
-            </b>
-
-            <span>
-                ${fabric.ease} cm
-            </span>
-
+            <b>Ease</b>
+            <span>${fabric.ease} cm</span>
         </div>
 
-
         <div class="kv">
-
-            <b>
-                Seam Allowance
-            </b>
-
-            <span>
-                ${fabric.seam} cm
-            </span>
-
+            <b>Seam Allowance</b>
+            <span>${fabric.seam} cm</span>
         </div>
 
     `;
@@ -1463,7 +1465,7 @@ function normalizeBasePattern(
 
             generatedAt:
                 new Date()
-                    .toISOString(),
+                .toISOString(),
 
             unit:
                 "cm",
@@ -1550,9 +1552,7 @@ function buildProductionPattern(
     ) {
 
         throw new Error(
-
             "Seam allowance gagal dibuat."
-
         );
 
     }
@@ -1648,76 +1648,6 @@ function validateCuttingForProduction(
 
 
 /* ============================================================
-   VALIDATION MESSAGE
-   ============================================================ */
-
-function getValidationErrorMessage(
-    validation
-) {
-
-    if (
-        !validation ||
-        !validation.errors ||
-        !validation.errors.length
-    ) {
-
-        return "Production geometry tidak valid.";
-
-    }
-
-
-    const messages =
-        validation.errors
-            .slice(
-                0,
-                5
-            )
-            .map(
-                error => {
-
-                    if (
-                        typeof error ===
-                        "string"
-                    ) {
-
-                        return error;
-
-                    }
-
-
-                    return (
-
-                        error.message ||
-                        error.check ||
-                        "Geometri tidak valid."
-
-                    );
-
-                }
-            );
-
-
-    const extra =
-        validation.errors.length >
-        5
-
-            ? ` +${validation.errors.length - 5} masalah lainnya.`
-
-            : "";
-
-
-    return (
-
-        "Pola ditahan sebelum produksi: " +
-        messages.join(" | ") +
-        extra
-
-    );
-
-}
-
-
-/* ============================================================
    PREVIEW
    ============================================================ */
 
@@ -1790,17 +1720,10 @@ function renderPreview(
         "http://www.w3.org/2000/svg";
 
 
-    /*
-     * Background
-     */
-
     const background =
         document.createElementNS(
-
             ns,
-
             "rect"
-
         );
 
 
@@ -1839,65 +1762,6 @@ function renderPreview(
     );
 
 
-    /*
-     * Production status overlay.
-     */
-
-    const validation =
-        AppState.productionValidation;
-
-
-    if (
-        validation &&
-        !validation.valid
-    ) {
-
-        const warning =
-            document.createElementNS(
-                ns,
-                "text"
-            );
-
-
-        warning.setAttribute(
-            "x",
-            bounds.minX
-        );
-
-
-        warning.setAttribute(
-            "y",
-            bounds.minY
-        );
-
-
-        warning.setAttribute(
-            "font-size",
-            "3.5"
-        );
-
-
-        warning.setAttribute(
-            "font-weight",
-            "700"
-        );
-
-
-        warning.textContent =
-            "GEOMETRY INVALID — PRODUKSI DITAHAN";
-
-
-        svg.appendChild(
-            warning
-        );
-
-    }
-
-
-    /*
-     * Pieces.
-     */
-
     pattern.pieces.forEach(
         piece => {
 
@@ -1912,11 +1776,8 @@ function renderPreview(
 
             const polygon =
                 document.createElementNS(
-
                     ns,
-
                     "polygon"
-
                 );
 
 
@@ -1963,27 +1824,16 @@ function renderPreview(
             );
 
 
-            /*
-             * Bounds.
-             */
-
             const pieceBounds =
                 ProductionGeometry.getBounds(
                     points
                 );
 
 
-            /*
-             * Label.
-             */
-
             const label =
                 document.createElementNS(
-
                     ns,
-
                     "text"
-
                 );
 
 
@@ -2036,10 +1886,6 @@ function renderPreview(
             );
 
 
-            /*
-             * Grainline.
-             */
-
             if (
                 $("addGrainline")?.value !==
                     "no" &&
@@ -2049,11 +1895,8 @@ function renderPreview(
 
                 const grain =
                     document.createElementNS(
-
                         ns,
-
                         "line"
-
                     );
 
 
@@ -2106,10 +1949,6 @@ function renderPreview(
             }
 
 
-            /*
-             * Notches.
-             */
-
             if (
                 $("addNotches")?.value !==
                     "no" &&
@@ -2122,11 +1961,8 @@ function renderPreview(
 
                         const mark =
                             document.createElementNS(
-
                                 ns,
-
                                 "line"
-
                             );
 
 
@@ -2176,10 +2012,6 @@ function renderPreview(
             }
 
 
-            /*
-             * Drill points.
-             */
-
             if (
                 piece.drillPoints &&
                 piece.drillPoints.length
@@ -2190,11 +2022,8 @@ function renderPreview(
 
                         const circle =
                             document.createElementNS(
-
                                 ns,
-
                                 "circle"
-
                             );
 
 
@@ -2250,7 +2079,7 @@ function renderPreview(
 
 
 /* ============================================================
-   RESULT INFORMATION
+   RESULT INFO
    ============================================================ */
 
 function renderResultInfo() {
@@ -2322,109 +2151,63 @@ function renderResultInfo() {
                 : "DITAHAN";
 
 
+    const lastExport =
+        AppState.lastExport;
+
+
+    const exportText =
+        lastExport
+
+            ? lastExport.filename
+
+            : "-";
+
+
     container.innerHTML = `
 
         <div class="kv">
-
-            <b>
-                Kategori
-            </b>
-
-            <span>
-                ${category}
-            </span>
-
+            <b>Kategori</b>
+            <span>${category}</span>
         </div>
 
-
         <div class="kv">
-
-            <b>
-                Jenis Pakaian
-            </b>
-
-            <span>
-                ${garment?.label || "-"}
-            </span>
-
+            <b>Jenis Pakaian</b>
+            <span>${garment?.label || "-"}</span>
         </div>
 
-
         <div class="kv">
-
-            <b>
-                Umur
-            </b>
-
-            <span>
-                ${age}
-            </span>
-
+            <b>Umur</b>
+            <span>${age}</span>
         </div>
 
-
         <div class="kv">
-
-            <b>
-                Material
-            </b>
-
-            <span>
-                ${AppState.fabric?.material || "-"}
-            </span>
-
+            <b>Material</b>
+            <span>${AppState.fabric?.material || "-"}</span>
         </div>
 
-
         <div class="kv">
-
-            <b>
-                Base Pieces
-            </b>
-
-            <span>
-                ${basePieces}
-            </span>
-
+            <b>Base Pieces</b>
+            <span>${basePieces}</span>
         </div>
 
-
         <div class="kv">
-
-            <b>
-                Cutting Pieces
-            </b>
-
-            <span>
-                ${productionPieces}
-            </span>
-
+            <b>Cutting Pieces</b>
+            <span>${productionPieces}</span>
         </div>
 
-
         <div class="kv">
-
-            <b>
-                Seam Allowance
-            </b>
-
-            <span>
-                ${seam} cm
-            </span>
-
+            <b>Seam Allowance</b>
+            <span>${seam} cm</span>
         </div>
 
+        <div class="kv">
+            <b>Production Validation</b>
+            <span>${validationText}</span>
+        </div>
 
         <div class="kv">
-
-            <b>
-                Production Validation
-            </b>
-
-            <span>
-                ${validationText}
-            </span>
-
+            <b>Last Export</b>
+            <span>${exportText}</span>
         </div>
 
     `;
@@ -2524,11 +2307,8 @@ function renderMeasurementsResult() {
                     </b>
 
                     <span>
-
                         ${Number(value).toFixed(1)}
-
                         ${unit}
-
                     </span>
 
                 </div>
@@ -2541,6 +2321,764 @@ function renderMeasurementsResult() {
 
     container.innerHTML =
         html;
+
+}
+
+
+/* ============================================================
+   DXF FILENAME
+   ============================================================ */
+
+function buildDXFFilename() {
+
+    const garment =
+        Garment.getGarment(
+            AppState.garment
+        );
+
+
+    const category =
+        getCategory();
+
+
+    const age =
+        AppState.profile &&
+        AppState.profile.age !== null
+
+            ? `-${AppState.profile.age}y`
+
+            : "";
+
+
+    const stamp =
+        new Date()
+        .toISOString()
+        .replace(
+            /[:.]/g,
+            "-"
+        );
+
+
+    const garmentName =
+        garment?.id ||
+        "pattern";
+
+
+    return (
+
+        `PatternMaker-` +
+        `${category}-` +
+        `${garmentName}` +
+        `${age}-` +
+        `${stamp}.dxf`
+
+    );
+
+}
+
+
+/* ============================================================
+   EXPORT VALIDATION
+   ============================================================ */
+
+function validateBeforeDXFExport() {
+
+    if (
+        !AppState.cuttingPattern
+    ) {
+
+        throw new Error(
+
+            "Belum ada cutting geometry. " +
+            "Buat pola terlebih dahulu."
+
+        );
+
+    }
+
+
+    const validation =
+        ProductionValidator
+            .validateForProduction(
+
+                AppState.cuttingPattern,
+
+                {
+
+                    requireCutPoints:
+                        true,
+
+                    requireSeam:
+                        true
+
+                }
+
+            );
+
+
+    AppState.productionValidation =
+        validation;
+
+
+    if (
+        !validation.valid
+    ) {
+
+        const messages =
+            validation.errors
+                .slice(
+                    0,
+                    5
+                )
+                .map(
+                    error => {
+
+                        if (
+                            typeof error ===
+                            "string"
+                        ) {
+
+                            return error;
+
+                        }
+
+
+                        return (
+
+                            error.message ||
+                            error.check ||
+                            "Geometry invalid."
+
+                        );
+
+                    }
+                );
+
+
+        throw new Error(
+
+            "DXF tidak dibuat karena pattern " +
+            "belum lulus production validation: " +
+
+            messages.join(
+                " | "
+            )
+
+        );
+
+    }
+
+
+    return validation;
+
+}
+
+
+/* ============================================================
+   EXPORT DXF
+   ============================================================ */
+
+function exportDXF() {
+
+    if (
+        AppState.exporting
+    ) {
+
+        return;
+
+    }
+
+
+    AppState.exporting =
+        true;
+
+
+    try {
+
+        setPlotterStatus(
+            "Memvalidasi geometry untuk DXF..."
+        );
+
+
+        /*
+         * Quality gate kedua.
+         *
+         * Exporter sendiri juga melakukan validasi.
+         */
+
+        validateBeforeDXFExport();
+
+
+        /*
+         * Informasi export.
+         */
+
+        const info =
+            DXF.getExportInfo();
+
+
+        if (
+            info.sourceUnit !== "cm" ||
+            info.outputUnit !== "mm" ||
+            info.conversion !== 10
+        ) {
+
+            throw new Error(
+
+                "Konfigurasi unit DXF tidak sesuai " +
+                "dengan sistem PatternMaker."
+
+            );
+
+        }
+
+
+        /*
+         * Filename.
+         */
+
+        const filename =
+            buildDXFFilename();
+
+
+        /*
+         * Download.
+         */
+
+        const exportResult =
+            DXF.downloadDXF(
+
+                AppState.cuttingPattern,
+
+                filename,
+
+                {
+
+                    includeGrainline:
+                        $("addGrainline")?.value !== "no",
+
+                    includeNotches:
+                        $("addNotches")?.value !== "no",
+
+                    includeDrillPoints:
+                        true,
+
+                    includeLabels:
+                        true,
+
+                    cutLayer:
+                        "CUT",
+
+                    labelHeight:
+                        2.5
+
+                }
+
+            );
+
+
+        AppState.lastExport = {
+
+            ...exportResult,
+
+            format:
+                "DXF R12",
+
+            exportedAt:
+                new Date()
+                .toISOString()
+
+        };
+
+
+        renderResultInfo();
+
+
+        setPlotterStatus(
+
+            `DXF R12 berhasil dibuat • ` +
+            `1:1 • mm • ${filename}`,
+
+            "ok"
+
+        );
+
+
+        setStatus(
+
+            `Export DXF berhasil • ` +
+            `1 cm internal = 10 mm DXF`,
+
+            "ok"
+
+        );
+
+
+        return AppState.lastExport;
+
+    }
+    catch (
+        error
+    ) {
+
+        console.error(
+            "DXF export error:",
+            error
+        );
+
+
+        setPlotterStatus(
+
+            error.message ||
+            "DXF export gagal.",
+
+            "error"
+
+        );
+
+
+        setStatus(
+
+            error.message ||
+            "DXF export gagal.",
+
+            "error"
+
+        );
+
+
+        return {
+
+            success:
+                false,
+
+            error:
+                error.message
+
+        };
+
+    }
+    finally {
+
+        AppState.exporting =
+            false;
+
+    }
+
+}
+
+
+/* ============================================================
+   INVALIDATE GENERATED PATTERN
+   ============================================================ */
+
+function invalidateGeneratedPattern() {
+
+    AppState.profile =
+        null;
+
+
+    AppState.measurements =
+        null;
+
+
+    AppState.engineResult =
+        null;
+
+
+    AppState.basePattern =
+        null;
+
+
+    AppState.productionPattern =
+        null;
+
+
+    AppState.cuttingPattern =
+        null;
+
+
+    AppState.productionValidation =
+        null;
+
+
+    AppState.lastExport =
+        null;
+
+}
+
+
+/* ============================================================
+   GARMENT CHANGE
+   ============================================================ */
+
+function handleGarmentChange() {
+
+    AppState.garment =
+        getGarmentId();
+
+
+    invalidateGeneratedPattern();
+
+
+    renderMeasurementFields();
+
+    updateGarmentInformation();
+
+
+    setPlotterStatus(
+        "Garment berubah. Output produksi dibatalkan."
+    );
+
+
+    setDraftStatus(
+        "Jenis pakaian berubah. Periksa ukuran kembali."
+    );
+
+}
+
+
+/* ============================================================
+   UNIT CHANGE
+   ============================================================ */
+
+function handleUnitChange() {
+
+    invalidateGeneratedPattern();
+
+
+    renderMeasurementFields();
+
+
+    setPlotterStatus(
+        "Unit tampilan berubah. Generate ulang pola."
+    );
+
+}
+
+
+/* ============================================================
+   MEASUREMENT CHANGE
+   ============================================================ */
+
+function handleMeasurementChange() {
+
+    invalidateGeneratedPattern();
+
+
+    setDraftStatus(
+        "Ukuran berubah. Buat pola kembali."
+    );
+
+
+    setPlotterStatus(
+        "Output produksi lama dibatalkan."
+    );
+
+}
+
+
+/* ============================================================
+   PRODUCTION SETTING CHANGE
+   ============================================================ */
+
+function handleProductionSettingChange() {
+
+    AppState.productionPattern =
+        null;
+
+
+    AppState.cuttingPattern =
+        null;
+
+
+    AppState.productionValidation =
+        null;
+
+
+    AppState.lastExport =
+        null;
+
+
+    if (
+        AppState.basePattern
+    ) {
+
+        setDraftStatus(
+
+            "Pengaturan produksi berubah. " +
+            "Generate ulang untuk memperbarui geometry."
+
+        );
+
+    }
+
+
+    setPlotterStatus(
+        "Output produksi lama dibatalkan."
+    );
+
+}
+
+
+/* ============================================================
+   FIT PREVIEW
+   ============================================================ */
+
+function fitPreview() {
+
+    const svg =
+        $("patternPreview");
+
+
+    if (
+        !svg
+    ) {
+
+        return;
+
+    }
+
+
+    svg.setAttribute(
+        "preserveAspectRatio",
+        "xMidYMid meet"
+    );
+
+}
+
+
+/* ============================================================
+   OPEN PREVIEW
+   ============================================================ */
+
+function openPreview() {
+
+    if (
+        !AppState.cuttingPattern
+    ) {
+
+        setPlotterStatus(
+            "Belum ada cutting geometry."
+        );
+
+
+        return;
+
+    }
+
+
+    renderPreview(
+        AppState.cuttingPattern
+    );
+
+
+    fitPreview();
+
+}
+
+
+/* ============================================================
+   RESET
+   ============================================================ */
+
+function resetApplication() {
+
+    AppState.profile =
+        null;
+
+    AppState.measurements =
+        null;
+
+    AppState.fabric =
+        null;
+
+    AppState.engineResult =
+        null;
+
+    AppState.basePattern =
+        null;
+
+    AppState.productionPattern =
+        null;
+
+    AppState.cuttingPattern =
+        null;
+
+    AppState.productionValidation =
+        null;
+
+    AppState.lastExport =
+        null;
+
+    AppState.error =
+        null;
+
+
+    if (
+        $("userMode")
+    )
+        $("userMode").value =
+            "tailor";
+
+
+    if (
+        $("category")
+    )
+        $("category").value =
+            "child";
+
+
+    if (
+        $("sizeSystem")
+    )
+        $("sizeSystem").value =
+            "cm";
+
+
+    if (
+        $("garmentType")
+    )
+        $("garmentType").value =
+            "tshirt";
+
+
+    if (
+        $("age")
+    )
+        $("age").value =
+            "";
+
+
+    if (
+        $("fabric")
+    )
+        $("fabric").value =
+            "cotton";
+
+
+    if (
+        $("fabricWidth")
+    )
+        $("fabricWidth").value =
+            "150";
+
+
+    if (
+        $("fabricLength")
+    )
+        $("fabricLength").value =
+            "200";
+
+
+    if (
+        $("stretch")
+    )
+        $("stretch").value =
+            "medium";
+
+
+    if (
+        $("stretchDirection")
+    )
+        $("stretchDirection").value =
+            "crosswise";
+
+
+    if (
+        $("ease")
+    )
+        $("ease").value =
+            "2";
+
+
+    if (
+        $("seam")
+    )
+        $("seam").value =
+            "1";
+
+
+    if (
+        $("patternTolerance")
+    )
+        $("patternTolerance").value =
+            "0";
+
+
+    if (
+        $("addSeam")
+    )
+        $("addSeam").value =
+            "yes";
+
+
+    if (
+        $("addNotches")
+    )
+        $("addNotches").value =
+            "yes";
+
+
+    if (
+        $("addGrainline")
+    )
+        $("addGrainline").value =
+            "yes";
+
+
+    if (
+        $("patternPreview")
+    ) {
+
+        $("patternPreview").innerHTML =
+            "";
+
+        $("patternPreview").setAttribute(
+            "viewBox",
+            "0 0 1000 620"
+        );
+
+    }
+
+
+    if (
+        $("resultInfo")
+    )
+        $("resultInfo").innerHTML =
+            "";
+
+
+    if (
+        $("resultMeasurements")
+    )
+        $("resultMeasurements").innerHTML =
+            "";
+
+
+    applyMode(
+        "tailor"
+    );
+
+
+    renderMeasurementFields();
+
+    updateGarmentInformation();
+
+
+    setStatus(
+        "Masukkan ukuran kemudian tekan BUAT POLA."
+    );
+
+
+    setDraftStatus(
+        "Engine drafting siap."
+    );
+
+
+    setPlotterStatus(
+        "Output produksi belum dibuat."
+    );
 
 }
 
@@ -2568,6 +3106,10 @@ async function generatePattern() {
         null;
 
 
+    AppState.lastExport =
+        null;
+
+
     try {
 
         AppState.garment =
@@ -2591,20 +3133,20 @@ async function generatePattern() {
         }
 
 
-        /*
-         * STEP 1
-         */
-
         setStatus(
             "Memvalidasi ukuran..."
         );
 
 
+        /*
+         * PROFILE
+         */
+
         createCurrentProfile();
 
 
         /*
-         * STEP 2
+         * GARMENT VALIDATION
          */
 
         const profileValidation =
@@ -2638,7 +3180,7 @@ async function generatePattern() {
 
 
         /*
-         * STEP 3
+         * FABRIC
          */
 
         getFabricData();
@@ -2647,7 +3189,7 @@ async function generatePattern() {
 
 
         /*
-         * STEP 4
+         * ENGINE
          */
 
         setDraftStatus(
@@ -2664,7 +3206,7 @@ async function generatePattern() {
 
 
         /*
-         * STEP 5
+         * BASE
          */
 
         setDraftStatus(
@@ -2679,7 +3221,7 @@ async function generatePattern() {
 
 
         /*
-         * STEP 6
+         * SEAM
          */
 
         setDraftStatus(
@@ -2694,7 +3236,7 @@ async function generatePattern() {
 
 
         /*
-         * STEP 7
+         * CUTTING
          */
 
         setDraftStatus(
@@ -2709,7 +3251,6 @@ async function generatePattern() {
 
 
         /*
-         * STEP 8
          * QUALITY GATE
          */
 
@@ -2723,10 +3264,6 @@ async function generatePattern() {
                 cuttingPattern
             );
 
-
-        /*
-         * STOP ON ERROR
-         */
 
         if (
             !productionValidation.valid
@@ -2744,9 +3281,39 @@ async function generatePattern() {
 
             throw new Error(
 
-                getValidationErrorMessage(
-                    productionValidation
-                )
+                "Pola ditahan sebelum produksi: " +
+
+                productionValidation.errors
+                    .slice(
+                        0,
+                        5
+                    )
+                    .map(
+                        error => {
+
+                            if (
+                                typeof error ===
+                                "string"
+                            ) {
+
+                                return error;
+
+                            }
+
+
+                            return (
+
+                                error.message ||
+                                error.check ||
+                                "Geometry invalid."
+
+                            );
+
+                        }
+                    )
+                    .join(
+                        " | "
+                    )
 
             );
 
@@ -2754,8 +3321,7 @@ async function generatePattern() {
 
 
         /*
-         * STEP 9
-         * PREVIEW ONLY AFTER QUALITY GATE
+         * PREVIEW
          */
 
         renderPreview(
@@ -2764,7 +3330,7 @@ async function generatePattern() {
 
 
         /*
-         * STEP 10
+         * RESULT
          */
 
         renderResultInfo();
@@ -2773,7 +3339,21 @@ async function generatePattern() {
 
 
         /*
-         * STEP 11
+         * OUTPUT STATUS
+         */
+
+        setPlotterStatus(
+
+            "Geometry lulus validasi. " +
+            "Output DXF siap.",
+
+            "ok"
+
+        );
+
+
+        /*
+         * SUCCESS
          */
 
         const seamSummary =
@@ -2854,428 +3434,6 @@ async function generatePattern() {
 
 
 /* ============================================================
-   GARMENT CHANGE
-   ============================================================ */
-
-function handleGarmentChange() {
-
-    AppState.garment =
-        getGarmentId();
-
-
-    invalidateGeneratedPattern();
-
-
-    renderMeasurementFields();
-
-
-    updateGarmentInformation();
-
-
-    setDraftStatus(
-
-        "Jenis pakaian berubah. " +
-        "Periksa ukuran kembali."
-
-    );
-
-}
-
-
-/* ============================================================
-   UNIT CHANGE
-   ============================================================ */
-
-function handleUnitChange() {
-
-    invalidateGeneratedPattern();
-
-
-    renderMeasurementFields();
-
-}
-
-
-/* ============================================================
-   MEASUREMENT CHANGE
-   ============================================================ */
-
-function handleMeasurementChange() {
-
-    invalidateGeneratedPattern();
-
-
-    setDraftStatus(
-
-        "Ukuran berubah. " +
-        "Buat pola kembali."
-
-    );
-
-}
-
-
-/* ============================================================
-   INVALIDATE GENERATED DATA
-   ============================================================ */
-
-function invalidateGeneratedPattern() {
-
-    AppState.profile =
-        null;
-
-
-    AppState.measurements =
-        null;
-
-
-    AppState.engineResult =
-        null;
-
-
-    AppState.basePattern =
-        null;
-
-
-    AppState.productionPattern =
-        null;
-
-
-    AppState.cuttingPattern =
-        null;
-
-
-    AppState.productionValidation =
-        null;
-
-}
-
-
-/* ============================================================
-   PRODUCTION SETTING CHANGE
-   ============================================================ */
-
-function handleProductionSettingChange() {
-
-    AppState.productionPattern =
-        null;
-
-
-    AppState.cuttingPattern =
-        null;
-
-
-    AppState.productionValidation =
-        null;
-
-
-    if (
-        AppState.basePattern
-    ) {
-
-        setDraftStatus(
-
-            "Pengaturan produksi berubah. " +
-            "Buat pola kembali untuk memperbarui geometry."
-
-        );
-
-    }
-
-}
-
-
-/* ============================================================
-   FIT PREVIEW
-   ============================================================ */
-
-function fitPreview() {
-
-    const svg =
-        $("patternPreview");
-
-
-    if (
-        !svg
-    ) {
-
-        return;
-
-    }
-
-
-    svg.setAttribute(
-        "preserveAspectRatio",
-        "xMidYMid meet"
-    );
-
-}
-
-
-/* ============================================================
-   OPEN PREVIEW
-   ============================================================ */
-
-function openPreview() {
-
-    if (
-        !AppState.cuttingPattern
-    ) {
-
-        return;
-
-    }
-
-
-    renderPreview(
-        AppState.cuttingPattern
-    );
-
-
-    fitPreview();
-
-}
-
-
-/* ============================================================
-   RESET
-   ============================================================ */
-
-function resetApplication() {
-
-    invalidateGeneratedPattern();
-
-
-    AppState.fabric =
-        null;
-
-
-    AppState.error =
-        null;
-
-
-    if (
-        $("userMode")
-    ) {
-
-        $("userMode").value =
-            "tailor";
-
-    }
-
-
-    if (
-        $("category")
-    ) {
-
-        $("category").value =
-            "child";
-
-    }
-
-
-    if (
-        $("sizeSystem")
-    ) {
-
-        $("sizeSystem").value =
-            "cm";
-
-    }
-
-
-    if (
-        $("garmentType")
-    ) {
-
-        $("garmentType").value =
-            "tshirt";
-
-    }
-
-
-    if (
-        $("age")
-    ) {
-
-        $("age").value =
-            "";
-
-    }
-
-
-    if (
-        $("fabric")
-    ) {
-
-        $("fabric").value =
-            "cotton";
-
-    }
-
-
-    if (
-        $("fabricWidth")
-    ) {
-
-        $("fabricWidth").value =
-            "150";
-
-    }
-
-
-    if (
-        $("fabricLength")
-    ) {
-
-        $("fabricLength").value =
-            "200";
-
-    }
-
-
-    if (
-        $("stretch")
-    ) {
-
-        $("stretch").value =
-            "medium";
-
-    }
-
-
-    if (
-        $("stretchDirection")
-    ) {
-
-        $("stretchDirection").value =
-            "crosswise";
-
-    }
-
-
-    if (
-        $("ease")
-    ) {
-
-        $("ease").value =
-            "2";
-
-    }
-
-
-    if (
-        $("seam")
-    ) {
-
-        $("seam").value =
-            "1";
-
-    }
-
-
-    if (
-        $("patternTolerance")
-    ) {
-
-        $("patternTolerance").value =
-            "0";
-
-    }
-
-
-    if (
-        $("addSeam")
-    ) {
-
-        $("addSeam").value =
-            "yes";
-
-    }
-
-
-    if (
-        $("addNotches")
-    ) {
-
-        $("addNotches").value =
-            "yes";
-
-    }
-
-
-    if (
-        $("addGrainline")
-    ) {
-
-        $("addGrainline").value =
-            "yes";
-
-    }
-
-
-    if (
-        $("patternPreview")
-    ) {
-
-        $("patternPreview").innerHTML =
-            "";
-
-
-        $("patternPreview").setAttribute(
-            "viewBox",
-            "0 0 1000 620"
-        );
-
-    }
-
-
-    if (
-        $("resultInfo")
-    ) {
-
-        $("resultInfo").innerHTML =
-            "";
-
-    }
-
-
-    if (
-        $("resultMeasurements")
-    ) {
-
-        $("resultMeasurements").innerHTML =
-            "";
-
-    }
-
-
-    applyMode(
-        "tailor"
-    );
-
-
-    renderMeasurementFields();
-
-    updateGarmentInformation();
-
-
-    setStatus(
-
-        "Masukkan ukuran kemudian tekan " +
-        "BUAT POLA."
-
-    );
-
-
-    setDraftStatus(
-        "Engine drafting siap."
-    );
-
-}
-
-
-/* ============================================================
    BIND EVENTS
    ============================================================ */
 
@@ -3343,6 +3501,15 @@ function bindEvents() {
         "click",
 
         openPreview
+
+    );
+
+
+    $("exportDxfBtn")?.addEventListener(
+
+        "click",
+
+        exportDXF
 
     );
 
@@ -3430,23 +3597,23 @@ function initializeApplication() {
 
     renderMeasurementFields();
 
-
     updateGarmentInformation();
-
 
     bindEvents();
 
 
     setStatus(
-
-        "Masukkan ukuran kemudian tekan " +
-        "BUAT POLA."
-
+        "Masukkan ukuran kemudian tekan BUAT POLA."
     );
 
 
     setDraftStatus(
         "Engine drafting siap."
+    );
+
+
+    setPlotterStatus(
+        "Output produksi belum dibuat."
     );
 
 
@@ -3494,6 +3661,8 @@ window.PatternMakerApp = {
 
     createCuttingPattern,
 
-    validateCuttingForProduction
+    validateCuttingForProduction,
+
+    exportDXF
 
 };
