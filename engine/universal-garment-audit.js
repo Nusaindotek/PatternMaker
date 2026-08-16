@@ -1,22 +1,46 @@
+```javascript
 /**
  * ============================================================
- * PATTERNMAKER UNIVERSAL
- * KODE 38 — engine/universal-garment-audit.js
+ * PATTERMAKER UNIVERSAL
+ * BASELINE FINAL v1
+ * KODE 85
+ *
+ * FILE:
+ *   engine/universal-garment-audit.js
  * ============================================================
  *
- * UNIVERSAL GARMENT / SIZE SYSTEM AUDITOR
+ * UNIVERSAL GARMENT AUDIT
  *
- * Tujuan:
+ * Satu audit untuk seluruh pipeline:
  *
- * 1. Memastikan category tersedia.
- * 2. Memastikan garment tersedia untuk category.
- * 3. Memastikan requiredMeasurements memiliki schema.
- * 4. Memastikan optionalMeasurements memiliki schema.
- * 5. Memastikan patternEngine tersedia.
- * 6. Memastikan size/category tidak saling bertentangan.
- * 7. Memastikan profile dapat divalidasi terhadap garment.
+ *   GENERATE
+ *      ↓
+ *   BASE VALIDATION
+ *      ↓
+ *   GRADE POINT
+ *      ↓
+ *   STRICT GRADING
+ *      ↓
+ *   PRODUCTION GEOMETRY
+ *      ↓
+ *   PRODUCTION VALIDATION
+ *      ↓
+ *   NESTING
+ *      ↓
+ *   NESTING VALIDATION
+ *      ↓
+ *   OUTPUT AUDIT
+ *      ↓
+ *   FINAL RESULT
  *
- * Validator TIDAK mengubah data.
+ * ============================================================
+ *
+ * DOES NOT:
+ *
+ * - modify pattern
+ * - modify grading
+ * - modify seam
+ * - modify nesting
  *
  * ============================================================
  */
@@ -30,311 +54,310 @@
        DEPENDENCIES
        ======================================================== */
 
-    const Schema =
-        window.PatternMakerMeasurementSchema;
+    const Grading =
+        window.PatternMakerGradingEngine;
 
-    const Garment =
-        window.PatternMakerGarment;
+    const GradePointSchema =
+        window.PatternMakerGradePointSchema;
 
-    const Profile =
-        window.PatternMakerProfile;
+    const PatternValidator =
+        window.PatternMakerPatternValidator;
+
+    const SeamProduction =
+        window.PatternMakerSeamProduction;
+
+    const ProductionValidator =
+        window.PatternMakerProductionValidator;
+
+    const Nesting =
+        window.PatternMakerNestingEngine;
+
+    const NestingValidator =
+        window.PatternMakerNestingValidator;
+
+    const OutputAudit =
+        window.PatternMakerOutputAudit;
+
+
+    if (
+        !Grading ||
+        !GradePointSchema ||
+        !SeamProduction ||
+        !ProductionValidator ||
+        !Nesting ||
+        !NestingValidator ||
+        !OutputAudit
+    ) {
+
+        throw new Error(
+            "universal-garment-audit.js membutuhkan " +
+            "seluruh pipeline PatternMaker."
+        );
+
+    }
 
 
     /* ========================================================
-       RESULT
+       VERSION
        ======================================================== */
 
-    function createResult() {
+    const VERSION =
+        "FINAL-v1";
+
+
+    /* ========================================================
+       GARMENT MAP
+       ======================================================== */
+
+    const ENGINE_MAP = Object.freeze({
+
+        bodice:
+            "PatternMakerBodice",
+
+        skirt:
+            "PatternMakerSkirt",
+
+        pants:
+            "PatternMakerPants",
+
+        dress:
+            "PatternMakerDress",
+
+        shirt:
+            "PatternMakerShirt"
+
+    });
+
+
+    /* ========================================================
+       DEFAULT SIZES
+       ======================================================== */
+
+    const DEFAULT_SIZES = [
+
+        {
+            id:
+                "C06",
+
+            label:
+                "6"
+        },
+
+        {
+            id:
+                "C08",
+
+            label:
+                "8"
+        },
+
+        {
+            id:
+                "C10",
+
+            label:
+                "10"
+        }
+
+    ];
+
+
+    /* ========================================================
+       DEFAULT PROFILE
+       ======================================================== */
+
+    const DEFAULT_PROFILE = {
+
+        category:
+            "child",
+
+        measurements: {
+
+            chest:
+                62,
+
+            bust:
+                62,
+
+            waist:
+                56,
+
+            hip:
+                64,
+
+            shoulder:
+                28,
+
+            neck:
+                28,
+
+            garmentLength:
+                40,
+
+            sleeveLength:
+                35,
+
+            upperArm:
+                22,
+
+            crotchDepth:
+                20,
+
+            inseam:
+                45,
+
+            outseam:
+                55,
+
+            ankle:
+                24,
+
+            thigh:
+                36
+
+        }
+
+    };
+
+
+    /* ========================================================
+       DEFAULT OPTIONS
+       ======================================================== */
+
+    const DEFAULT_OPTIONS = {
+
+        seamAllowance:
+            1,
+
+        miterLimit:
+            4,
+
+        curveTolerance:
+            0.05,
+
+        maxSegmentLength:
+            2,
+
+        materialWidth:
+            140,
+
+        spacing:
+            0.5,
+
+        allowRotation90:
+            true,
+
+        respectGrainline:
+            true,
+
+        requireTrueOffset:
+            true,
+
+        requireAllPlaced:
+            true,
+
+        requireProductionPass:
+            true,
+
+        requireNestingPass:
+            true,
+
+        auditOutputs:
+            true,
+
+        sourceUnit:
+            "cm"
+
+    };
+
+
+    /* ========================================================
+       CLONE
+       ======================================================== */
+
+    function clone(
+        value
+    ) {
+
+        if (
+            value === null ||
+            value === undefined
+        ) {
+
+            return value;
+
+        }
+
+
+        if (
+            typeof structuredClone ===
+            "function"
+        ) {
+
+            return structuredClone(
+                value
+            );
+
+        }
+
+
+        return JSON.parse(
+            JSON.stringify(
+                value
+            )
+
+        );
+
+    }
+
+
+    /* ========================================================
+       MERGE OPTIONS
+       ======================================================== */
+
+    function normalizeOptions(
+        options = {}
+    ) {
 
         return {
 
-            valid: true,
+            ...DEFAULT_OPTIONS,
 
-            errors: [],
+            ...options,
 
-            warnings: [],
+            grading:
 
-            checks: []
+                {
+                    ...(options.grading || {})
+                },
+
+            nesting:
+
+                {
+                    ...(options.nesting || {})
+                }
 
         };
 
     }
 
 
-    function addCheck(
-        result,
-        name,
-        passed,
-        message = ""
-    ) {
-
-        result.checks.push({
-
-            name,
-
-            passed,
-
-            message
-
-        });
-
-
-        if (!passed) {
-
-            result.valid =
-                false;
-
-            result.errors.push({
-
-                check:
-                    name,
-
-                message
-
-            });
-
-        }
-
-    }
-
-
-    function addWarning(
-        result,
-        name,
-        message
-    ) {
-
-        result.warnings.push({
-
-            check:
-                name,
-
-            message
-
-        });
-
-    }
-
-
     /* ========================================================
-       DEPENDENCY AUDIT
+       ENGINE LOOKUP
        ======================================================== */
 
-    function auditDependencies() {
-
-        const result =
-            createResult();
-
-
-        addCheck(
-
-            result,
-
-            "Measurement Schema",
-
-            Boolean(
-                Schema
-            ),
-
-            "PatternMakerMeasurementSchema belum tersedia."
-
-        );
-
-
-        addCheck(
-
-            result,
-
-            "Garment Module",
-
-            Boolean(
-                Garment
-            ),
-
-            "PatternMakerGarment belum tersedia."
-
-        );
-
-
-        addCheck(
-
-            result,
-
-            "Profile Module",
-
-            Boolean(
-                Profile
-            ),
-
-            "PatternMakerProfile belum tersedia."
-
-        );
-
-
-        return result;
-
-    }
-
-
-    /* ========================================================
-       GET ALL GARMENTS
-       ======================================================== */
-
-    function getAllGarments() {
-
-        if (
-            !Garment
-        ) {
-
-            return [];
-
-        }
-
-
-        if (
-            typeof Garment.getAllGarments ===
-            "function"
-        ) {
-
-            const garments =
-                Garment.getAllGarments();
-
-
-            return Array.isArray(
-                garments
-            )
-                ? garments
-                : [];
-
-        }
-
-
-        /*
-         * Fallback untuk implementasi catalog
-         * yang expose getGarmentCatalog().
-         */
-
-        if (
-            typeof Garment.getGarmentCatalog ===
-            "function"
-        ) {
-
-            const catalog =
-                Garment.getGarmentCatalog();
-
-
-            if (
-                Array.isArray(catalog)
-            ) {
-
-                return catalog;
-
-            }
-
-
-            if (
-                catalog &&
-                typeof catalog ===
-                    "object"
-            ) {
-
-                return Object.values(
-                    catalog
-                );
-
-            }
-
-        }
-
-
-        return [];
-
-    }
-
-
-    /* ========================================================
-       CATEGORY EXTRACTION
-       ======================================================== */
-
-    function getGarmentCategories(
+    function getEngine(
         garment
     ) {
 
-        const values = [
+        const globalName =
+            ENGINE_MAP[
+                garment
+            ];
 
-            ...(Array.isArray(
-                garment?.categories
-            )
-                ? garment.categories
-                : []),
-
-            ...(garment?.category
-                ? [garment.category]
-                : []),
-
-            ...(Array.isArray(
-                garment?.supportedCategories
-            )
-                ? garment.supportedCategories
-                : [])
-
-        ];
-
-
-        return [
-            ...new Set(
-                values
-                    .filter(Boolean)
-                    .map(
-                        value =>
-                            String(value)
-                    )
-            )
-        ];
-
-    }
-
-
-    /* ========================================================
-       CATEGORY LABEL
-       ======================================================== */
-
-    function getCategoryLabel(
-        category
-    ) {
 
         if (
-            Schema &&
-            typeof Schema.getCategoryLabel ===
-                "function"
-        ) {
-
-            return Schema.getCategoryLabel(
-                category
-            );
-
-        }
-
-
-        return String(
-            category
-        );
-
-    }
-
-
-    /* ========================================================
-       MEASUREMENT DEFINITIONS
-       ======================================================== */
-
-    function getMeasurementDefinition(
-        measurementId
-    ) {
-
-        if (
-            !Schema ||
-            typeof Schema.getMeasurementDefinition !==
-                "function"
+            !globalName
         ) {
 
             return null;
@@ -342,637 +365,294 @@
         }
 
 
-        return Schema.getMeasurementDefinition(
-            measurementId
-        );
+        return window[
+            globalName
+        ] || null;
 
     }
 
 
     /* ========================================================
-       GARMENT AUDIT
+       CONTEXT
        ======================================================== */
 
-    function auditGarment(
-        garment
+    function buildContext(
+        garment,
+        profile,
+        options
     ) {
 
-        const result =
-            createResult();
-
-
-        const garmentId =
-            garment?.id ||
-            garment?.name ||
-            "unknown";
-
-
-        addCheck(
-
-            result,
-
-            `Garment object: ${garmentId}`,
-
-            Boolean(
-                garment &&
-                typeof garment ===
-                    "object"
-            ),
-
-            "Garment bukan object yang valid."
-
-        );
-
-
-        if (
-            !garment
-        ) {
-
-            return result;
-
-        }
-
-
-        /*
-         * ID
-         */
-
-        addCheck(
-
-            result,
-
-            `Garment ID: ${garmentId}`,
-
-            Boolean(
-                garment.id
-            ),
-
-            `Garment "${garmentId}" tidak memiliki id.`
-
-        );
-
-
-        /*
-         * Label
-         */
-
-        addCheck(
-
-            result,
-
-            `Garment label: ${garmentId}`,
-
-            Boolean(
-                garment.label ||
-                garment.name
-            ),
-
-            `Garment "${garmentId}" tidak memiliki label.`
-
-        );
-
-
-        /*
-         * Pattern engine
-         */
-
-        addCheck(
-
-            result,
-
-            `Pattern engine: ${garmentId}`,
-
-            Boolean(
-                garment.patternEngine
-            ),
-
-            `Garment "${garmentId}" tidak memiliki patternEngine.`
-
-        );
-
-
-        /*
-         * Required measurements
-         */
-
-        const required =
-            Array.isArray(
-                garment.requiredMeasurements
-            )
-                ? garment.requiredMeasurements
-                : [];
-
-
-        addCheck(
-
-            result,
-
-            `Required measurements array: ${garmentId}`,
-
-            Array.isArray(
-                garment.requiredMeasurements
-            ),
-
-            `requiredMeasurements "${garmentId}" harus array.`
-
-        );
-
-
-        required.forEach(
-            measurementId => {
-
-                const definition =
-                    getMeasurementDefinition(
-                        measurementId
-                    );
-
-
-                addCheck(
-
-                    result,
-
-                    `Schema ${measurementId}: ${garmentId}`,
-
-                    Boolean(
-                        definition
-                    ),
-
-                    `Measurement "${measurementId}" ` +
-                    `belum ada di measurement schema.`
-
-                );
-
-            }
-        );
-
-
-        /*
-         * Optional measurements
-         */
-
-        if (
-            garment.optionalMeasurements !==
-            undefined
-        ) {
-
-            addCheck(
-
-                result,
-
-                `Optional measurements array: ${garmentId}`,
-
-                Array.isArray(
-                    garment.optionalMeasurements
+        const context = {
+
+            profile:
+                clone(
+                    profile
                 ),
 
-                `optionalMeasurements "${garmentId}" harus array.`
+            fabric: {
 
-            );
-
-
-            (
-                garment.optionalMeasurements ||
-                []
-            )
-            .forEach(
-                measurementId => {
-
-                    const definition =
-                        getMeasurementDefinition(
-                            measurementId
-                        );
-
-
-                    addCheck(
-
-                        result,
-
-                        `Optional schema ${measurementId}: ${garmentId}`,
-
-                        Boolean(
-                            definition
-                        ),
-
-                        `Optional measurement "${measurementId}" ` +
-                        `belum ada di schema.`
-
-                    );
-
-                }
-            );
-
-        }
-
-
-        /*
-         * Duplicate measurement requirement
-         */
-
-        const duplicateIds =
-            required.filter(
-                (
-                    id,
-                    index
-                ) =>
-                    required.indexOf(
-                        id
-                    ) !== index
-            );
-
-
-        addCheck(
-
-            result,
-
-            `No duplicate required measurements: ${garmentId}`,
-
-            duplicateIds.length === 0,
-
-            duplicateIds.length
-
-                ? `Duplikasi: ${[
-                    ...new Set(
-                        duplicateIds
+                ease:
+                    num(
+                        options.ease,
+                        0
                     )
-                ].join(", ")}`
 
-                : ""
+            },
 
-        );
+            options: {
 
+                notches:
+                    true,
 
-        /*
-         * Optional and required overlap
-         */
+                seam:
+                    0,
 
-        const optional =
-            Array.isArray(
-                garment.optionalMeasurements
-            )
-                ? garment.optionalMeasurements
-                : [];
+                tolerance:
+                    0
 
+            }
 
-        const overlap =
-            required.filter(
-                id =>
-                    optional.includes(
-                        id
-                    )
-            );
+        };
 
 
-        addCheck(
-
-            result,
-
-            `Required/optional consistency: ${garmentId}`,
-
-            overlap.length === 0,
-
-            overlap.length
-
-                ? `Measurement terdapat di required dan optional: ` +
-                  `${overlap.join(", ")}`
-
-                : ""
-
-        );
-
-
-        /*
-         * Feature object
-         */
-
-        if (
-            garment.features !==
-            undefined
+        switch (
+            garment
         ) {
 
-            addCheck(
+            case "bodice":
 
-                result,
+                context.garmentId =
+                    "tshirt";
 
-                `Features object: ${garmentId}`,
+                break;
 
-                typeof garment.features ===
-                    "object",
 
-                `features "${garmentId}" harus object.`
+            case "skirt":
 
-            );
+                context.garmentId =
+                    "skirt";
+
+                break;
+
+
+            case "pants":
+
+                context.garmentId =
+                    "pants";
+
+                break;
+
+
+            case "shorts":
+
+                context.garmentId =
+                    "shorts";
+
+                break;
+
+
+            case "dress":
+
+                context.garmentId =
+                    "dress";
+
+                break;
+
+
+            case "shirt":
+
+                context.garmentId =
+                    "shirt";
+
+                break;
 
         }
 
 
-        /*
-         * Categories
-         */
+        return context;
 
-        const categories =
-            getGarmentCategories(
+    }
+
+
+    /* ========================================================
+       NUMBER
+       ======================================================== */
+
+    function num(
+        value,
+        fallback = 0
+    ) {
+
+        const n =
+            Number(value);
+
+
+        return Number.isFinite(n)
+            ? n
+            : fallback;
+
+    }
+
+
+    /* ========================================================
+       BASE GENERATION
+       ======================================================== */
+
+    function generatePattern(
+        garment,
+        profile,
+        options
+    ) {
+
+        const engine =
+            getEngine(
                 garment
             );
 
 
         if (
-            categories.length === 0
+            !engine ||
+            typeof engine.generate !==
+            "function"
         ) {
 
-            addWarning(
+            throw new Error(
 
-                result,
-
-                `Category mapping: ${garmentId}`,
-
-                `Garment "${garmentId}" belum memiliki explicit category mapping.`
-
-            );
-
-        }
-        else {
-
-            categories.forEach(
-                category => {
-
-                    addCheck(
-
-                        result,
-
-                        `Category ${category}: ${garmentId}`,
-
-                        Boolean(
-                            getCategoryLabel(
-                                category
-                            )
-                        ),
-
-                        `Category "${category}" tidak dikenal oleh schema.`
-
-                    );
-
-                }
-            );
-
-        }
-
-
-        /*
-         * Size behavior
-         */
-
-        if (
-            garment.sizeSystem !==
-            undefined
-        ) {
-
-            const validSizeSystem =
-
-                Array.isArray(
-                    garment.sizeSystem
-                )
-
-                ||
-
-                typeof garment.sizeSystem ===
-                    "string"
-
-                ||
-
-                typeof garment.sizeSystem ===
-                    "object";
-
-
-            addCheck(
-
-                result,
-
-                `Size system declaration: ${garmentId}`,
-
-                validSizeSystem,
-
-                `sizeSystem "${garmentId}" tidak valid.`
+                `Engine "${garment}" belum tersedia.`
 
             );
 
         }
 
 
-        result.valid =
-            result.errors.length === 0;
+        return engine.generate(
 
+            buildContext(
 
-        return result;
+                garment,
 
-    }
+                profile,
 
+                options
 
-    /* ========================================================
-       CATEGORY AUDIT
-       ======================================================== */
+            )
 
-    function auditCategories() {
-
-        const result =
-            createResult();
-
-
-        if (
-            !Schema
-        ) {
-
-            addCheck(
-
-                result,
-
-                "Category schema",
-
-                false,
-
-                "Schema kategori belum tersedia."
-
-            );
-
-
-            return result;
-
-        }
-
-
-        /*
-         * Known universal categories.
-         *
-         * Ini bukan berarti seluruh garment harus
-         * mendukung semuanya.
-         */
-
-        const expectedCategories = [
-
-            "child",
-
-            "teen",
-
-            "women",
-
-            "men",
-
-            "custom"
-
-        ];
-
-
-        expectedCategories.forEach(
-            category => {
-
-                const label =
-                    getCategoryLabel(
-                        category
-                    );
-
-
-                const valid =
-                    Boolean(
-                        label &&
-                        label !==
-                            category
-                    );
-
-
-                if (
-                    valid
-                ) {
-
-                    addCheck(
-
-                        result,
-
-                        `Universal category: ${category}`,
-
-                        true
-
-                    );
-
-                }
-                else {
-
-                    addWarning(
-
-                        result,
-
-                        `Universal category: ${category}`,
-
-                        `Category "${category}" belum memiliki label schema.`
-
-                    );
-
-                }
-
-            }
         );
 
-
-        return result;
-
     }
 
 
     /* ========================================================
-       GARMENT MATRIX
+       BASE VALIDATION
        ======================================================== */
 
-    function createGarmentMatrix() {
+    function validateBase(
+        pattern
+    ) {
 
-        const garments =
-            getAllGarments();
+        if (
+            !PatternValidator
+        ) {
 
+            return {
 
-        const matrix = {
+                valid:
+                    true,
 
-            child: [],
+                errors: [],
 
-            teen: [],
+                warnings: [
 
-            women: [],
+                    "PatternValidator belum tersedia."
 
-            men: [],
-
-            custom: []
-
-        };
-
-
-        garments.forEach(
-            garment => {
-
-                const categories =
-                    getGarmentCategories(
-                        garment
-                    );
-
-
-                categories.forEach(
-                    category => {
-
-                        if (
-                            matrix[category]
-                        ) {
-
-                            matrix[category]
-                                .push(
-                                    garment.id
-                                );
-
-                        }
-
-                    }
-                );
-
-            }
-        );
-
-
-        return matrix;
-
-    }
-
-
-    /* ========================================================
-       MATRIX AUDIT
-       ======================================================== */
-
-    function auditGarmentMatrix() {
-
-        const result =
-            createResult();
-
-
-        const matrix =
-            createGarmentMatrix();
-
-
-        Object.entries(
-            matrix
-        )
-        .forEach(
-            (
-                [
-                    category,
-                    garments
                 ]
+
+            };
+
+        }
+
+
+        return PatternValidator
+            .validatePattern(
+                pattern
+            );
+
+    }
+
+
+    /* ========================================================
+       GRADE POINT VALIDATION
+       ======================================================== */
+
+    function validateGradePoints(
+        pattern
+    ) {
+
+        return GradePointSchema
+            .validatePatternGradePoints(
+                pattern
+            );
+
+    }
+
+
+    /* ========================================================
+       GRADED VALIDATION
+       ======================================================== */
+
+    function validateGraded(
+        graded
+    ) {
+
+        const errors =
+            [];
+
+        const warnings =
+            [];
+
+
+        if (
+            !graded ||
+            !Array.isArray(
+                graded.variants
+            )
+        ) {
+
+            errors.push(
+                "Graded result tidak memiliki variants."
+            );
+
+
+            return {
+
+                valid:
+                    false,
+
+                errors,
+
+                warnings
+
+            };
+
+        }
+
+
+        graded.variants.forEach(
+            (
+                variant,
+                index
             ) => {
 
                 if (
-                    category ===
-                    "custom"
+                    !Array.isArray(
+                        variant.pieces
+                    )
                 ) {
 
-                    addWarning(
+                    errors.push(
 
-                        result,
-
-                        `Category matrix: ${category}`,
-
-                        "Custom merupakan kategori bebas."
+                        `Graded variant ${index + 1} ` +
+                        "tidak memiliki pieces."
 
                     );
 
@@ -982,36 +662,69 @@
                 }
 
 
-                if (
-                    garments.length === 0
-                ) {
+                variant.pieces.forEach(
+                    piece => {
 
-                    addWarning(
+                        const points =
+                            piece.points ||
+                            piece.seamPoints ||
+                            [];
 
-                        result,
 
-                        `Category matrix: ${category}`,
+                        if (
+                            !Array.isArray(points) ||
+                            points.length <
+                            3
+                        ) {
 
-                        `Belum ada garment eksplisit untuk ${getCategoryLabel(category)}.`
+                            errors.push(
 
-                    );
+                                `Variant ${index + 1}, ` +
+                                `${piece.name || "piece"} ` +
+                                "geometry invalid."
 
-                }
-                else {
+                            );
 
-                    addCheck(
+                        }
 
-                        result,
 
-                        `Category matrix: ${category}`,
+                        points.forEach(
+                            (
+                                point,
+                                pointIndex
+                            ) => {
 
-                        true,
+                                if (
+                                    !Array.isArray(
+                                        point
+                                    ) ||
+                                    !Number.isFinite(
+                                        Number(
+                                            point[0]
+                                        )
+                                    ) ||
+                                    !Number.isFinite(
+                                        Number(
+                                            point[1]
+                                        )
+                                    )
+                                ) {
 
-                        garments.join(", ")
+                                    errors.push(
 
-                    );
+                                        `Variant ${index + 1}, ` +
+                                        `${piece.name || "piece"}, ` +
+                                        `point ${pointIndex + 1} invalid.`
 
-                }
+                                    );
+
+                                }
+
+                            }
+                        );
+
+                    }
+                );
 
             }
         );
@@ -1019,9 +732,13 @@
 
         return {
 
-            result,
+            valid:
+                errors.length ===
+                0,
 
-            matrix
+            errors,
+
+            warnings
 
         };
 
@@ -1029,612 +746,1117 @@
 
 
     /* ========================================================
-       CATEGORY / PROFILE COMPATIBILITY
+       STRICT GRADING
        ======================================================== */
 
-    function auditProfileCategoryCompatibility(
-        profile,
-        garment
+    function grade(
+        pattern,
+        category,
+        options
     ) {
 
-        const result =
-            createResult();
+        return Grading.gradePattern(
 
+            pattern,
 
-        if (
-            !profile ||
-            !garment
-        ) {
+            {
 
-            addCheck(
+                category,
 
-                result,
+                mode:
+                    Grading.MODES
+                        .STRICT,
 
-                "Profile + garment",
+                sizes:
+                    clone(
+                        options.sizes ||
+                        DEFAULT_SIZES
+                    ),
 
-                false,
+                rules:
+                    options.grading?.rules ||
+                    {}
 
-                "Profile atau garment belum tersedia."
-
-            );
-
-
-            return result;
-
-        }
-
-
-        /*
-         * Category from profile.
-         */
-
-        const profileCategory =
-            profile.category ||
-            null;
-
-
-        /*
-         * Garment category mapping.
-         */
-
-        const categories =
-            getGarmentCategories(
-                garment
-            );
-
-
-        if (
-            !profileCategory
-        ) {
-
-            addWarning(
-
-                result,
-
-                "Profile category",
-
-                "Profile belum memiliki category."
-
-            );
-
-            return result;
-
-        }
-
-
-        if (
-            categories.length === 0
-        ) {
-
-            addWarning(
-
-                result,
-
-                "Garment category mapping",
-
-                `Garment "${garment.id}" tidak memiliki mapping kategori eksplisit.`
-
-            );
-
-
-            return result;
-
-        }
-
-
-        const compatible =
-
-            categories.includes(
-                profileCategory
-            )
-
-            ||
-
-            categories.includes(
-                "custom"
-            );
-
-
-        addCheck(
-
-            result,
-
-            "Profile/Garment category compatibility",
-
-            compatible,
-
-            compatible
-
-                ? ""
-
-                : `Profile=${profileCategory}, ` +
-                  `Garment categories=${categories.join(", ")}`
+            }
 
         );
-
-
-        return result;
 
     }
 
 
     /* ========================================================
-       AGE / CATEGORY AUDIT
+       PRODUCTION
        ======================================================== */
 
-    function auditAgeCategory(
-        profile
+    function createProduction(
+        variant,
+        options
     ) {
 
-        const result =
-            createResult();
+        return SeamProduction
+            .applySeamAllowance(
 
+                variant,
+
+                {
+
+                    defaultSeam:
+                        num(
+                            options.seamAllowance,
+                            1
+                        ),
+
+                    miterLimit:
+                        num(
+                            options.miterLimit,
+                            4
+                        ),
+
+                    curveTolerance:
+                        num(
+                            options.curveTolerance,
+                            0.05
+                        ),
+
+                    maxSegmentLength:
+                        num(
+                            options.maxSegmentLength,
+                            2
+                        )
+
+                }
+
+            );
+
+    }
+
+
+    /* ========================================================
+       PRODUCTION VALIDATION
+       ======================================================== */
+
+    function validateProduction(
+        pattern,
+        options
+    ) {
+
+        return ProductionValidator
+            .validateForProduction(
+
+                pattern,
+
+                {
+
+                    requireCutPoints:
+                        true,
+
+                    requireClosed:
+                        true,
+
+                    requireSeam:
+                        options.requireProductionPass,
+
+                    allowLegacyRadial:
+                        false,
+
+                    requireTrueOffset:
+                        options.requireTrueOffset,
+
+                    checkSelfIntersection:
+                        true,
+
+                    checkDuplicatePoints:
+                        true,
+
+                    checkZeroLengthEdges:
+                        true
+
+                }
+
+            );
+
+    }
+
+
+    /* ========================================================
+       NESTING
+       ======================================================== */
+
+    function createNesting(
+        production,
+        options
+    ) {
+
+        return Nesting.nest(
+
+            production,
+
+            {
+
+                materialWidth:
+                    num(
+                        options.materialWidth,
+                        140
+                    ),
+
+                spacing:
+                    num(
+                        options.spacing,
+                        0.5
+                    ),
+
+                allowRotation90:
+                    options.allowRotation90,
+
+                respectGrainline:
+                    options.respectGrainline,
+
+                startMargin:
+                    0,
+
+                endMargin:
+                    0
+
+            }
+
+        );
+
+    }
+
+
+    /* ========================================================
+       NESTING VALIDATION
+       ======================================================== */
+
+    function validateNesting(
+        nesting,
+        options
+    ) {
+
+        return NestingValidator
+            .validate(
+
+                nesting,
+
+                {
+
+                    requireAllPlaced:
+                        options.requireAllPlaced,
+
+                    requireInsideMarker:
+                        true,
+
+                    checkOverlap:
+                        true,
+
+                    checkDuplicateIds:
+                        true,
+
+                    respectGrainline:
+                        options.respectGrainline,
+
+                    allowRotation90:
+                        options.allowRotation90,
+
+                    minimumEfficiency:
+                        0,
+
+                    maximumEfficiency:
+                        100
+
+                }
+
+            );
+
+    }
+
+
+    /* ========================================================
+       OUTPUT AUDIT
+       ======================================================== */
+
+    function auditOutputs(
+        source,
+        options
+    ) {
 
         if (
-            !profile
+            !options.auditOutputs
         ) {
 
-            addWarning(
+            return {
 
-                result,
+                valid:
+                    true,
 
-                "Age/category",
+                skipped:
+                    true,
 
-                "Profile belum tersedia."
+                errors: [],
+
+                warnings: []
+
+            };
+
+        }
+
+
+        return OutputAudit.audit(
+
+            source,
+
+            {
+
+                sourceType:
+                    "production",
+
+                expectedUnit:
+                    options.sourceUnit,
+
+                requireSamePieceCount:
+                    true,
+
+                requireSamePieceNames:
+                    true,
+
+                requireSamePointCounts:
+                    true,
+
+                checkFiniteGeometry:
+                    true,
+
+                checkBounds:
+                    true,
+
+                checkUnit:
+                    true
+
+            }
+
+        );
+
+    }
+
+
+    /* ========================================================
+       SIZE PIPELINE
+       ======================================================== */
+
+    function runSize(
+        variant,
+        options
+    ) {
+
+        const sizeId =
+            variant.metadata
+                ?.grading
+                ?.sizeId ||
+            "UNKNOWN";
+
+
+        const report = {
+
+            sizeId,
+
+            valid:
+                true,
+
+            production:
+                null,
+
+            productionValidation:
+                null,
+
+            nesting:
+                null,
+
+            nestingValidation:
+                null,
+
+            outputAudit:
+                null,
+
+            errors: [],
+
+            warnings: []
+
+        };
+
+
+        /* ----------------------------------------------------
+           PRODUCTION
+           ---------------------------------------------------- */
+
+        let production;
+
+
+        try {
+
+            production =
+                createProduction(
+
+                    variant,
+
+                    options
+
+                );
+
+        }
+        catch (
+            error
+        ) {
+
+            report.valid =
+                false;
+
+
+            report.errors.push(
+
+                `Production: ${error.message}`
 
             );
 
 
-            return result;
+            return report;
 
         }
+
+
+        const productionValidation =
+            validateProduction(
+
+                production,
+
+                options
+
+            );
+
+
+        report.productionValidation =
+            productionValidation;
+
+
+        if (
+            !productionValidation.valid
+        ) {
+
+            report.valid =
+                false;
+
+
+            report.errors.push(
+
+                ...productionValidation.errors
+
+            );
+
+        }
+
+
+        report.warnings.push(
+
+            ...productionValidation.warnings
+
+        );
+
+
+        report.production = {
+
+            pieceCount:
+                production.pieces.length,
+
+            seamStrategy:
+                production.metadata
+                    ?.seamStrategy ||
+                null,
+
+            seamAllowance:
+
+                production.metadata
+                    ?.seamAllowanceCm
+
+                ??
+
+                options.seamAllowance
+
+        };
+
+
+        /*
+         * Stop before nesting if production is invalid.
+         */
+
+        if (
+            !productionValidation.valid
+        ) {
+
+            return report;
+
+        }
+
+
+        /* ----------------------------------------------------
+           NESTING
+           ---------------------------------------------------- */
+
+        let nesting;
+
+
+        try {
+
+            nesting =
+                createNesting(
+
+                    production,
+
+                    options
+
+                );
+
+        }
+        catch (
+            error
+        ) {
+
+            report.valid =
+                false;
+
+
+            report.errors.push(
+
+                `Nesting: ${error.message}`
+
+            );
+
+
+            return report;
+
+        }
+
+
+        const nestingValidation =
+            validateNesting(
+
+                nesting,
+
+                options
+
+            );
+
+
+        report.nesting =
+            nesting;
+
+
+        report.nestingValidation =
+            nestingValidation;
+
+
+        if (
+            !nestingValidation.valid
+        ) {
+
+            report.valid =
+                false;
+
+
+            report.errors.push(
+
+                ...nestingValidation.errors
+
+            );
+
+        }
+
+
+        report.warnings.push(
+
+            ...nestingValidation.warnings
+
+        );
+
+
+        /*
+         * Output audit is performed on the production
+         * source. Marker output has its own audit path.
+         */
+
+        report.outputAudit =
+            auditOutputs(
+
+                production,
+
+                options
+
+            );
+
+
+        if (
+            !report.outputAudit.valid
+        ) {
+
+            report.valid =
+                false;
+
+
+            report.errors.push(
+
+                ...report.outputAudit.errors
+
+            );
+
+        }
+
+
+        report.warnings.push(
+
+            ...report.outputAudit.warnings
+
+        );
+
+
+        return report;
+
+    }
+
+
+    /* ========================================================
+       RUN GARMENT
+       ======================================================== */
+
+    function runGarment(
+        garment,
+        options = {}
+    ) {
+
+        const config =
+            normalizeOptions(
+                options
+            );
+
+
+        const profile =
+            clone(
+
+                config.profile ||
+
+                DEFAULT_PROFILE
+
+            );
 
 
         const category =
-            profile.category;
+            profile.category ||
+            "custom";
 
 
-        const age =
-            Number(
-                profile.age
+        const report = {
+
+            version:
+                VERSION,
+
+            garment,
+
+            category,
+
+            valid:
+                true,
+
+            generation:
+                null,
+
+            baseValidation:
+                null,
+
+            gradePoints:
+                null,
+
+            grading:
+                null,
+
+            sizes:
+                [],
+
+            errors: [],
+
+            warnings: []
+
+        };
+
+
+        /* ----------------------------------------------------
+           GENERATION
+           ---------------------------------------------------- */
+
+        let base;
+
+
+        try {
+
+            base =
+                generatePattern(
+
+                    garment,
+
+                    profile,
+
+                    config
+
+                );
+
+        }
+        catch (
+            error
+        ) {
+
+            report.valid =
+                false;
+
+
+            report.errors.push(
+
+                `Generation: ${error.message}`
+
             );
 
 
+            return report;
+
+        }
+
+
+        report.generation = {
+
+            valid:
+
+                Array.isArray(
+                    base?.pieces
+                )
+
+                &&
+
+                base.pieces.length >
+                0,
+
+            pieceCount:
+                base?.pieces?.length ||
+                0
+
+        };
+
+
         if (
-            !Number.isFinite(age)
+            !report.generation.valid
         ) {
 
-            addWarning(
+            report.valid =
+                false;
 
-                result,
 
-                "Age/category",
+            report.errors.push(
+                "Pattern generation gagal."
+            );
 
-                "Profile belum memiliki umur numerik."
+
+            return report;
+
+        }
+
+
+        /* ----------------------------------------------------
+           BASE VALIDATION
+           ---------------------------------------------------- */
+
+        const baseValidation =
+            validateBase(
+                base
+            );
+
+
+        report.baseValidation =
+            baseValidation;
+
+
+        if (
+            !baseValidation.valid
+        ) {
+
+            report.valid =
+                false;
+
+
+            report.errors.push(
+                ...baseValidation.errors
+            );
+
+        }
+
+
+        report.warnings.push(
+            ...baseValidation.warnings
+        );
+
+
+        /* ----------------------------------------------------
+           GRADE POINT
+           ---------------------------------------------------- */
+
+        const gradePointValidation =
+            validateGradePoints(
+                base
+            );
+
+
+        report.gradePoints =
+            gradePointValidation;
+
+
+        if (
+            !gradePointValidation.valid
+        ) {
+
+            report.valid =
+                false;
+
+
+            report.errors.push(
+
+                ...gradePointValidation.errors
 
             );
 
 
-            return result;
+            return report;
 
         }
 
 
-        /*
-         * Usia di sini dipakai hanya sebagai
-         * konsistensi UX / grouping.
-         *
-         * Bukan aturan medis atau sizing absolut.
-         */
+        report.warnings.push(
+            ...gradePointValidation.warnings
+        );
 
-        if (
-            category ===
-            "child"
+
+        /* ----------------------------------------------------
+           STRICT GRADING
+           ---------------------------------------------------- */
+
+        let graded;
+
+
+        try {
+
+            graded =
+                grade(
+
+                    base,
+
+                    category,
+
+                    config
+
+                );
+
+        }
+        catch (
+            error
         ) {
 
-            if (
-                age >= 13
-            ) {
+            report.valid =
+                false;
 
-                addWarning(
 
-                    result,
+            report.errors.push(
 
-                    "Child age consistency",
+                `Strict grading: ${error.message}`
 
-                    `Kategori child dengan umur ${age} tahun perlu diperiksa.`
+            );
+
+
+            return report;
+
+        }
+
+
+        const gradedValidation =
+            validateGraded(
+                graded
+            );
+
+
+        report.grading = {
+
+            valid:
+                gradedValidation.valid,
+
+            variantCount:
+                graded?.variants?.length ||
+                0,
+
+            errors:
+                gradedValidation.errors,
+
+            warnings:
+                gradedValidation.warnings
+
+        };
+
+
+        if (
+            !gradedValidation.valid
+        ) {
+
+            report.valid =
+                false;
+
+
+            report.errors.push(
+
+                ...gradedValidation.errors
+
+            );
+
+
+            return report;
+
+        }
+
+
+        report.warnings.push(
+            ...gradedValidation.warnings
+        );
+
+
+        /* ----------------------------------------------------
+           SIZE LOOP
+           ---------------------------------------------------- */
+
+        graded.variants.forEach(
+            variant => {
+
+                const sizeReport =
+                    runSize(
+
+                        variant,
+
+                        config
+
+                    );
+
+
+                report.sizes.push(
+                    sizeReport
+                );
+
+
+                if (
+                    !sizeReport.valid
+                ) {
+
+                    report.valid =
+                        false;
+
+
+                    report.errors.push(
+
+                        ...sizeReport.errors.map(
+                            error =>
+
+                                `${
+                                    sizeReport.sizeId
+                                }: ${error}`
+
+                        )
+
+                    );
+
+                }
+
+
+                report.warnings.push(
+
+                    ...sizeReport.warnings.map(
+                        warning =>
+
+                            `${
+                                sizeReport.sizeId
+                            }: ${warning}`
+
+                    )
 
                 );
 
             }
-
-        }
-
-
-        if (
-            category ===
-            "teen"
-        ) {
-
-            if (
-                age < 12 ||
-                age > 19
-            ) {
-
-                addWarning(
-
-                    result,
-
-                    "Teen age consistency",
-
-                    `Kategori teen dengan umur ${age} tahun perlu diperiksa.`
-
-                );
-
-            }
-
-        }
+        );
 
 
-        if (
-            category ===
-            "women" ||
-            category ===
-            "men"
-        ) {
-
-            if (
-                age < 13
-            ) {
-
-                addWarning(
-
-                    result,
-
-                    "Adult category age consistency",
-
-                    `Kategori ${category} dengan umur ${age} tahun perlu diperiksa.`
-
-                );
-
-            }
-
-        }
-
-
-        return result;
+        return report;
 
     }
 
 
     /* ========================================================
-       FULL SYSTEM AUDIT
+       RUN MATRIX
        ======================================================== */
 
-    function auditSystem() {
+    function runMatrix(
+        options = {}
+    ) {
 
-        const result =
-            createResult();
+        const config =
+            normalizeOptions(
+                options
+            );
 
-
-        /*
-         * Dependencies
-         */
-
-        const dependencyResult =
-            auditDependencies();
-
-
-        result.checks.push(
-            ...dependencyResult.checks
-        );
-
-
-        result.errors.push(
-            ...dependencyResult.errors
-        );
-
-
-        result.warnings.push(
-            ...dependencyResult.warnings
-        );
-
-
-        /*
-         * Categories
-         */
-
-        const categoryResult =
-            auditCategories();
-
-
-        result.checks.push(
-            ...categoryResult.checks
-        );
-
-
-        result.errors.push(
-            ...categoryResult.errors
-        );
-
-
-        result.warnings.push(
-            ...categoryResult.warnings
-        );
-
-
-        /*
-         * Garments
-         */
 
         const garments =
-            getAllGarments();
+            config.garments ||
+
+            [
+
+                "bodice",
+                "skirt",
+                "pants",
+                "shorts",
+                "dress",
+                "shirt"
+
+            ];
 
 
-        addCheck(
+        const results =
+            {};
 
-            result,
 
-            "Garment catalog available",
+        let passed =
+            0;
 
-            garments.length > 0,
-
-            "Tidak ditemukan garment pada catalog."
-
-        );
+        let failed =
+            0;
 
 
         garments.forEach(
             garment => {
 
-                const garmentResult =
-                    auditGarment(
-                        garment
+                const result =
+                    runGarment(
+
+                        garment,
+
+                        config
+
                     );
 
 
-                result.checks.push(
-                    ...garmentResult.checks
-                );
+                results[
+                    garment
+                ] =
+                    result;
 
 
-                result.errors.push(
-                    ...garmentResult.errors
-                );
+                if (
+                    result.valid
+                ) {
 
+                    passed++;
 
-                result.warnings.push(
-                    ...garmentResult.warnings
-                );
+                }
+                else {
+
+                    failed++;
+
+                }
 
             }
         );
 
 
-        /*
-         * Matrix
-         */
-
-        const matrixAudit =
-            auditGarmentMatrix();
-
-
-        result.checks.push(
-            ...matrixAudit.result.checks
-        );
-
-
-        result.errors.push(
-            ...matrixAudit.result.errors
-        );
-
-
-        result.warnings.push(
-            ...matrixAudit.result.warnings
-        );
-
-
-        result.valid =
-            result.errors.length === 0;
-
-
         return {
 
-            ...result,
+            version:
+                VERSION,
 
-            matrix:
-                matrixAudit.matrix
+            total:
+                garments.length,
 
-        };
+            passed,
 
-    }
-
-
-    /* ========================================================
-       PROFILE + GARMENT AUDIT
-       ======================================================== */
-
-    function auditCurrentSelection(
-        profile,
-        garmentId
-    ) {
-
-        const result =
-            createResult();
-
-
-        if (
-            !Garment
-        ) {
-
-            addCheck(
-
-                result,
-
-                "Garment module",
-
-                false,
-
-                "Garment module belum tersedia."
-
-            );
-
-
-            return result;
-
-        }
-
-
-        const garment =
-            typeof Garment.getGarment ===
-                "function"
-
-                ? Garment.getGarment(
-                    garmentId
-                )
-
-                : null;
-
-
-        addCheck(
-
-            result,
-
-            `Current garment: ${garmentId}`,
-
-            Boolean(
-                garment
-            ),
-
-            `Garment "${garmentId}" tidak ditemukan.`
-
-        );
-
-
-        if (
-            !garment
-        ) {
-
-            return result;
-
-        }
-
-
-        const garmentAudit =
-            auditGarment(
-                garment
-            );
-
-
-        result.checks.push(
-            ...garmentAudit.checks
-        );
-
-
-        result.errors.push(
-            ...garmentAudit.errors
-        );
-
-
-        result.warnings.push(
-            ...garmentAudit.warnings
-        );
-
-
-        const compatibility =
-            auditProfileCategoryCompatibility(
-
-                profile,
-
-                garment
-
-            );
-
-
-        result.checks.push(
-            ...compatibility.checks
-        );
-
-
-        result.errors.push(
-            ...compatibility.errors
-        );
-
-
-        result.warnings.push(
-            ...compatibility.warnings
-        );
-
-
-        const age =
-            auditAgeCategory(
-                profile
-            );
-
-
-        result.checks.push(
-            ...age.checks
-        );
-
-
-        result.errors.push(
-            ...age.errors
-        );
-
-
-        result.warnings.push(
-            ...age.warnings
-        );
-
-
-        result.valid =
-            result.errors.length === 0;
-
-
-        return result;
-
-    }
-
-
-    /* ========================================================
-       FORMAT
-       ======================================================== */
-
-    function formatResult(
-        result
-    ) {
-
-        return {
+            failed,
 
             valid:
-                result.valid,
+                failed ===
+                0,
 
-            totalChecks:
-                result.checks.length,
-
-            passedChecks:
-                result.checks.filter(
-                    check =>
-                        check.passed
-                ).length,
-
-            failedChecks:
-                result.checks.filter(
-                    check =>
-                        !check.passed
-                ).length,
-
-            errors:
-                result.errors,
-
-            warnings:
-                result.warnings,
-
-            matrix:
-                result.matrix ||
-                null
+            results
 
         };
+
+    }
+
+
+    /* ========================================================
+       ASSERT
+       ======================================================== */
+
+    function assert(
+        report
+    ) {
+
+        if (
+            !report ||
+            report.valid !==
+            true
+        ) {
+
+            const errors =
+                [];
+
+
+            Object.entries(
+                report?.results ||
+                {}
+            )
+            .forEach(
+                (
+                    [
+                        garment,
+                        result
+                    ]
+                ) => {
+
+                    if (
+                        !result.valid
+                    ) {
+
+                        errors.push(
+
+                            `${garment}: ` +
+
+                            result.errors.join(
+                                " | "
+                            )
+
+                        );
+
+                    }
+
+                }
+            );
+
+
+            throw new Error(
+
+                errors.join(
+                    "\n"
+                ) ||
+
+                "Universal garment audit failed."
+
+            );
+
+        }
+
+
+        return true;
 
     }
 
@@ -1643,15 +1865,13 @@
        DEBUG
        ======================================================== */
 
-    function runDebug() {
+    function debug(
+        options = {}
+    ) {
 
         const result =
-            auditSystem();
-
-
-        const formatted =
-            formatResult(
-                result
+            runMatrix(
+                options
             );
 
 
@@ -1661,63 +1881,44 @@
 
 
         console.log(
-            "Valid:",
-            formatted.valid
+            "Version:",
+            VERSION
         );
 
 
         console.log(
-            "Checks:",
-            formatted.totalChecks
+            "Total:",
+            result.total
         );
 
 
         console.log(
             "Passed:",
-            formatted.passedChecks
+            result.passed
         );
 
 
         console.log(
             "Failed:",
-            formatted.failedChecks
+            result.failed
         );
 
 
         console.log(
-            "Garment Matrix:",
-            formatted.matrix
+            "Valid:",
+            result.valid
         );
 
 
-        if (
-            formatted.errors.length
-        ) {
-
-            console.error(
-                "Errors:",
-                formatted.errors
-            );
-
-        }
-
-
-        if (
-            formatted.warnings.length
-        ) {
-
-            console.warn(
-                "Warnings:",
-                formatted.warnings
-            );
-
-        }
+        console.log(
+            result
+        );
 
 
         console.groupEnd();
 
 
-        return formatted;
+        return result;
 
     }
 
@@ -1728,35 +1929,46 @@
 
     window.PatternMakerUniversalGarmentAudit = {
 
-        auditDependencies,
+        VERSION,
 
-        getAllGarments,
+        ENGINE_MAP,
 
-        getGarmentCategories,
+        DEFAULT_SIZES,
 
-        getCategoryLabel,
+        DEFAULT_PROFILE,
 
-        auditGarment,
+        DEFAULT_OPTIONS,
 
-        auditCategories,
+        generatePattern,
 
-        createGarmentMatrix,
+        validateBase,
 
-        auditGarmentMatrix,
+        validateGradePoints,
 
-        auditProfileCategoryCompatibility,
+        validateGraded,
 
-        auditAgeCategory,
+        createProduction,
 
-        auditCurrentSelection,
+        validateProduction,
 
-        auditSystem,
+        createNesting,
 
-        formatResult,
+        validateNesting,
 
-        runDebug
+        auditOutputs,
+
+        runSize,
+
+        runGarment,
+
+        runMatrix,
+
+        assert,
+
+        debug
 
     };
 
 
 })();
+```
