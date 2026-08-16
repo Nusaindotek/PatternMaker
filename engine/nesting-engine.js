@@ -1,49 +1,56 @@
+```javascript
 /**
  * ============================================================
- * PATTERNMAKER UNIVERSAL
- * KODE 35 — engine/nesting-engine.js
+ * PATTERMAKER UNIVERSAL
+ * BASELINE FINAL v1
+ * KODE 76
+ *
+ * FILE:
+ *   engine/nesting-engine.js
  * ============================================================
  *
- * MARKER / NESTING ENGINE v1
+ * RESPONSIBILITY:
  *
- * Tujuan:
- *
- *   cuttingPattern
- *        ↓
- *   marker layout
- *        ↓
- *   fabric utilization
- *
- * Engine ini TIDAK mengubah cuttingPattern.
- *
- * ============================================================
- *
- * FITUR v1
- *
- * - Fabric width
- * - Fabric length
- * - Gap antar piece
- * - Rotation 0 / 180
- * - Grainline restriction dasar
- * - Piece quantity
- * - Deterministic placement
- * - Bounds checking
- * - Utilization calculation
+ *   CUTTING PIECES
+ *       ↓
+ *   NESTING
+ *       ↓
+ *   MARKER
+ *       ↓
+ *   EFFICIENCY
  *
  * ============================================================
  *
- * BATASAN v1
+ * IMPORTANT:
  *
- * Ini adalah nesting engine dasar berbasis bounding-box.
- * Ia bukan true polygon nesting optimizer.
+ * Nesting engine TIDAK mengubah bentuk asli piece.
  *
- * Jadi hasilnya:
+ * Ia hanya menghasilkan:
  *
- *   VALID untuk layout dasar
- *   BUKAN jaminan marker industri optimum
+ * - rotation
+ * - translation
+ * - placement
  *
- * Tahap berikutnya dapat mengganti placement algorithm
- * tanpa mengubah API engine.
+ * Geometry asli tetap berada pada:
+ *
+ *   piece.cutPoints
+ *
+ * ============================================================
+ *
+ * BASELINE STRATEGY:
+ *
+ *   deterministic row / strip nesting
+ *
+ * Supports:
+ *
+ * - material width
+ * - material length
+ * - rotation rules
+ * - grainline restrictions
+ * - spacing
+ * - piece collision
+ * - marker bounds
+ * - efficiency
  *
  * ============================================================
  */
@@ -54,83 +61,56 @@
 
 
     /* ========================================================
-       DEPENDENCY
+       VERSION
        ======================================================== */
 
-    const ProductionGeometry =
-        window.PatternMakerProductionGeometry;
-
-
-    const ProductionValidator =
-        window.PatternMakerProductionValidator;
-
-
-    if (
-        !ProductionGeometry
-    ) {
-
-        throw new Error(
-            "production-geometry.js belum tersedia."
-        );
-
-    }
-
-
-    if (
-        !ProductionValidator
-    ) {
-
-        throw new Error(
-            "production-validator.js belum tersedia."
-        );
-
-    }
+    const VERSION =
+        "FINAL-v1";
 
 
     /* ========================================================
-       DEFAULT CONFIGURATION
+       EPSILON
        ======================================================== */
 
-    const DEFAULTS = {
+    const EPSILON =
+        1e-7;
 
-        fabricWidth:
-            150,
 
-        fabricLength:
-            300,
+    /* ========================================================
+       DEFAULT OPTIONS
+       ======================================================== */
 
-        gap:
-            1,
+    const DEFAULT_OPTIONS = {
 
-        edgeMargin:
-            1,
+        materialWidth:
+            140,
 
-        allowRotation:
-            true,
+        spacing:
+            0.5,
 
-        rotationStep:
-            180,
-
-        respectGrainline:
+        allowRotation90:
             true,
 
         allowFlip:
             false,
 
-        strategy:
-            "shelf",
+        respectGrainline:
+            true,
 
-        startX:
-            1,
+        startMargin:
+            0,
 
-        startY:
-            1
+        endMargin:
+            0,
+
+        maxSearchRows:
+            10000
 
     };
 
 
     /* ========================================================
-       HELPERS
+       NUMBER
        ======================================================== */
 
     function num(
@@ -139,7 +119,9 @@
     ) {
 
         const n =
-            Number(value);
+            Number(
+                value
+            );
 
 
         return Number.isFinite(n)
@@ -149,129 +131,66 @@
     }
 
 
-    function round(
+    /* ========================================================
+       CLONE
+       ======================================================== */
+
+    function clone(
         value
     ) {
 
-        return Math.round(
-            Number(value) *
-            1000
-        ) / 1000;
-
-    }
-
-
-    function mergeOptions(
-        options = {}
-    ) {
-
-        return {
-
-            ...DEFAULTS,
-
-            ...options
-
-        };
-
-    }
-
-
-    /* ========================================================
-       CUT POINTS
-       ======================================================== */
-
-    function getCutPoints(
-        piece
-    ) {
-
         if (
-            piece?.cutPoints &&
-            Array.isArray(
-                piece.cutPoints
-            ) &&
-            piece.cutPoints.length >= 3
+            value === null ||
+            value === undefined
         ) {
 
-            return piece.cutPoints;
+            return value;
 
         }
 
 
         if (
-            piece?.points &&
-            Array.isArray(
-                piece.points
-            ) &&
-            piece.points.length >= 3
+            typeof structuredClone ===
+            "function"
         ) {
 
-            return piece.points;
-
-        }
-
-
-        return [];
-
-    }
-
-
-    /* ========================================================
-       BOUNDS
-       ======================================================== */
-
-    function getPieceBounds(
-        piece,
-        points = null
-    ) {
-
-        const source =
-            points ||
-            getCutPoints(
-                piece
+            return structuredClone(
+                value
             );
 
-
-        if (
-            source.length < 3
-        ) {
-
-            return null;
-
         }
 
 
-        return ProductionGeometry.getBounds(
-            source
+        return JSON.parse(
+            JSON.stringify(
+                value
+            )
+
         );
 
     }
 
 
     /* ========================================================
-       ROTATE POINTS
+       POINT CLONE
        ======================================================== */
 
-    function rotatePoints180(
+    function clonePoints(
         points
     ) {
 
-        if (
-            !Array.isArray(points)
-        ) {
-
-            return [];
-
-        }
-
-
-        return points.map(
+        return (
+            points ||
+            []
+        )
+        .map(
             point => [
 
-                -Number(
+                num(
                     point[0]
                 ),
 
-                -Number(
+                num(
                     point[1]
                 )
 
@@ -282,31 +201,274 @@
 
 
     /* ========================================================
-       NORMALIZE TO LOCAL ORIGIN
+       VERSIONED ID
        ======================================================== */
 
-    function normalizePoints(
+    function makePlacementId(
+        piece,
+        index
+    ) {
+
+        return (
+
+            String(
+                piece?.name ||
+                "PIECE"
+            )
+
+            +
+
+            "-"
+
+            +
+
+            String(
+                index + 1
+            )
+
+        );
+
+    }
+
+
+    /* ========================================================
+       GET CUT POINTS
+       ======================================================== */
+
+    function getCutPoints(
+        piece
+    ) {
+
+        const points =
+            piece?.cutPoints ||
+            piece?.points ||
+            [];
+
+
+        if (
+            !Array.isArray(
+                points
+            ) ||
+            points.length <
+            3
+        ) {
+
+            throw new Error(
+
+                `Piece "${piece?.name || "unknown"}" ` +
+                "tidak memiliki cutPoints valid."
+
+            );
+
+        }
+
+
+        return clonePoints(
+            points
+        );
+
+    }
+
+
+    /* ========================================================
+       BOUNDS
+       ======================================================== */
+
+    function getBounds(
         points
     ) {
 
-        const bounds =
-            ProductionGeometry.getBounds(
+        if (
+            !Array.isArray(
                 points
+            ) ||
+            points.length ===
+            0
+        ) {
+
+            return {
+
+                minX:
+                    0,
+
+                minY:
+                    0,
+
+                maxX:
+                    0,
+
+                maxY:
+                    0,
+
+                width:
+                    0,
+
+                height:
+                    0
+
+            };
+
+        }
+
+
+        const xs =
+            points.map(
+                point =>
+                    num(
+                        point[0]
+                    )
             );
 
 
-        return points.map(
-            point => [
+        const ys =
+            points.map(
+                point =>
+                    num(
+                        point[1]
+                    )
+            );
 
-                round(
-                    Number(point[0]) -
-                    Number(bounds.minX)
-                ),
 
-                round(
-                    Number(point[1]) -
-                    Number(bounds.minY)
+        const minX =
+            Math.min(
+                ...xs
+            );
+
+
+        const minY =
+            Math.min(
+                ...ys
+            );
+
+
+        const maxX =
+            Math.max(
+                ...xs
+            );
+
+
+        const maxY =
+            Math.max(
+                ...ys
+            );
+
+
+        return {
+
+            minX,
+
+            minY,
+
+            maxX,
+
+            maxY,
+
+            width:
+                maxX -
+                minX,
+
+            height:
+                maxY -
+                minY
+
+        };
+
+    }
+
+
+    /* ========================================================
+       AREA
+       ======================================================== */
+
+    function polygonArea(
+        points
+    ) {
+
+        if (
+            !Array.isArray(
+                points
+            ) ||
+            points.length <
+            3
+        ) {
+
+            return 0;
+
+        }
+
+
+        let area =
+            0;
+
+
+        for (
+            let i = 0;
+            i < points.length;
+            i++
+        ) {
+
+            const a =
+                points[i];
+
+
+            const b =
+                points[
+                    (
+                        i + 1
+                    ) %
+                    points.length
+                ];
+
+
+            area +=
+
+                num(
+                    a[0]
                 )
+                *
+                num(
+                    b[1]
+                )
+
+                -
+
+                num(
+                    b[0]
+                )
+                *
+                num(
+                    a[1]
+                );
+
+        }
+
+
+        return Math.abs(
+            area / 2
+        );
+
+    }
+
+
+    /* ========================================================
+       ROTATE 90
+       ======================================================== */
+
+    function rotate90(
+        points
+    ) {
+
+        return points.map(
+            (
+                [
+                    x,
+                    y
+                ]
+            ) => [
+
+                -y,
+
+                x
 
             ]
         );
@@ -315,62 +477,92 @@
 
 
     /* ========================================================
-       GRAINLINE DIRECTION
+       NORMALIZE ORIGIN
        ======================================================== */
 
-    function getGrainDirection(
-        piece
+    function normalizeToOrigin(
+        points
     ) {
 
-        const grainline =
-            piece?.grainline;
+        const bounds =
+            getBounds(
+                points
+            );
+
+
+        return points.map(
+            (
+                [
+                    x,
+                    y
+                ]
+            ) => [
+
+                x -
+                bounds.minX,
+
+                y -
+                bounds.minY
+
+            ]
+        );
+
+    }
+
+
+    /* ========================================================
+       ROTATION CANDIDATE
+       ======================================================== */
+
+    function buildCandidate(
+        points,
+        rotation
+    ) {
+
+        let transformed =
+            clonePoints(
+                points
+            );
 
 
         if (
-            !Array.isArray(
-                grainline
-            ) ||
-            grainline.length < 2
+            rotation ===
+            90
         ) {
 
-            return null;
+            transformed =
+                rotate90(
+                    transformed
+                );
 
         }
 
 
-        const dx =
-            Number(
-                grainline[1][0]
-            ) -
-            Number(
-                grainline[0][0]
+        transformed =
+            normalizeToOrigin(
+                transformed
             );
 
 
-        const dy =
-            Number(
-                grainline[1][1]
-            ) -
-            Number(
-                grainline[0][1]
+        const bounds =
+            getBounds(
+                transformed
             );
-
-
-        if (
-            Math.abs(dx) < 0.000001 &&
-            Math.abs(dy) < 0.000001
-        ) {
-
-            return null;
-
-        }
 
 
         return {
 
-            dx,
+            rotation,
 
-            dy
+            points:
+                transformed,
+
+            bounds,
+
+            area:
+                polygonArea(
+                    transformed
+                )
 
         };
 
@@ -386,146 +578,66 @@
         options
     ) {
 
-        const config =
-            mergeOptions(
-                options
+        const points =
+            getCutPoints(
+                piece
             );
 
 
-        /*
-         * Grainline restriction.
-         *
-         * v1 hanya mengenali:
-         *
-         *   0
-         *   180
-         *
-         * untuk piece yang mempunyai grainline.
-         */
+        const candidates = [
 
-        if (
-            config.respectGrainline &&
-            getGrainDirection(piece)
-        ) {
-
-            return [0];
-
-        }
-
-
-        if (
-            !config.allowRotation
-        ) {
-
-            return [0];
-
-        }
-
-
-        return [0, 180];
-
-    }
-
-
-    /* ========================================================
-       TRANSFORM POINTS
-       ======================================================== */
-
-    function transformPoints(
-        points,
-        rotation
-    ) {
-
-        let output =
-            points;
-
-
-        if (
-            Number(rotation) ===
-            180
-        ) {
-
-            output =
-                rotatePoints180(
-                    output
-                );
-
-        }
-
-
-        return normalizePoints(
-            output
-        );
-
-    }
-
-
-    /* ========================================================
-       ROTATED GRAINLINE
-       ======================================================== */
-
-    function transformGrainline(
-        grainline,
-        rotation,
-        originalPoints,
-        transformedPoints
-    ) {
-
-        if (
-            !Array.isArray(
-                grainline
-            ) ||
-            grainline.length < 2
-        ) {
-
-            return null;
-
-        }
-
-
-        let points = [
-
-            grainline[0],
-            grainline[1]
+            buildCandidate(
+                points,
+                0
+            )
 
         ];
 
 
         if (
-            Number(rotation) ===
-            180
+            options.allowRotation90
         ) {
 
-            points =
-                rotatePoints180(
-                    points
-                );
+            candidates.push(
+
+                buildCandidate(
+                    points,
+                    90
+                )
+
+            );
 
         }
 
 
-        const originalBounds =
-            ProductionGeometry.getBounds(
-                Number(rotation) === 180
-                    ? rotatePoints180(
-                        originalPoints
-                    )
-                    : originalPoints
-            );
+        return candidates;
 
+    }
+
+
+    /* ========================================================
+       TRANSLATE
+       ======================================================== */
+
+    function translatePoints(
+        points,
+        dx,
+        dy
+    ) {
 
         return points.map(
-            point => [
+            (
+                [
+                    x,
+                    y
+                ]
+            ) => [
 
-                round(
-                    Number(point[0]) -
-                    Number(originalBounds.minX)
-                ),
+                x +
+                dx,
 
-                round(
-                    Number(point[1]) -
-                    Number(originalBounds.minY)
-                )
+                y +
+                dy
 
             ]
         );
@@ -534,81 +646,666 @@
 
 
     /* ========================================================
-       CANDIDATE CREATION
+       POINT IN POLYGON
        ======================================================== */
 
-    function createCandidate(
-        piece,
-        rotation
+    function pointInPolygon(
+        point,
+        polygon
     ) {
 
-        const originalPoints =
-            getCutPoints(
+        let inside =
+            false;
+
+
+        const x =
+            num(
+                point[0]
+            );
+
+
+        const y =
+            num(
+                point[1]
+            );
+
+
+        for (
+            let i = 0,
+            j = polygon.length - 1;
+
+            i < polygon.length;
+
+            j = i++
+        ) {
+
+            const xi =
+                num(
+                    polygon[i][0]
+                );
+
+
+            const yi =
+                num(
+                    polygon[i][1]
+                );
+
+
+            const xj =
+                num(
+                    polygon[j][0]
+                );
+
+
+            const yj =
+                num(
+                    polygon[j][1]
+                );
+
+
+            const intersect =
+
+                (
+                    (
+                        yi >
+                        y
+                    )
+                    !==
+                    (
+                        yj >
+                        y
+                    )
+                )
+
+                &&
+
+                (
+                    x
+                    <
+
+                    (
+                        xj -
+                        xi
+                    )
+                    *
+
+                    (
+                        y -
+                        yi
+                    )
+                    /
+
+                    (
+                        yj -
+                        yi
+                    )
+
+                    +
+
+                    xi
+
+                );
+
+
+            if (
+                intersect
+            ) {
+
+                inside =
+                    !inside;
+
+            }
+
+        }
+
+
+        return inside;
+
+    }
+
+
+    /* ========================================================
+       ORIENTATION
+       ======================================================== */
+
+    function orientation(
+        a,
+        b,
+        c
+    ) {
+
+        const value =
+
+            (
+                b[1] -
+                a[1]
+            )
+            *
+            (
+                c[0] -
+                b[0]
+            )
+
+            -
+
+            (
+                b[0] -
+                a[0]
+            )
+            *
+            (
+                c[1] -
+                b[1]
+            );
+
+
+        if (
+            Math.abs(
+                value
+            ) <=
+            EPSILON
+        ) {
+
+            return 0;
+
+        }
+
+
+        return value > 0
+            ? 1
+            : 2;
+
+    }
+
+
+    /* ========================================================
+       ON SEGMENT
+       ======================================================== */
+
+    function onSegment(
+        a,
+        b,
+        c
+    ) {
+
+        return (
+
+            b[0] <=
+            Math.max(
+                a[0],
+                c[0]
+            ) +
+            EPSILON
+
+            &&
+
+            b[0] >=
+            Math.min(
+                a[0],
+                c[0]
+            ) -
+            EPSILON
+
+            &&
+
+            b[1] <=
+            Math.max(
+                a[1],
+                c[1]
+            ) +
+            EPSILON
+
+            &&
+
+            b[1] >=
+            Math.min(
+                a[1],
+                c[1]
+            ) -
+            EPSILON
+
+        );
+
+    }
+
+
+    /* ========================================================
+       SEGMENT INTERSECTION
+       ======================================================== */
+
+    function segmentsIntersect(
+        p1,
+        p2,
+        q1,
+        q2
+    ) {
+
+        const o1 =
+            orientation(
+                p1,
+                p2,
+                q1
+            );
+
+
+        const o2 =
+            orientation(
+                p1,
+                p2,
+                q2
+            );
+
+
+        const o3 =
+            orientation(
+                q1,
+                q2,
+                p1
+            );
+
+
+        const o4 =
+            orientation(
+                q1,
+                q2,
+                p2
+            );
+
+
+        if (
+            o1 !== o2 &&
+            o3 !== o4
+        ) {
+
+            return true;
+
+        }
+
+
+        if (
+            o1 === 0 &&
+            onSegment(
+                p1,
+                q1,
+                p2
+            )
+        ) {
+
+            return true;
+
+        }
+
+
+        if (
+            o2 === 0 &&
+            onSegment(
+                p1,
+                q2,
+                p2
+            )
+        ) {
+
+            return true;
+
+        }
+
+
+        if (
+            o3 === 0 &&
+            onSegment(
+                q1,
+                p1,
+                q2
+            )
+        ) {
+
+            return true;
+
+        }
+
+
+        if (
+            o4 === 0 &&
+            onSegment(
+                q1,
+                p2,
+                q2
+            )
+        ) {
+
+            return true;
+
+        }
+
+
+        return false;
+
+    }
+
+
+    /* ========================================================
+       POLYGON INTERSECTION
+       ======================================================== */
+
+    function polygonsIntersect(
+        polygonA,
+        polygonB
+    ) {
+
+        const boundsA =
+            getBounds(
+                polygonA
+            );
+
+
+        const boundsB =
+            getBounds(
+                polygonB
+            );
+
+
+        /*
+         * Fast bounds rejection.
+         */
+
+        if (
+
+            boundsA.maxX <
+            boundsB.minX
+
+            ||
+
+            boundsA.minX >
+            boundsB.maxX
+
+            ||
+
+            boundsA.maxY <
+            boundsB.minY
+
+            ||
+
+            boundsA.minY >
+            boundsB.maxY
+
+        ) {
+
+            return false;
+
+        }
+
+
+        /*
+         * Edge collision.
+         */
+
+        for (
+            let i = 0;
+            i < polygonA.length;
+            i++
+        ) {
+
+            const a1 =
+                polygonA[i];
+
+
+            const a2 =
+                polygonA[
+                    (
+                        i + 1
+                    )
+                    %
+                    polygonA.length
+                ];
+
+
+            for (
+                let j = 0;
+                j < polygonB.length;
+                j++
+            ) {
+
+                const b1 =
+                    polygonB[j];
+
+
+                const b2 =
+                    polygonB[
+                        (
+                            j + 1
+                        )
+                        %
+                        polygonB.length
+                    ];
+
+
+                if (
+                    segmentsIntersect(
+                        a1,
+                        a2,
+                        b1,
+                        b2
+                    )
+                ) {
+
+                    return true;
+
+                }
+
+            }
+
+        }
+
+
+        /*
+         * Containment test.
+         */
+
+        if (
+            pointInPolygon(
+                polygonA[0],
+                polygonB
+            )
+        ) {
+
+            return true;
+
+        }
+
+
+        if (
+            pointInPolygon(
+                polygonB[0],
+                polygonA
+            )
+        ) {
+
+            return true;
+
+        }
+
+
+        return false;
+
+    }
+
+
+    /* ========================================================
+       GRAINLINE
+       ======================================================== */
+
+    function getGrainAngle(
+        piece
+    ) {
+
+        const grainline =
+            piece?.grainline;
+
+
+        if (
+            !Array.isArray(
+                grainline
+            ) ||
+            grainline.length <
+            2
+        ) {
+
+            return null;
+
+        }
+
+
+        const a =
+            grainline[0];
+
+
+        const b =
+            grainline[
+                grainline.length - 1
+            ];
+
+
+        const dx =
+            num(
+                b[0]
+            ) -
+            num(
+                a[0]
+            );
+
+
+        const dy =
+            num(
+                b[1]
+            ) -
+            num(
+                a[1]
+            );
+
+
+        if (
+            Math.hypot(
+                dx,
+                dy
+            ) <=
+            EPSILON
+        ) {
+
+            return null;
+
+        }
+
+
+        return Math.atan2(
+            dy,
+            dx
+        );
+
+    }
+
+
+    /* ========================================================
+       ROTATION VALIDATION
+       ======================================================== */
+
+    function isRotationAllowed(
+        piece,
+        rotation,
+        options
+    ) {
+
+        if (
+            !options.respectGrainline
+        ) {
+
+            return true;
+
+        }
+
+
+        const grainAngle =
+            getGrainAngle(
                 piece
             );
 
 
+        /*
+         * No grainline:
+         * rotation remains unrestricted.
+         */
+
         if (
-            originalPoints.length < 3
+            grainAngle ===
+            null
         ) {
 
-            return null;
+            return true;
 
         }
 
 
-        const transformedPoints =
-            transformPoints(
-                originalPoints,
-                rotation
+        /*
+         * With a defined grainline,
+         * 90° is not allowed by default.
+         *
+         * A future bias/grain policy can expand
+         * this logic.
+         */
+
+        if (
+            rotation ===
+            90
+        ) {
+
+            return false;
+
+        }
+
+
+        return true;
+
+    }
+
+
+    /* ========================================================
+       PLACE AT POSITION
+       ======================================================== */
+
+    function placeCandidate(
+        candidate,
+        x,
+        y
+    ) {
+
+        const points =
+            translatePoints(
+
+                candidate.points,
+
+                x,
+
+                y
+
             );
 
 
         const bounds =
-            getPieceBounds(
-                piece,
-                transformedPoints
+            getBounds(
+                points
             );
-
-
-        if (
-            !bounds
-        ) {
-
-            return null;
-
-        }
 
 
         return {
 
-            rotation,
+            ...candidate,
 
-            points:
-                transformedPoints,
+            x,
 
-            width:
-                round(
-                    bounds.width
-                ),
+            y,
 
-            height:
-                round(
-                    bounds.height
-                ),
+            points,
 
-            grainline:
-                transformGrainline(
-
-                    piece.grainline,
-
-                    rotation,
-
-                    originalPoints,
-
-                    transformedPoints
-
-                )
+            bounds
 
         };
 
@@ -616,617 +1313,496 @@
 
 
     /* ========================================================
-       CANDIDATES
+       COLLISION CHECK
        ======================================================== */
 
-    function createCandidates(
-        piece,
-        options
+    function collides(
+        candidate,
+        placements,
+        spacing
     ) {
 
-        const rotations =
-            getRotationCandidates(
-                piece,
-                options
-            );
+        const expandedCandidateBounds = {
 
+            minX:
+                candidate.bounds.minX -
+                spacing,
 
-        return rotations
-            .map(
-                rotation =>
-                    createCandidate(
-                        piece,
-                        rotation
-                    )
-            )
-            .filter(
-                Boolean
-            );
+            minY:
+                candidate.bounds.minY -
+                spacing,
 
-    }
+            maxX:
+                candidate.bounds.maxX +
+                spacing,
 
+            maxY:
+                candidate.bounds.maxY +
+                spacing
 
-    /* ========================================================
-       INTERSECTION / RECTANGLE
-       ======================================================== */
+        };
 
-    function rectanglesOverlap(
-        a,
-        b,
-        gap = 0
-    ) {
 
-        return !(
-            (
-                a.x +
-                a.width +
-                gap
-            ) <= b.x
-
-            ||
-
-            (
-                b.x +
-                b.width +
-                gap
-            ) <= a.x
-
-            ||
-
-            (
-                a.y +
-                a.height +
-                gap
-            ) <= b.y
-
-            ||
-
-            (
-                b.y +
-                b.height +
-                gap
-            ) <= a.y
-        );
-
-    }
-
-
-    /* ========================================================
-       PLACEMENT VALIDATION
-       ======================================================== */
-
-    function fitsFabric(
-        placement,
-        config
-    ) {
-
-        return (
-
-            placement.x >=
-                config.edgeMargin
-
-            &&
-
-            placement.y >=
-                config.edgeMargin
-
-            &&
-
-            (
-                placement.x +
-                placement.width
-            ) <=
-                (
-                    config.fabricWidth -
-                    config.edgeMargin
-                )
-
-            &&
-
-            (
-                placement.y +
-                placement.height
-            ) <=
-                (
-                    config.fabricLength -
-                    config.edgeMargin
-                )
-
-        );
-
-    }
-
-
-    function overlapsPlaced(
-        placement,
-        placed,
-        gap
-    ) {
-
-        return placed.some(
-            other =>
-                rectanglesOverlap(
-
-                    placement,
-
-                    other,
-
-                    gap
-
-                )
-        );
-
-    }
-
-
-    /* ========================================================
-       CREATE PIECE INSTANCE
-       ======================================================== */
-
-    function expandPieceQuantities(
-        pattern
-    ) {
-
-        const result =
-            [];
-
-
-        (
-            pattern?.pieces ||
-            []
-        )
-        .forEach(
-            (
-                piece,
-                pieceIndex
-            ) => {
-
-                const quantity =
-                    Math.max(
-
-                        1,
-
-                        Math.round(
-                            num(
-                                piece.quantity,
-                                1
-                            )
-                        )
-
-                    );
-
-
-                for (
-                    let i = 0;
-                    i < quantity;
-                    i++
-                ) {
-
-                    result.push({
-
-                        piece,
-
-                        sourceIndex:
-                            pieceIndex,
-
-                        instanceIndex:
-                            i,
-
-                        id:
-                            `${piece.name || "piece"}-${pieceIndex + 1}-${i + 1}`
-
-                    });
-
-                }
-
-            }
-        );
-
-
-        return result;
-
-    }
-
-
-    /* ========================================================
-       SORT PIECES
-       ======================================================== */
-
-    function sortInstances(
-        instances
-    ) {
-
-        return [
-            ...instances
-        ]
-        .sort(
-            (
-                a,
-                b
-            ) => {
-
-                const aPoints =
-                    getCutPoints(
-                        a.piece
-                    );
-
-
-                const bPoints =
-                    getCutPoints(
-                        b.piece
-                    );
-
-
-                const aBounds =
-                    getPieceBounds(
-                        a.piece,
-                        aPoints
-                    );
-
-
-                const bBounds =
-                    getPieceBounds(
-                        b.piece,
-                        bPoints
-                    );
-
-
-                const aArea =
-                    aBounds
-                        ? (
-                            aBounds.width *
-                            aBounds.height
-                        )
-                        : 0;
-
-
-                const bArea =
-                    bBounds
-                        ? (
-                            bBounds.width *
-                            bBounds.height
-                        )
-                        : 0;
-
-
-                return bArea -
-                    aArea;
-
-            }
-        );
-
-    }
-
-
-    /* ========================================================
-       CANDIDATE PLACEMENT
-       ======================================================== */
-
-    function findPlacement(
-        instance,
-        placed,
-        config
-    ) {
-
-        const candidates =
-            createCandidates(
-
-                instance.piece,
-
-                config
-
-            );
-
-
-        if (
-            !candidates.length
+        for (
+            const placement
+            of placements
         ) {
 
-            return null;
+            const bounds =
+                placement.bounds;
+
+
+            /*
+             * Fast bounds test.
+             */
+
+            if (
+
+                expandedCandidateBounds.maxX <
+                bounds.minX
+
+                ||
+
+                expandedCandidateBounds.minX >
+                bounds.maxX
+
+                ||
+
+                expandedCandidateBounds.maxY <
+                bounds.minY
+
+                ||
+
+                expandedCandidateBounds.minY >
+                bounds.maxY
+
+            ) {
+
+                continue;
+
+            }
+
+
+            /*
+             * For spacing, use translated polygons.
+             * This baseline uses bounds pre-check plus
+             * actual polygon collision.
+             */
+
+            if (
+                polygonsIntersect(
+
+                    candidate.points,
+
+                    placement.points
+
+                )
+            ) {
+
+                return true;
+
+            }
 
         }
 
 
+        return false;
+
+    }
+
+
+    /* ========================================================
+       CANDIDATE SCORE
+       ======================================================== */
+
+    function scoreCandidate(
+        candidate
+    ) {
+
         /*
-         * Shelf strategy.
+         * Primary objective:
          *
-         * Candidate positions consist of:
+         * minimize bottom edge.
          *
-         * 1. Current cursor
-         * 2. Right side of every placed item
-         * 3. Next row beneath every placed item
+         * Secondary:
+         *
+         * minimize x.
          */
 
-        const positions =
-            [];
-
-
-        positions.push({
-
-            x:
-                config.startX,
+        return {
 
             y:
-                config.startY
+                candidate.bounds.maxY,
 
-        });
+            x:
+                candidate.bounds.maxX
 
+        };
 
-        placed.forEach(
-            placedItem => {
-
-                positions.push({
-
-                    x:
-                        placedItem.x +
-                        placedItem.width +
-                        config.gap,
-
-                    y:
-                        placedItem.y
-
-                });
+    }
 
 
-                positions.push({
+    /* ========================================================
+       COMPARE CANDIDATES
+       ======================================================== */
 
-                    x:
-                        placedItem.x,
+    function isBetterCandidate(
+        candidate,
+        currentBest
+    ) {
 
-                    y:
-                        placedItem.y +
-                        placedItem.height +
-                        config.gap
+        if (
+            !currentBest
+        ) {
 
-                });
+            return true;
+
+        }
 
 
-                positions.push({
+        const a =
+            scoreCandidate(
+                candidate
+            );
 
-                    x:
-                        placedItem.x +
-                        placedItem.width +
-                        config.gap,
 
-                    y:
-                        placedItem.y +
-                        placedItem.height +
-                        config.gap
+        const b =
+            scoreCandidate(
+                currentBest
+            );
 
-                });
 
-            }
-        );
+        if (
+            a.y <
+            b.y -
+            EPSILON
+        ) {
+
+            return true;
+
+        }
+
+
+        if (
+            Math.abs(
+                a.y -
+                b.y
+            ) <=
+            EPSILON
+        ) {
+
+            return (
+                a.x <
+                b.x
+            );
+
+        }
+
+
+        return false;
+
+    }
+
+
+    /* ========================================================
+       PIECE ORDER
+       ======================================================== */
+
+    function sortPieces(
+        pieces
+    ) {
+
+        return pieces
+            .map(
+                (
+                    piece,
+                    index
+                ) => ({
+
+                    piece,
+
+                    originalIndex:
+                        index,
+
+                    area:
+                        polygonArea(
+                            getCutPoints(
+                                piece
+                            )
+                        )
+
+                })
+            )
+            .sort(
+                (
+                    a,
+                    b
+                ) =>
+
+                    b.area -
+                    a.area
+
+            );
+
+    }
+
+
+    /* ========================================================
+       FIND PLACEMENT
+       ======================================================== */
+
+    function findPlacement(
+        piece,
+        placements,
+        options,
+        currentMaxY
+    ) {
+
+        const spacing =
+            Math.max(
+                0,
+                num(
+                    options.spacing
+                )
+            );
+
+
+        const width =
+            num(
+                options.materialWidth
+            );
+
+
+        if (
+            width <=
+            0
+        ) {
+
+            throw new Error(
+                "materialWidth harus > 0."
+            );
+
+        }
+
+
+        const candidates =
+            getRotationCandidates(
+
+                piece,
+
+                options
+
+            )
+            .filter(
+                candidate =>
+
+                    isRotationAllowed(
+
+                        piece,
+
+                        candidate.rotation,
+
+                        options
+
+                    )
+
+            );
 
 
         let best =
             null;
 
 
-        candidates.forEach(
-            candidate => {
-
-                positions.forEach(
-                    position => {
-
-                        const placement = {
-
-                            x:
-                                round(
-                                    position.x
-                                ),
-
-                            y:
-                                round(
-                                    position.y
-                                ),
-
-                            width:
-                                candidate.width,
-
-                            height:
-                                candidate.height,
-
-                            rotation:
-                                candidate.rotation,
-
-                            points:
-                                candidate.points,
-
-                            grainline:
-                                candidate.grainline
-
-                        };
-
-
-                        if (
-                            !fitsFabric(
-                                placement,
-                                config
-                            )
-                        ) {
-
-                            return;
-
-                        }
-
-
-                        if (
-                            overlapsPlaced(
-
-                                placement,
-
-                                placed,
-
-                                config.gap
-
-                            )
-                        ) {
-
-                            return;
-
-                        }
-
-
-                        /*
-                         * Score:
-                         *
-                         * lower y first,
-                         * then lower x.
-                         */
-
-                        const score =
-
-                            (
-                                placement.y *
-                                100000
-                            )
-
-                            +
-
-                            placement.x;
-
-
-                        if (
-                            !best ||
-                            score <
-                            best.score
-                        ) {
-
-                            best = {
-
-                                placement,
-
-                                score
-
-                            };
-
-                        }
-
-                    }
-                );
-
-            }
-        );
-
-
-        return best
-            ? best.placement
-            : null;
-
-    }
-
-
-    /* ========================================================
-       PLACE INSTANCE
-       ======================================================== */
-
-    function placeInstance(
-        instance,
-        placed,
-        config
-    ) {
-
-        const placement =
-            findPlacement(
-
-                instance,
-
-                placed,
-
-                config
-
-            );
-
-
-        if (
-            !placement
+        for (
+            const candidate
+            of candidates
         ) {
 
-            return null;
+            /*
+             * Reject pieces wider than material.
+             */
+
+            if (
+                candidate.bounds.width >
+                width -
+                options.startMargin -
+                options.endMargin
+            ) {
+
+                continue;
+
+            }
+
+
+            /*
+             * Search horizontal positions.
+             */
+
+            const horizontalStep =
+                Math.max(
+
+                    0.5,
+
+                    Math.min(
+
+                        2,
+
+                        candidate.bounds.width /
+                        4
+
+                    )
+
+                );
+
+
+            const maxX =
+                width -
+                candidate.bounds.width -
+                options.endMargin;
+
+
+            /*
+             * Try y levels beginning from
+             * the current marker height.
+             */
+
+            const maxRows =
+                Math.max(
+                    1,
+                    options.maxSearchRows
+                );
+
+
+            const rowHeight =
+                Math.max(
+
+                    0.5,
+
+                    candidate.bounds.height +
+                    spacing
+
+                );
+
+
+            for (
+                let row = 0;
+                row < maxRows;
+                row++
+            ) {
+
+                const y =
+                    options.startMargin
+                    +
+
+                    Math.max(
+                        0,
+                        currentMaxY
+                    )
+
+                    +
+
+                    row *
+                    rowHeight;
+
+
+                /*
+                 * Scan left-to-right.
+                 */
+
+                for (
+                    let x =
+                        options.startMargin;
+
+                    x <=
+                    maxX +
+                    EPSILON;
+
+                    x +=
+                    horizontalStep
+                ) {
+
+                    const placed =
+                        placeCandidate(
+
+                            candidate,
+
+                            x,
+
+                            y
+
+                        );
+
+
+                    if (
+                        placed.bounds.maxX >
+                        width -
+                        options.endMargin +
+                        EPSILON
+                    ) {
+
+                        continue;
+
+                    }
+
+
+                    if (
+                        collides(
+
+                            placed,
+
+                            placements,
+
+                            spacing
+
+                        )
+                    ) {
+
+                        continue;
+
+                    }
+
+
+                    if (
+                        isBetterCandidate(
+
+                            placed,
+
+                            best
+
+                        )
+                    ) {
+
+                        best =
+                            placed;
+
+                    }
+
+                }
+
+
+                /*
+                 * If we already found a placement
+                 * on this row, no need to continue
+                 * infinitely downward.
+                 */
+
+                if (
+                    best &&
+                    best.bounds.maxY <=
+                    y +
+                    rowHeight
+                ) {
+
+                    break;
+
+                }
+
+            }
 
         }
 
 
-        return {
-
-            id:
-                instance.id,
-
-            sourceIndex:
-                instance.sourceIndex,
-
-            instanceIndex:
-                instance.instanceIndex,
-
-            name:
-                instance.piece.name,
-
-            type:
-                instance.piece.type,
-
-            quantity:
-                instance.piece.quantity,
-
-            x:
-                placement.x,
-
-            y:
-                placement.y,
-
-            width:
-                placement.width,
-
-            height:
-                placement.height,
-
-            rotation:
-                placement.rotation,
-
-            points:
-
-                placement.points.map(
-                    point => [
-
-                        round(
-                            point[0] +
-                            placement.x
-                        ),
-
-                        round(
-                            point[1] +
-                            placement.y
-                        )
-
-                    ]
-                ),
-
-            grainline:
-
-                placement.grainline
-
-                    ? placement.grainline.map(
-                        point => [
-
-                            round(
-                                point[0] +
-                                placement.x
-                            ),
-
-                            round(
-                                point[1] +
-                                placement.y
-                            )
-
-                        ]
-                    )
-
-                    : null,
-
-            sourcePiece:
-                instance.piece
-
-        };
+        return best;
 
     }
 
@@ -1235,182 +1811,222 @@
        NEST
        ======================================================== */
 
-    function createNest(
+    function nest(
         pattern,
         options = {}
     ) {
 
-        const config =
-            mergeOptions(
-                options
-            );
-
-
-        /*
-         * Validate source first.
-         */
-
-        const validation =
-            ProductionValidator
-                .validateForProduction(
-
-                    pattern,
-
-                    {
-
-                        requireCutPoints:
-                            true,
-
-                        requireSeam:
-                            true
-
-                    }
-
-                );
-
-
         if (
-            !validation.valid
+            !pattern ||
+            !Array.isArray(
+                pattern.pieces
+            )
         ) {
 
             throw new Error(
-
-                "Nesting dihentikan karena " +
-                "cutting pattern belum valid."
-
+                "Production pattern tidak valid."
             );
 
         }
 
 
-        const instances =
-            sortInstances(
-                expandPieceQuantities(
-                    pattern
-                )
+        const config = {
+
+            ...DEFAULT_OPTIONS,
+
+            ...options
+
+        };
+
+
+        if (
+            config.materialWidth <=
+            0
+        ) {
+
+            throw new Error(
+                "materialWidth harus > 0."
+            );
+
+        }
+
+
+        const sourcePieces =
+            sortPieces(
+                pattern.pieces
             );
 
 
-        const placed =
+        const placements =
             [];
+
+
+        let currentMaxY =
+            config.startMargin;
 
 
         const unplaced =
             [];
 
 
-        instances.forEach(
-            instance => {
+        sourcePieces.forEach(
+            (
+                entry
+            ) => {
 
                 const placement =
-                    placeInstance(
+                    findPlacement(
 
-                        instance,
+                        entry.piece,
 
-                        placed,
+                        placements,
 
-                        config
+                        config,
+
+                        currentMaxY
 
                     );
 
 
                 if (
-                    placement
+                    !placement
                 ) {
 
-                    placed.push(
-                        placement
-                    );
+                    unplaced.push({
+
+                        piece:
+                            entry.piece,
+
+                        originalIndex:
+                            entry.originalIndex,
+
+                        reason:
+                            "Tidak dapat ditempatkan " +
+                            "pada material width."
+
+                    });
+
+
+                    return;
 
                 }
-                else {
 
-                    unplaced.push(
 
-                        instance
+                placement.id =
+                    makePlacementId(
+
+                        entry.piece,
+
+                        entry.originalIndex
 
                     );
 
-                }
+
+                placement.originalIndex =
+                    entry.originalIndex;
+
+
+                placement.name =
+                    entry.piece.name ||
+                    placement.id;
+
+
+                placement.metadata = {
+
+                    ...(entry.piece.metadata || {}),
+
+                    nesting:
+                        true,
+
+                    nestingVersion:
+                        VERSION,
+
+                    rotation:
+                        placement.rotation,
+
+                    translation: {
+
+                        x:
+                            placement.x,
+
+                        y:
+                            placement.y
+
+                    }
+
+                };
+
+
+                placements.push(
+                    placement
+                );
+
+
+                currentMaxY =
+                    Math.max(
+
+                        currentMaxY,
+
+                        placement.bounds.maxY
+
+                    );
 
             }
         );
 
 
         /*
-         * Required marker length
+         * Marker length:
          */
 
-        let usedLength =
-            0;
-
-
-        placed.forEach(
-            item => {
-
-                usedLength =
-                    Math.max(
-
-                        usedLength,
-
-                        item.y +
-                        item.height +
-                        config.edgeMargin
-
-                    );
-
-            }
-        );
-
-
-        usedLength =
+        const markerLength =
             Math.max(
-                usedLength,
-                config.edgeMargin
+
+                0,
+
+                currentMaxY +
+                config.endMargin
+
             );
 
 
         /*
-         * Fabric area.
+         * Fabric occupied area.
          */
 
-        const fabricArea =
+        const materialArea =
+            config.materialWidth *
+            markerLength;
 
-            config.fabricWidth *
-            usedLength;
-
-
-        /*
-         * Bounding-box used area.
-         */
 
         const pieceArea =
-            placed.reduce(
+            placements.reduce(
 
                 (
                     total,
-                    item
+                    placement
                 ) =>
 
                     total +
-                    (
-                        item.width *
-                        item.height
-                    ),
+                    placement.area,
 
                 0
 
             );
 
 
-        const utilization =
-            fabricArea > 0
+        const efficiency =
+
+            materialArea >
+            EPSILON
 
                 ? (
+
                     pieceArea /
-                    fabricArea
-                ) *
-                100
+                    materialArea
+
+                  ) *
+                  100
 
                 : 0;
 
@@ -1421,74 +2037,59 @@
                 "marker",
 
             version:
-                "1.0",
+                VERSION,
 
-            strategy:
-                config.strategy,
-
-            fabric: {
-
-                width:
-                    round(
-                        config.fabricWidth
-                    ),
-
-                length:
-                    round(
-                        usedLength
-                    ),
-
-                suppliedLength:
-                    round(
-                        config.fabricLength
-                    )
-
-            },
-
-            spacing: {
-
-                pieceGap:
-                    round(
-                        config.gap
-                    ),
-
-                edgeMargin:
-                    round(
-                        config.edgeMargin
-                    )
-
-            },
-
-            pieces:
-                placed,
+            placements,
 
             unplaced,
 
-            complete:
-                unplaced.length === 0,
+            marker: {
 
-            utilization:
-                round(
-                    utilization
-                ),
+                width:
+                    config.materialWidth,
+
+                length:
+                    markerLength,
+
+                area:
+                    materialArea,
+
+                pieceArea,
+
+                efficiency:
+
+                    Math.round(
+                        efficiency *
+                        1000
+                    ) / 1000
+
+            },
 
             metadata: {
 
+                source:
+                    pattern.metadata?.source ||
+                    null,
+
+                engine:
+                    pattern.engine ||
+                    null,
+
                 unit:
+                    pattern.metadata?.unit ||
                     "cm",
 
-                scale:
-                    1,
+                strategy:
+                    "deterministic-row-nesting",
 
-                source:
-                    "cuttingPattern",
+                rotation90:
+                    config.allowRotation90,
 
-                generatedAt:
-                    new Date()
-                        .toISOString(),
+                grainlineRespect:
+                    config.respectGrainline,
 
-                algorithm:
-                    "bounding-box-shelf-v1"
+                spacing:
+                    config.spacing
 
             }
 
@@ -1498,27 +2099,27 @@
 
 
     /* ========================================================
-       VALIDATE NEST
+       VALIDATE NESTING
        ======================================================== */
 
-    function validateNest(
-        nest
+    function validateNesting(
+        result
     ) {
 
         const errors =
             [];
-
 
         const warnings =
             [];
 
 
         if (
-            !nest
+            !result ||
+            !result.marker
         ) {
 
             errors.push(
-                "Nest belum tersedia."
+                "Nesting result tidak valid."
             );
 
 
@@ -1537,145 +2138,69 @@
 
 
         if (
-            !Array.isArray(
-                nest.pieces
-            )
+            result.marker.width <=
+            0
         ) {
 
             errors.push(
-                "Nest tidak memiliki pieces."
+                "Marker width invalid."
             );
-
-        }
-
-
-        /*
-         * Bounds.
-         */
-
-        const fabricWidth =
-            Number(
-                nest.fabric?.width
-            );
-
-
-        const fabricLength =
-            Number(
-                nest.fabric?.length
-            );
-
-
-        (
-            nest.pieces ||
-            []
-        )
-        .forEach(
-            piece => {
-
-                const maxX =
-                    piece.x +
-                    piece.width;
-
-
-                const maxY =
-                    piece.y +
-                    piece.height;
-
-
-                if (
-                    maxX >
-                    fabricWidth +
-                    0.000001
-                ) {
-
-                    errors.push(
-
-                        `Piece "${piece.name}" ` +
-                        "melewati lebar kain."
-
-                    );
-
-                }
-
-
-                if (
-                    maxY >
-                    fabricLength +
-                    0.000001
-                ) {
-
-                    errors.push(
-
-                        `Piece "${piece.name}" ` +
-                        "melewati panjang marker."
-
-                    );
-
-                }
-
-            }
-        );
-
-
-        /*
-         * Rectangle overlaps.
-         */
-
-        const pieces =
-            nest.pieces ||
-            [];
-
-
-        for (
-            let i = 0;
-            i < pieces.length;
-            i++
-        ) {
-
-            for (
-                let j = i + 1;
-                j < pieces.length;
-                j++
-            ) {
-
-                if (
-                    rectanglesOverlap(
-
-                        pieces[i],
-
-                        pieces[j],
-
-                        -0.000001
-
-                    )
-                ) {
-
-                    errors.push(
-
-                        `Overlap: ${pieces[i].name} ` +
-                        `vs ${pieces[j].name}.`
-
-                    );
-
-                }
-
-            }
 
         }
 
 
         if (
-            nest.unplaced &&
-            nest.unplaced.length
+            result.marker.length <=
+            0
         ) {
 
-            warnings.push({
+            errors.push(
+                "Marker length invalid."
+            );
 
-                message:
-                    `${nest.unplaced.length} piece ` +
-                    "belum dapat ditempatkan."
+        }
 
-            });
+
+        if (
+            result.marker.efficiency <
+            0
+        ) {
+
+            errors.push(
+                "Efficiency tidak boleh negatif."
+            );
+
+        }
+
+
+        if (
+            result.marker.efficiency >
+            100
+        ) {
+
+            warnings.push(
+
+                "Efficiency > 100%; " +
+                "cek geometry atau area."
+
+            );
+
+        }
+
+
+        if (
+            Array.isArray(
+                result.unplaced
+            ) &&
+            result.unplaced.length
+        ) {
+
+            errors.push(
+
+                `${result.unplaced.length} piece ` +
+                "tidak berhasil ditempatkan."
+
+            );
 
         }
 
@@ -1683,7 +2208,8 @@
         return {
 
             valid:
-                errors.length === 0,
+                errors.length ===
+                0,
 
             errors,
 
@@ -1695,81 +2221,112 @@
 
 
     /* ========================================================
-       UTILIZATION
+       SUMMARY
        ======================================================== */
 
-    function calculateUtilization(
-        nest
+    function getSummary(
+        result
     ) {
 
-        if (
-            !nest
-        ) {
+        return {
 
-            return 0;
+            placed:
+                result?.placements
+                    ?.length ||
+                0,
 
-        }
+            unplaced:
+                result?.unplaced
+                    ?.length ||
+                0,
 
+            markerWidth:
+                result?.marker
+                    ?.width ||
+                0,
 
-        return round(
-            num(
-                nest.utilization,
+            markerLength:
+                result?.marker
+                    ?.length ||
+                0,
+
+            pieceArea:
+                result?.marker
+                    ?.pieceArea ||
+                0,
+
+            markerArea:
+                result?.marker
+                    ?.area ||
+                0,
+
+            efficiency:
+                result?.marker
+                    ?.efficiency ||
                 0
-            )
-        );
+
+        };
 
     }
 
 
     /* ========================================================
-       MARKER SUMMARY
+       DEBUG
        ======================================================== */
 
-    function getSummary(
-        nest
+    function debug(
+        pattern,
+        options = {}
     ) {
 
-        return {
+        const result =
+            nest(
+                pattern,
+                options
+            );
 
-            pieceCount:
-                nest?.pieces?.length ||
-                0,
 
-            unplacedCount:
-                nest?.unplaced?.length ||
-                0,
+        const validation =
+            validateNesting(
+                result
+            );
 
-            complete:
-                Boolean(
-                    nest?.complete
-                ),
 
-            fabricWidth:
-                round(
-                    nest?.fabric?.width ||
-                    0
-                ),
+        console.group(
+            "PatternMaker Nesting Engine"
+        );
 
-            usedLength:
-                round(
-                    nest?.fabric?.length ||
-                    0
-                ),
 
-            utilization:
-                calculateUtilization(
-                    nest
-                ),
+        console.log(
+            "Version:",
+            VERSION
+        );
 
-            unit:
-                nest?.metadata?.unit ||
-                "cm",
 
-            scale:
-                nest?.metadata?.scale ||
-                1
+        console.log(
+            "Result:",
+            result
+        );
 
-        };
+
+        console.log(
+            "Validation:",
+            validation
+        );
+
+
+        console.log(
+            "Summary:",
+            getSummary(
+                result
+            )
+        );
+
+
+        console.groupEnd();
+
+
+        return result;
 
     }
 
@@ -1778,43 +2335,36 @@
        PUBLIC API
        ======================================================== */
 
-    const NestingEngine = {
+    window.PatternMakerNestingEngine = {
 
-        id:
-            "nesting",
+        VERSION,
 
-        label:
-            "PatternMaker Nesting / Marker Engine",
+        DEFAULT_OPTIONS,
 
-        version:
-            "1.0",
+        getBounds,
 
-        defaults:
-            DEFAULTS,
+        polygonArea,
 
-        createNest,
+        rotate90,
 
-        validateNest,
+        normalizeToOrigin,
 
-        calculateUtilization,
+        polygonsIntersect,
+
+        getGrainAngle,
+
+        getRotationCandidates,
+
+        validateNesting,
 
         getSummary,
 
-        getCutPoints,
+        nest,
 
-        getPieceBounds,
-
-        expandPieceQuantities
+        debug
 
     };
 
 
-    /* ========================================================
-       GLOBAL
-       ======================================================== */
-
-    window.PatternMakerNestingEngine =
-        NestingEngine;
-
-
 })();
+```
