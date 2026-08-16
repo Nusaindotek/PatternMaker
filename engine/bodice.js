@@ -1,1023 +1,1210 @@
-/* =========================================================
-   PatternMaker
-   BODICE ENGINE V1.5
-   ---------------------------------------------------------
-   UNIVERSAL BASIC BODICE
+/**
+ * ============================================================
+ * PATTERNMAKER UNIVERSAL
+ * BASELINE FINAL v1
+ * KODE 51
+ * FILE: engine/bodice.js
+ * ============================================================
+ *
+ * Migrated from PatternMaker Universal v5:
+ *   makeUpperPieces()
+ *
+ * IMPORTANT
+ * - Reads canonical measurements from context, not DOM/state.
+ * - Generates BASE geometry by default.
+ * - Legacy radial seam can be enabled explicitly with
+ *   context.options.includeLegacySeam=true for comparison tests.
+ * - Normal production seam must be handled by seam-production.js.
+ * ============================================================
+ */
 
-   Input:
-   - bust          = Lingkar dada
-   - waist         = Lingkar pinggang
-   - shoulder      = Lebar bahu
-   - bodyLength    = Panjang badan
-   - neck          = Lingkar leher
-   - negativeEase  = Pengurangan ukuran (%)
+(function () {
 
-   Output:
-   - FRONT
-   - BACK
-   - armDepth
-   - armholeLength
+    "use strict";
 
-   Sistem:
-   - Pola seperempat badan
-   - Garis tengah = FOLD
-   - Semua ukuran dalam cm
-   - Bisa digunakan untuk berbagai ukuran tubuh
-========================================================= */
+    const Schema =
+        window.PatternMakerMeasurementSchema;
 
+    const Mapper =
+        window.PatternMakerMeasurementMapper;
 
-/* =========================================================
-   HELPER
-========================================================= */
 
-function positive(value, fallback = 0) {
+    if (
+        !Schema ||
+        !Mapper
+    ) {
 
-  const number =
-    Number(value);
+        throw new Error(
+            "Bodice Engine membutuhkan measurement-schema.js dan measurement-mapper.js."
+        );
 
-  if (
-    !Number.isFinite(number) ||
-    number <= 0
-  ) {
+    }
 
-    return fallback;
 
-  }
+    const VERSION =
+        "V5-MIGRATED-v1";
 
-  return number;
 
-}
+    function num(
+        value,
+        fallback = 0
+    ) {
 
+        const n =
+            Number(value);
 
-/* =========================================================
-   ROUND
-========================================================= */
 
-function round(
-  value,
-  digits = 2
-) {
+        return Number.isFinite(n)
+            ? n
+            : fallback;
 
-  const factor =
-    Math.pow(
-      10,
-      digits
-    );
+    }
 
-  return (
-    Math.round(
-      value * factor
-    ) / factor
-  );
 
-}
+    function round1(
+        value
+    ) {
 
+        return Math.round(
+            num(value) * 10
+        ) / 10;
 
-/* =========================================================
-   NEGATIVE EASE
-========================================================= */
+    }
 
-function applyNegativeEase(
-  measurement,
-  negativeEase
-) {
 
-  const ease =
-    Math.max(
-      0,
-      Number(negativeEase) || 0
-    );
+    function clonePoints(
+        points
+    ) {
 
+        return (points || [])
+            .map(
+                point => [
+                    num(point[0]),
+                    num(point[1])
+                ]
+            );
 
-  return (
-    measurement *
-    (
-      1 -
-      ease / 100
-    )
-  );
+    }
 
-}
 
+    function getMeasurement(
+        measurements,
+        canonicalId,
+        fallback
+    ) {
 
-/* =========================================================
-   NECK WIDTH
-   ---------------------------------------------------------
-   Dasar drafting:
-   Lingkar leher / 6
-========================================================= */
+        const direct =
+            measurements?.[
+                canonicalId
+            ];
 
-function getNeckWidth(
-  neck
-) {
 
-  return (
-    neck / 6
-  );
+        if (
+            Number.isFinite(
+                Number(direct)
+            ) &&
+            Number(direct) > 0
+        ) {
 
-}
+            return Number(direct);
 
+        }
 
-/* =========================================================
-   ARM DEPTH
-   ---------------------------------------------------------
-   Basic universal drafting formula.
 
-   Lingkar dada / 6 + 7
+        const mapped =
+            Mapper.getValue(
 
-   Nilai minimum menjaga pola tetap
-   memiliki bentuk yang masuk akal
-   untuk ukuran sangat kecil.
-========================================================= */
+                measurements || {},
 
-function getArmDepth(
-  bust
-) {
+                canonicalId
 
-  const depth =
-    (
-      bust / 6
-    ) + 7;
+            );
 
 
-  return Math.max(
-    10,
-    depth
-  );
+        if (
+            Number.isFinite(
+                Number(mapped)
+            ) &&
+            Number(mapped) > 0
+        ) {
 
-}
+            return Number(mapped);
 
+        }
 
-/* =========================================================
-   SHOULDER SLOPE
-========================================================= */
 
-function getShoulderSlope(
-  bust
-) {
+        return num(
+            fallback
+        );
 
-  /*
-    Sedikit lebih kecil untuk
-    ukuran kecil dan meningkat
-    secara bertahap.
+    }
 
-    Dibatasi agar universal.
-  */
 
-  const slope =
-    bust < 70
-      ? 1.5
-      : 2;
+    function getMeasurements(
+        context
+    ) {
 
+        const profile =
+            context?.profile;
 
-  return slope;
 
-}
+        const source =
+            profile?.measurements ||
+            context?.measurements ||
+            {};
 
 
-/* =========================================================
-   ARMHOLE WIDTH
-   ---------------------------------------------------------
-   Karena pola adalah seperempat badan,
-   lebar dada dibagi 4.
+        return {
 
-   Shoulder menentukan posisi
-   ujung bahu.
+            chest:
+                getMeasurement(
+                    source,
+                    "chest",
+                    88
+                ),
 
-   Armhole tidak boleh lebih kecil
-   dari kebutuhan lebar dada.
-========================================================= */
+            waist:
+                getMeasurement(
+                    source,
+                    "waist",
+                    72
+                ),
 
-function getArmholeWidth(
-  bustQuarter,
-  shoulderHalf
-) {
+            hip:
+                getMeasurement(
+                    source,
+                    "hip",
+                    96
+                ),
 
-  /*
-    Untuk pola seperempat badan,
-    posisi underarm mengikuti
-    seperempat lingkar dada.
+            shoulder:
+                getMeasurement(
+                    source,
+                    "shoulder",
+                    38
+                ),
 
-    Bahu menjadi batas atas.
-  */
+            neck:
+                getMeasurement(
+                    source,
+                    "neck",
+                    38
+                ),
 
-  return Math.max(
-    bustQuarter,
-    shoulderHalf
-  );
+            garmentLength:
+                getMeasurement(
+                    source,
+                    "garmentLength",
+                    60
+                ),
 
-}
+            sleeveLength:
+                getMeasurement(
+                    source,
+                    "sleeveLength",
+                    58
+                ),
 
+            upperArm:
+                getMeasurement(
+                    source,
+                    "upperArm",
+                    28
+                )
 
-/* =========================================================
-   CREATE FRONT
-========================================================= */
+        };
 
-function createFront(
-  data
-) {
+    }
 
-  const {
 
-    bustQuarter,
+    function getEase(
+        context
+    ) {
 
-    waistQuarter,
+        return Math.max(
 
-    shoulderHalf,
+            0,
 
-    neckWidth,
+            num(
+                context?.fabric?.ease,
 
-    neckDepth,
+                num(
+                    context?.options?.ease,
+                    0
+                )
 
-    armDepth,
+            )
 
-    bodyLength,
+        );
 
-    shoulderSlope
+    }
 
-  } = data;
 
+    function getFit(
+        context
+    ) {
 
-  /* -----------------------------------------
-     A
-     Tengah leher
-  ----------------------------------------- */
+        return String(
 
-  const A = [
+            context?.options?.fit ||
+            context?.fit ||
+            "regular"
 
-    0,
+        )
+        .toLowerCase();
 
-    0
+    }
 
-  ];
 
+    function getFitAdjustment(
+        fit
+    ) {
 
-  /* -----------------------------------------
-     B
-     Ujung bahu
-  ----------------------------------------- */
+        return {
 
-  const B = [
+            close:
+                -1,
 
-    shoulderHalf,
+            regular:
+                0,
 
-    shoulderSlope
+            relaxed:
+                1.5,
 
-  ];
+            oversize:
+                3
 
+        }[
+            fit
+        ] ?? 0;
 
-  /* -----------------------------------------
-     C
-     Titik atas armhole
-  ----------------------------------------- */
+    }
 
-  const C = [
 
-    bustQuarter,
+    function addRadialSeam(
+        points,
+        seam
+    ) {
 
-    armDepth * 0.48
+        if (
+            !(seam > 0) ||
+            points.length < 3
+        ) {
 
-  ];
+            return clonePoints(
+                points
+            );
 
+        }
 
-  /* -----------------------------------------
-     D
-     Titik underarm
-  ----------------------------------------- */
 
-  const D = [
+        let cx = 0;
+        let cy = 0;
 
-    bustQuarter,
 
-    armDepth
+        for (
+            const [
+                x,
+                y
+            ]
+            of points
+        ) {
 
-  ];
+            cx += x;
+            cy += y;
 
+        }
 
-  /* -----------------------------------------
-     E
-     Titik pinggang samping
-  ----------------------------------------- */
 
-  const E = [
+        cx /=
+            points.length;
 
-    waistQuarter,
 
-    bodyLength
+        cy /=
+            points.length;
 
-  ];
 
+        return points.map(
+            (
+                [
+                    x,
+                    y
+                ]
+            ) => {
 
-  /* -----------------------------------------
-     F
-     Tengah bawah
-  ----------------------------------------- */
+                const dx =
+                    x - cx;
 
-  const F = [
 
-    0,
+                const dy =
+                    y - cy;
 
-    bodyLength
 
-  ];
+                const len =
+                    Math.hypot(
+                        dx,
+                        dy
+                    ) || 1;
 
 
-  return {
+                const f =
+                    (
+                        len +
+                        seam
+                    ) /
+                    len;
 
-    A,
 
-    B,
+                return [
 
-    C,
+                    round1(
+                        cx +
+                        dx * f
+                    ),
 
-    D,
+                    round1(
+                        cy +
+                        dy * f
+                    )
 
-    E,
+                ];
 
-    F,
+            }
+        );
 
-    neckWidth,
+    }
 
-    neckDepth
 
-  };
+    function makePiece(
+        name,
+        points,
+        options = {}
+    ) {
 
-}
+        return {
 
+            name,
 
-/* =========================================================
-   CREATE BACK
-========================================================= */
+            layer:
+                options.layer ||
+                "OUTLINE",
 
-function createBack(
-  data
-) {
+            points:
+                clonePoints(
+                    points
+                ),
 
-  const {
+            closed:
+                options.closed !==
+                false,
 
-    bustQuarter,
+            grainline:
+                options.grainline
+                    ? clonePoints(
+                        options.grainline
+                    )
+                    : null,
 
-    waistQuarter,
+            notches:
+                options.notches
+                    ? clonePoints(
+                        options.notches
+                    )
+                    : [],
 
-    shoulderHalf,
+            label:
+                options.label ||
+                name,
 
-    neckWidth,
+            metadata: {
 
-    neckDepth,
+                engine:
+                    "bodice",
 
-    armDepth,
+                source:
+                    "V5-migration",
 
-    bodyLength,
+                version:
+                    VERSION
 
-    shoulderSlope
+            }
 
-  } = data;
+        };
 
+    }
 
-  /* -----------------------------------------
-     A
-     Tengah leher belakang
-  ----------------------------------------- */
 
-  const A = [
+    function translatePoints(
+        points,
+        dx,
+        dy
+    ) {
 
-    48,
+        return points.map(
+            (
+                [
+                    x,
+                    y
+                ]
+            ) => [
 
-    0
+                round1(
+                    x + dx
+                ),
 
-  ];
+                round1(
+                    y + dy
+                )
 
+            ]
+        );
 
-  /* -----------------------------------------
-     B
-     Ujung bahu
-  ----------------------------------------- */
+    }
 
-  const B = [
 
-    48 + shoulderHalf,
+    function makeUpperPieces(
+        context = {}
+    ) {
 
-    shoulderSlope
+        const measurements =
+            getMeasurements(
+                context
+            );
 
-  ];
 
+        const chest =
+            measurements.chest +
+            getEase(
+                context
+            );
 
-  /* -----------------------------------------
-     C
-     Titik atas armhole
-  ----------------------------------------- */
 
-  const C = [
+        const waist =
+            measurements.waist +
+            getEase(
+                context
+            );
 
-    48 + bustQuarter,
 
-    armDepth * 0.48
+        const hip =
+            measurements.hip +
+            getEase(
+                context
+            );
 
-  ];
 
+        /*
+         * Kept for parity with V5.
+         * V5 currently calculates waist here,
+         * but the polygon formula does not use it.
+         */
 
-  /* -----------------------------------------
-     D
-     Titik underarm
-  ----------------------------------------- */
+        void waist;
 
-  const D = [
 
-    48 + bustQuarter,
+        const shoulder =
+            measurements.shoulder;
 
-    armDepth
 
-  ];
+        const neck =
+            measurements.neck;
 
 
-  /* -----------------------------------------
-     E
-     Titik pinggang samping
-  ----------------------------------------- */
+        const bodyLength =
+            measurements.garmentLength;
 
-  const E = [
 
-    48 + waistQuarter,
+        const sleeveLength =
+            measurements.sleeveLength;
 
-    bodyLength
 
-  ];
+        const upperArm =
+            measurements.upperArm +
+            getEase(
+                context
+            ) * 0.5;
 
 
-  /* -----------------------------------------
-     F
-     Tengah bawah
-  ----------------------------------------- */
+        const qChest =
+            chest / 4;
 
-  const F = [
 
-    48,
+        const qHip =
+            hip / 4;
 
-    bodyLength
 
-  ];
+        const shoulderHalf =
+            Math.max(
+                10,
+                shoulder / 2
+            );
 
 
-  return {
+        const neckWidth =
+            Math.max(
+                5.5,
+                neck / 6
+            );
 
-    A,
 
-    B,
+        const armhole =
+            Math.max(
+                18,
+                chest / 6 + 3
+            );
 
-    C,
 
-    D,
+        const fit =
+            getFit(
+                context
+            );
 
-    E,
 
-    F,
+        const fitAdd =
+            getFitAdjustment(
+                fit
+            );
 
-    neckWidth,
 
-    neckDepth
+        /*
+         * FRONT
+         */
 
-  };
+        const frontBase = [
 
-}
+            [0, 0],
 
+            [
+                neckWidth + 2,
+                0
+            ],
 
-/* =========================================================
-   APPROXIMATE ARMHOLE LENGTH
-   ---------------------------------------------------------
-   Menggunakan polyline untuk mendapatkan
-   estimasi panjang armhole.
+            [
+                shoulderHalf,
+                2.2
+            ],
 
-   Dipakai oleh Sleeve Engine.
-========================================================= */
+            [
+                qChest + fitAdd,
+                armhole
+            ],
 
-function calculateArmholeLength(
-  points
-) {
+            [
+                qHip + fitAdd,
+                bodyLength
+            ],
 
-  const {
+            [
+                0,
+                bodyLength
+            ]
 
-    B,
+        ];
 
-    C,
 
-    D
+        /*
+         * BACK
+         */
 
-  } = points;
+        const backBase = [
 
+            [0, 0],
 
-  const distance =
-    (
-      p1,
-      p2
-    ) => {
+            [
+                neckWidth + 2.5,
+                0
+            ],
 
-      const dx =
-        p2[0] - p1[0];
+            [
+                shoulderHalf,
+                1.8
+            ],
 
-      const dy =
-        p2[1] - p1[1];
+            [
+                qChest + fitAdd,
+                armhole
+            ],
 
-      return Math.sqrt(
-        dx * dx +
-        dy * dy
-      );
+            [
+                qHip + fitAdd,
+                bodyLength
+            ],
+
+            [
+                0,
+                bodyLength
+            ]
+
+        ];
+
+
+        /*
+         * SLEEVE
+         */
+
+        const sleeveWidth =
+            Math.max(
+                18,
+                upperArm / 2
+            );
+
+
+        const sleeveBase = [
+
+            [0, 0],
+
+            [
+                sleeveWidth,
+                3
+            ],
+
+            [
+                sleeveWidth + 3,
+                sleeveLength * 0.48
+            ],
+
+            [
+                sleeveWidth * 0.78,
+                sleeveLength
+            ],
+
+            [
+                0,
+                sleeveLength
+            ]
+
+        ];
+
+
+        /*
+         * FULL OPEN POSITION
+         * Same arrangement logic as V5.
+         */
+
+        const frontX =
+            15;
+
+
+        const backX =
+            frontX +
+            qHip +
+            35;
+
+
+        const sleeve1X =
+            backX +
+            qHip +
+            35;
+
+
+        const sleeve2X =
+            sleeve1X +
+            sleeveWidth +
+            25;
+
+
+        const y =
+            25;
+
+
+        const includeNotches =
+            context?.options?.notches !==
+            false;
+
+
+        /*
+         * Legacy radial seam is OFF
+         * for the normal base-pattern path.
+         */
+
+        const includeLegacySeam =
+            context?.options?.includeLegacySeam ===
+            true;
+
+
+        const seam =
+            num(
+                context?.options?.seam,
+                0
+            ) +
+
+            num(
+                context?.options?.tolerance,
+                0
+            );
+
+
+        const category =
+            context?.profile?.category ||
+            context?.category ||
+            "custom";
+
+
+        const categoryLabel =
+            Schema.getCategoryLabel(
+                category
+            );
+
+
+        const frontPoints =
+            translatePoints(
+
+                frontBase,
+
+                frontX,
+
+                y
+
+            );
+
+
+        const backPoints =
+            translatePoints(
+
+                backBase,
+
+                backX,
+
+                y
+
+            );
+
+
+        const sleeveLeftPoints =
+            translatePoints(
+
+                sleeveBase,
+
+                sleeve1X,
+
+                y + 5
+
+            );
+
+
+        const sleeveRightPoints =
+            translatePoints(
+
+                sleeveBase,
+
+                sleeve2X,
+
+                y + 5
+
+            );
+
+
+        const applyLegacySeam =
+            points =>
+
+                includeLegacySeam
+
+                    ? addRadialSeam(
+                        points,
+                        seam
+                    )
+
+                    : clonePoints(
+                        points
+                    );
+
+
+        const pieces = [
+
+            makePiece(
+                "FRONT",
+
+                applyLegacySeam(
+                    frontPoints
+                ),
+
+                {
+
+                    grainline: [
+
+                        [
+                            frontX +
+                            qHip / 2,
+
+                            y + 8
+
+                        ],
+
+                        [
+                            frontX +
+                            qHip / 2,
+
+                            y +
+                            bodyLength -
+                            8
+
+                        ]
+
+                    ],
+
+                    notches:
+                        includeNotches
+
+                            ? [
+
+                                [
+                                    frontX +
+                                    qChest,
+
+                                    y +
+                                    armhole
+
+                                ]
+
+                            ]
+
+                            : [],
+
+                    label:
+                        `FRONT • ${categoryLabel}`
+
+                }
+
+            ),
+
+
+            makePiece(
+                "BACK",
+
+                applyLegacySeam(
+                    backPoints
+                ),
+
+                {
+
+                    grainline: [
+
+                        [
+                            backX +
+                            qHip / 2,
+
+                            y + 8
+
+                        ],
+
+                        [
+                            backX +
+                            qHip / 2,
+
+                            y +
+                            bodyLength -
+                            8
+
+                        ]
+
+                    ],
+
+                    notches:
+                        includeNotches
+
+                            ? [
+
+                                [
+                                    backX +
+                                    qChest,
+
+                                    y +
+                                    armhole
+
+                                ]
+
+                            ]
+
+                            : [],
+
+                    label:
+                        `BACK • ${categoryLabel}`
+
+                }
+
+            ),
+
+
+            makePiece(
+                "SLEEVE_L",
+
+                applyLegacySeam(
+                    sleeveLeftPoints
+                ),
+
+                {
+
+                    grainline: [
+
+                        [
+                            sleeve1X +
+                            sleeveWidth / 2,
+
+                            y + 12
+
+                        ],
+
+                        [
+                            sleeve1X +
+                            sleeveWidth / 2,
+
+                            y +
+                            sleeveLength -
+                            8
+
+                        ]
+
+                    ],
+
+                    notches:
+                        includeNotches
+
+                            ? [
+
+                                [
+                                    sleeve1X +
+                                    sleeveWidth *
+                                    0.72,
+
+                                    y + 6
+
+                                ]
+
+                            ]
+
+                            : [],
+
+                    label:
+                        `SLEEVE L • ${categoryLabel}`
+
+                }
+
+            ),
+
+
+            makePiece(
+                "SLEEVE_R",
+
+                applyLegacySeam(
+                    sleeveRightPoints
+                ),
+
+                {
+
+                    grainline: [
+
+                        [
+                            sleeve2X +
+                            sleeveWidth / 2,
+
+                            y + 12
+
+                        ],
+
+                        [
+                            sleeve2X +
+                            sleeveWidth / 2,
+
+                            y +
+                            sleeveLength -
+                            8
+
+                        ]
+
+                    ],
+
+                    notches:
+                        includeNotches
+
+                            ? [
+
+                                [
+                                    sleeve2X +
+                                    sleeveWidth *
+                                    0.72,
+
+                                    y + 6
+
+                                ]
+
+                            ]
+
+                            : [],
+
+                    label:
+                        `SLEEVE R • ${categoryLabel}`
+
+                }
+
+            )
+
+        ];
+
+
+        /*
+         * SHIRT PLACKET
+         */
+
+        if (
+
+            context?.garment?.id ===
+                "shirt"
+
+            ||
+
+            context?.garmentId ===
+                "shirt"
+
+            ||
+
+            context?.kind ===
+                "shirt"
+
+        ) {
+
+            const placketW =
+                Math.max(
+                    3,
+                    seam + 1.5
+                );
+
+
+            const x =
+                frontX +
+                qHip +
+                7;
+
+
+            pieces.push(
+
+                makePiece(
+
+                    "PLACKET",
+
+                    [
+
+                        [
+                            x,
+                            y + 4
+                        ],
+
+                        [
+                            x +
+                            placketW,
+                            y + 4
+                        ],
+
+                        [
+                            x +
+                            placketW,
+                            y +
+                            bodyLength -
+                            4
+                        ],
+
+                        [
+                            x,
+                            y +
+                            bodyLength -
+                            4
+                        ]
+
+                    ],
+
+                    {
+
+                        label:
+                            `PLACKET • ${categoryLabel}`
+
+                    }
+
+                )
+
+            );
+
+        }
+
+
+        return {
+
+            type:
+                "base-pattern",
+
+            engine:
+                "bodice",
+
+            version:
+                VERSION,
+
+            pieces,
+
+            metadata: {
+
+                source:
+                    "PatternMaker V5",
+
+                migration:
+                    true,
+
+                category,
+
+                categoryLabel,
+
+                unit:
+                    "cm",
+
+                scale:
+                    1,
+
+                fit,
+
+                fullOpen:
+                    true,
+
+                seamAllowanceIncluded:
+                    includeLegacySeam,
+
+                productionGeometry:
+                    false,
+
+                formula:
+                    "V5 makeUpperPieces extraction"
+
+            }
+
+        };
+
+    }
+
+
+    const BodiceEngine = {
+
+        id:
+            "bodice",
+
+        label:
+            "Bodice / Top Pattern Engine",
+
+        version:
+            VERSION,
+
+        generate(
+            context
+        ) {
+
+            return makeUpperPieces(
+                context
+            );
+
+        },
+
+        makeUpperPieces
 
     };
 
 
-  /*
-    Bahu -> C
-  */
+    window.PatternMakerBodice =
+        BodiceEngine;
 
-  const shoulderToC =
-    distance(
-      B,
-      C
-    );
 
-
-  /*
-    C -> D
-  */
-
-  const CtoD =
-    distance(
-      C,
-      D
-    );
-
-
-  /*
-    Kurva armhole sebenarnya
-    sedikit lebih panjang dari
-    garis lurus.
-
-    Faktor 1.08 memberi
-    pendekatan yang lebih realistis.
-  */
-
-  return round(
-
-    (
-      shoulderToC +
-      CtoD
-    ) * 1.08,
-
-    2
-
-  );
-
-}
-
-
-/* =========================================================
-   CREATE BODICE
-========================================================= */
-
-export function makeBodice(
-  measurements
-) {
-
-  if (!measurements) {
-
-    throw new Error(
-      "Data ukuran tidak tersedia."
-    );
-
-  }
-
-
-  /* =======================================================
-     BACA UKURAN
-  ======================================================= */
-
-  const bust =
-    positive(
-      measurements.bust
-    );
-
-
-  const waist =
-    positive(
-      measurements.waist
-    );
-
-
-  const shoulder =
-    positive(
-      measurements.shoulder
-    );
-
-
-  const bodyLength =
-    positive(
-      measurements.bodyLength
-    );
-
-
-  const neck =
-    positive(
-      measurements.neck
-    );
-
-
-  const negativeEase =
-    Math.max(
-      0,
-      Number(
-        measurements.negativeEase
-      ) || 0
-    );
-
-
-  /* =======================================================
-     VALIDASI DASAR
-  ======================================================= */
-
-  if (bust <= 0) {
-
-    throw new Error(
-      "Lingkar dada harus lebih dari 0 cm."
-    );
-
-  }
-
-
-  if (waist <= 0) {
-
-    throw new Error(
-      "Lingkar pinggang harus lebih dari 0 cm."
-    );
-
-  }
-
-
-  if (shoulder <= 0) {
-
-    throw new Error(
-      "Lebar bahu harus lebih dari 0 cm."
-    );
-
-  }
-
-
-  if (bodyLength <= 0) {
-
-    throw new Error(
-      "Panjang badan harus lebih dari 0 cm."
-    );
-
-  }
-
-
-  if (neck <= 0) {
-
-    throw new Error(
-      "Lingkar leher harus lebih dari 0 cm."
-    );
-
-  }
-
-
-  /* =======================================================
-     UKURAN SETELAH NEGATIVE EASE
-  ======================================================= */
-
-  const adjustedBust =
-    applyNegativeEase(
-      bust,
-      negativeEase
-    );
-
-
-  const adjustedWaist =
-    applyNegativeEase(
-      waist,
-      negativeEase
-    );
-
-
-  /* =======================================================
-     SEPEREMPAT LINGKAR BADAN
-  ======================================================= */
-
-  const bustQuarter =
-    adjustedBust / 4;
-
-
-  const waistQuarter =
-    adjustedWaist / 4;
-
-
-  /* =======================================================
-     LEBAR BAHU
-     -------------------------------------------------------
-     Input Lebar bahu adalah ukuran
-     bahu penuh kiri ke kanan.
-
-     Karena pola hanya setengah badan
-     dari garis fold:
-
-       Lebar bahu / 2
-  ======================================================= */
-
-  const shoulderHalf =
-    shoulder / 2;
-
-
-  /* =======================================================
-     LEHER
-  ======================================================= */
-
-  const neckWidth =
-    getNeckWidth(
-      neck
-    );
-
-
-  /* =======================================================
-     KEDALAMAN LEHER
-  ======================================================= */
-
-  const frontNeckDepth =
-    neckWidth;
-
-
-  const backNeckDepth =
-    neckWidth * 0.40;
-
-
-  /* =======================================================
-     ARM DEPTH
-  ======================================================= */
-
-  const armDepth =
-    getArmDepth(
-      adjustedBust
-    );
-
-
-  /* =======================================================
-     SHOULDER SLOPE
-  ======================================================= */
-
-  const shoulderSlope =
-    getShoulderSlope(
-      adjustedBust
-    );
-
-
-  /* =======================================================
-     ARMHOLE WIDTH
-  ======================================================= */
-
-  const armholeWidth =
-    getArmholeWidth(
-      bustQuarter,
-      shoulderHalf
-    );
-
-
-  /* =======================================================
-     DATA DRAFTING
-  ======================================================= */
-
-  const draftingData = {
-
-    bustQuarter,
-
-    waistQuarter,
-
-    shoulderHalf,
-
-    neckWidth,
-
-    neckDepth:
-      frontNeckDepth,
-
-    armDepth,
-
-    bodyLength,
-
-    shoulderSlope,
-
-    armholeWidth
-
-  };
-
-
-  /* =======================================================
-     FRONT
-  ======================================================= */
-
-  const front =
-    createFront(
-      draftingData
-    );
-
-
-  /*
-    Front menggunakan neckline
-    lebih dalam.
-  */
-
-  front.neckDepth =
-    frontNeckDepth;
-
-
-  /* =======================================================
-     BACK
-  ======================================================= */
-
-  const back =
-    createBack(
-      draftingData
-    );
-
-
-  /*
-    Back menggunakan neckline
-    lebih dangkal.
-  */
-
-  back.neckDepth =
-    backNeckDepth;
-
-
-  /* =======================================================
-     ARMHOLE LENGTH
-  ======================================================= */
-
-  const frontArmholeLength =
-    calculateArmholeLength(
-      front
-    );
-
-
-  const backArmholeLength =
-    calculateArmholeLength(
-      back
-    );
-
-
-  const armholeLength =
-    (
-      frontArmholeLength +
-      backArmholeLength
-    ) / 2;
-
-
-  /* =======================================================
-     RETURN
-  ======================================================= */
-
-  return {
-
-    /* -----------------------------------
-       FRONT
-    ----------------------------------- */
-
-    front,
-
-
-    /* -----------------------------------
-       BACK
-    ----------------------------------- */
-
-    back,
-
-
-    /* -----------------------------------
-       DRAFTING DATA
-    ----------------------------------- */
-
-    armDepth:
-
-      round(
-        armDepth,
-        2
-      ),
-
-
-    armholeWidth:
-
-      round(
-        armholeWidth,
-        2
-      ),
-
-
-    armholeLength:
-
-      round(
-        armholeLength,
-        2
-      ),
-
-
-    frontArmholeLength:
-
-      round(
-        frontArmholeLength,
-        2
-      ),
-
-
-    backArmholeLength:
-
-      round(
-        backArmholeLength,
-        2
-      ),
-
-
-    /* -----------------------------------
-       NECK
-    ----------------------------------- */
-
-    neckWidth:
-
-      round(
-        neckWidth,
-        2
-      ),
-
-
-    frontNeckDepth:
-
-      round(
-        frontNeckDepth,
-        2
-      ),
-
-
-    backNeckDepth:
-
-      round(
-        backNeckDepth,
-        2
-      ),
-
-
-    /* -----------------------------------
-       MEASUREMENTS
-    ----------------------------------- */
-
-    bust:
-
-      round(
-        bust,
-        2
-      ),
-
-
-    waist:
-
-      round(
-        waist,
-        2
-      ),
-
-
-    adjustedBust:
-
-      round(
-        adjustedBust,
-        2
-      ),
-
-
-    adjustedWaist:
-
-      round(
-        adjustedWaist,
-        2
-      ),
-
-
-    shoulder:
-
-      round(
-        shoulder,
-        2
-      ),
-
-
-    bodyLength:
-
-      round(
-        bodyLength,
-        2
-      ),
-
-
-    negativeEase:
-
-      round(
-        negativeEase,
-        2
-      )
-
-  };
-
-}
+})();
