@@ -2,19 +2,41 @@
  * ============================================================
  * PATTERNMAKER UNIVERSAL
  * BASELINE FINAL v1
- * KODE 51
- * FILE: engine/bodice.js
+ * KODE 63
+ *
+ * FILE:
+ *   engine/bodice.js
  * ============================================================
  *
- * Migrated from PatternMaker Universal v5:
- *   makeUpperPieces()
+ * Migrated from:
+ *   PatternMaker Universal V5
  *
- * IMPORTANT
- * - Reads canonical measurements from context, not DOM/state.
- * - Generates BASE geometry by default.
- * - Legacy radial seam can be enabled explicitly with
- *   context.options.includeLegacySeam=true for comparison tests.
- * - Normal production seam must be handled by seam-production.js.
+ * Added:
+ *   Professional grade-point metadata
+ *
+ * ============================================================
+ *
+ * FLOW:
+ *
+ * Canonical Profile
+ *       ↓
+ * Bodice Drafting
+ *       ↓
+ * Base Geometry
+ *       ↓
+ * Grade Points
+ *       ↓
+ * Grading Engine
+ *
+ * ============================================================
+ *
+ * IMPORTANT:
+ *
+ * Grade points are metadata.
+ * They do not directly modify geometry.
+ *
+ * Production seam allowance remains outside this engine.
+ *
  * ============================================================
  */
 
@@ -22,11 +44,19 @@
 
     "use strict";
 
+
+    /* ========================================================
+       DEPENDENCIES
+       ======================================================== */
+
     const Schema =
         window.PatternMakerMeasurementSchema;
 
     const Mapper =
         window.PatternMakerMeasurementMapper;
+
+    const GradePointSchema =
+        window.PatternMakerGradePointSchema;
 
 
     if (
@@ -35,15 +65,41 @@
     ) {
 
         throw new Error(
-            "Bodice Engine membutuhkan measurement-schema.js dan measurement-mapper.js."
+
+            "Bodice Engine membutuhkan " +
+            "measurement-schema.js dan " +
+            "measurement-mapper.js."
+
         );
 
     }
 
 
-    const VERSION =
-        "V5-MIGRATED-v1";
+    if (
+        !GradePointSchema
+    ) {
 
+        throw new Error(
+
+            "grade-point-schema.js harus dimuat " +
+            "sebelum bodice.js."
+
+        );
+
+    }
+
+
+    /* ========================================================
+       VERSION
+       ======================================================== */
+
+    const VERSION =
+        "V5-MIGRATED-v1.1";
+
+
+    /* ========================================================
+       NUMBER
+       ======================================================== */
 
     function num(
         value,
@@ -51,41 +107,71 @@
     ) {
 
         const n =
-            Number(value);
+            Number(
+                value
+            );
 
 
-        return Number.isFinite(n)
+        return Number.isFinite(
+            n
+        )
             ? n
             : fallback;
 
     }
 
 
+    /* ========================================================
+       ROUND
+       ======================================================== */
+
     function round1(
         value
     ) {
 
         return Math.round(
-            num(value) * 10
+            num(value) *
+            10
         ) / 10;
 
     }
 
 
+    /* ========================================================
+       CLONE POINTS
+       ======================================================== */
+
     function clonePoints(
         points
     ) {
 
-        return (points || [])
-            .map(
-                point => [
-                    num(point[0]),
-                    num(point[1])
-                ]
-            );
+        return (
+
+            points ||
+
+            []
+
+        )
+        .map(
+            point => [
+
+                num(
+                    point[0]
+                ),
+
+                num(
+                    point[1]
+                )
+
+            ]
+        );
 
     }
 
+
+    /* ========================================================
+       MEASUREMENT
+       ======================================================== */
 
     function getMeasurement(
         measurements,
@@ -101,12 +187,18 @@
 
         if (
             Number.isFinite(
-                Number(direct)
+                Number(
+                    direct
+                )
             ) &&
-            Number(direct) > 0
+            Number(
+                direct
+            ) > 0
         ) {
 
-            return Number(direct);
+            return Number(
+                direct
+            );
 
         }
 
@@ -123,12 +215,18 @@
 
         if (
             Number.isFinite(
-                Number(mapped)
+                Number(
+                    mapped
+                )
             ) &&
-            Number(mapped) > 0
+            Number(
+                mapped
+            ) > 0
         ) {
 
-            return Number(mapped);
+            return Number(
+                mapped
+            );
 
         }
 
@@ -140,6 +238,10 @@
     }
 
 
+    /* ========================================================
+       MEASUREMENTS
+       ======================================================== */
+
     function getMeasurements(
         context
     ) {
@@ -150,7 +252,9 @@
 
         const source =
             profile?.measurements ||
+
             context?.measurements ||
+
             {};
 
 
@@ -217,6 +321,10 @@
     }
 
 
+    /* ========================================================
+       EASE
+       ======================================================== */
+
     function getEase(
         context
     ) {
@@ -226,6 +334,7 @@
             0,
 
             num(
+
                 context?.fabric?.ease,
 
                 num(
@@ -240,6 +349,10 @@
     }
 
 
+    /* ========================================================
+       FIT
+       ======================================================== */
+
     function getFit(
         context
     ) {
@@ -247,7 +360,9 @@
         return String(
 
             context?.options?.fit ||
+
             context?.fit ||
+
             "regular"
 
         )
@@ -255,6 +370,10 @@
 
     }
 
+
+    /* ========================================================
+       FIT ADJUSTMENT
+       ======================================================== */
 
     function getFitAdjustment(
         fit
@@ -281,6 +400,10 @@
     }
 
 
+    /* ========================================================
+       LEGACY RADIAL SEAM
+       ======================================================== */
+
     function addRadialSeam(
         points,
         seam
@@ -298,8 +421,12 @@
         }
 
 
-        let cx = 0;
-        let cy = 0;
+        let cx =
+            0;
+
+
+        let cy =
+            0;
 
 
         for (
@@ -311,6 +438,7 @@
         ) {
 
             cx += x;
+
             cy += y;
 
         }
@@ -333,38 +461,43 @@
             ) => {
 
                 const dx =
-                    x - cx;
+                    x -
+                    cx;
 
 
                 const dy =
-                    y - cy;
+                    y -
+                    cy;
 
 
-                const len =
+                const length =
                     Math.hypot(
                         dx,
                         dy
-                    ) || 1;
+                    ) ||
+                    1;
 
 
-                const f =
+                const factor =
                     (
-                        len +
+                        length +
                         seam
                     ) /
-                    len;
+                    length;
 
 
                 return [
 
                     round1(
                         cx +
-                        dx * f
+                        dx *
+                        factor
                     ),
 
                     round1(
                         cy +
-                        dy * f
+                        dy *
+                        factor
                     )
 
                 ];
@@ -374,6 +507,10 @@
 
     }
 
+
+    /* ========================================================
+       PIECE
+       ======================================================== */
 
     function makePiece(
         name,
@@ -399,17 +536,23 @@
                 false,
 
             grainline:
+
                 options.grainline
+
                     ? clonePoints(
                         options.grainline
                     )
+
                     : null,
 
             notches:
+
                 options.notches
+
                     ? clonePoints(
                         options.notches
                     )
+
                     : [],
 
             label:
@@ -434,6 +577,10 @@
     }
 
 
+    /* ========================================================
+       TRANSLATE
+       ======================================================== */
+
     function translatePoints(
         points,
         dx,
@@ -449,11 +596,13 @@
             ) => [
 
                 round1(
-                    x + dx
+                    x +
+                    dx
                 ),
 
                 round1(
-                    y + dy
+                    y +
+                    dy
                 )
 
             ]
@@ -461,6 +610,329 @@
 
     }
 
+
+    /* ========================================================
+       GRADE POINT BUILDERS
+       ======================================================== */
+
+    function createBodyGradePoints() {
+
+        /*
+         * Geometry points:
+         *
+         * 0 = center neckline
+         * 1 = neck edge
+         * 2 = shoulder
+         * 3 = armhole / bust point
+         * 4 = side hem
+         * 5 = center hem
+         *
+         * Canonical grading relationship:
+         *
+         * shoulder width:
+         *   half shoulder = 0.5
+         *
+         * chest / hip:
+         *   quarter pattern = 0.25
+         *
+         * vertical:
+         *   length-based
+         */
+
+        return [
+
+            {
+
+                horizontalMeasurement:
+                    "shoulder",
+
+                verticalMeasurement:
+                    "length",
+
+                horizontalFactor:
+                    0,
+
+                verticalFactor:
+                    0,
+
+                role:
+                    "center-neck"
+
+            },
+
+            {
+
+                horizontalMeasurement:
+                    "shoulder",
+
+                verticalMeasurement:
+                    "length",
+
+                horizontalFactor:
+                    0,
+
+                verticalFactor:
+                    0,
+
+                role:
+                    "neck-edge"
+
+            },
+
+            {
+
+                horizontalMeasurement:
+                    "shoulder",
+
+                verticalMeasurement:
+                    "length",
+
+                horizontalFactor:
+                    0.5,
+
+                verticalFactor:
+                    0,
+
+                role:
+                    "shoulder"
+
+            },
+
+            {
+
+                horizontalMeasurement:
+                    "chest",
+
+                verticalMeasurement:
+                    "length",
+
+                horizontalFactor:
+                    0.25,
+
+                verticalFactor:
+                    0.35,
+
+                role:
+                    "armhole"
+
+            },
+
+            {
+
+                horizontalMeasurement:
+                    "hip",
+
+                verticalMeasurement:
+                    "length",
+
+                horizontalFactor:
+                    0.25,
+
+                verticalFactor:
+                    1,
+
+                role:
+                    "side-hem"
+
+            },
+
+            {
+
+                horizontalMeasurement:
+                    "hip",
+
+                verticalMeasurement:
+                    "length",
+
+                horizontalFactor:
+                    0,
+
+                verticalFactor:
+                    1,
+
+                role:
+                    "center-hem"
+
+            }
+
+        ];
+
+    }
+
+
+    function createSleeveGradePoints() {
+
+        /*
+         * Sleeve geometry:
+         *
+         * 0 = cap center
+         * 1 = cap edge
+         * 2 = side at mid length
+         * 3 = hem edge
+         * 4 = hem center
+         */
+
+        return [
+
+            {
+
+                horizontalMeasurement:
+                    "upperArm",
+
+                verticalMeasurement:
+                    "sleeveLength",
+
+                horizontalFactor:
+                    0,
+
+                verticalFactor:
+                    0,
+
+                role:
+                    "sleeve-cap-center"
+
+            },
+
+            {
+
+                horizontalMeasurement:
+                    "upperArm",
+
+                verticalMeasurement:
+                    "sleeveLength",
+
+                horizontalFactor:
+                    0.5,
+
+                verticalFactor:
+                    0,
+
+                role:
+                    "sleeve-cap-edge"
+
+            },
+
+            {
+
+                horizontalMeasurement:
+                    "upperArm",
+
+                verticalMeasurement:
+                    "sleeveLength",
+
+                horizontalFactor:
+                    0.5,
+
+                verticalFactor:
+                    0.5,
+
+                role:
+                    "sleeve-side"
+
+            },
+
+            {
+
+                horizontalMeasurement:
+                    "upperArm",
+
+                verticalMeasurement:
+                    "sleeveLength",
+
+                horizontalFactor:
+                    0.5,
+
+                verticalFactor:
+                    1,
+
+                role:
+                    "sleeve-hem-edge"
+
+            },
+
+            {
+
+                horizontalMeasurement:
+                    "upperArm",
+
+                verticalMeasurement:
+                    "sleeveLength",
+
+                horizontalFactor:
+                    0,
+
+                verticalFactor:
+                    1,
+
+                role:
+                    "sleeve-hem-center"
+
+            }
+
+        ];
+
+    }
+
+
+    /* ========================================================
+       ATTACH GRADE POINTS
+       ======================================================== */
+
+    function attachGradePoints(
+        piece,
+        definitions
+    ) {
+
+        const gradePoints =
+            GradePointSchema
+                .createFromPointDefinitions(
+                    definitions
+                );
+
+
+        const validation =
+            GradePointSchema
+                .validatePieceGradePoints({
+
+                    ...piece,
+
+                    gradePoints
+
+                });
+
+
+        if (
+            !validation.valid
+        ) {
+
+            throw new Error(
+
+                `Grade point validation failed for ` +
+                `"${piece.name}": ` +
+
+                validation.errors.join(
+                    " | "
+                )
+
+            );
+
+        }
+
+
+        return {
+
+            ...piece,
+
+            gradePoints
+
+        };
+
+    }
+
+
+    /* ========================================================
+       MAKE UPPER PIECES
+       ======================================================== */
 
     function makeUpperPieces(
         context = {}
@@ -479,6 +951,10 @@
             );
 
 
+        /*
+         * Retained for V5 compatibility.
+         */
+
         const waist =
             measurements.waist +
             getEase(
@@ -492,12 +968,6 @@
                 context
             );
 
-
-        /*
-         * Kept for parity with V5.
-         * V5 currently calculates waist here,
-         * but the polygon formula does not use it.
-         */
 
         void waist;
 
@@ -522,35 +992,51 @@
             measurements.upperArm +
             getEase(
                 context
-            ) * 0.5;
+            ) *
+            0.5;
 
 
         const qChest =
-            chest / 4;
+            chest /
+            4;
 
 
         const qHip =
-            hip / 4;
+            hip /
+            4;
 
 
         const shoulderHalf =
             Math.max(
+
                 10,
-                shoulder / 2
+
+                shoulder /
+                2
+
             );
 
 
         const neckWidth =
             Math.max(
+
                 5.5,
-                neck / 6
+
+                neck /
+                6
+
             );
 
 
         const armhole =
             Math.max(
+
                 18,
-                chest / 6 + 3
+
+                chest /
+                6 +
+                3
+
             );
 
 
@@ -566,9 +1052,9 @@
             );
 
 
-        /*
-         * FRONT
-         */
+        /* ====================================================
+           FRONT
+           ==================================================== */
 
         const frontBase = [
 
@@ -585,12 +1071,14 @@
             ],
 
             [
-                qChest + fitAdd,
+                qChest +
+                fitAdd,
                 armhole
             ],
 
             [
-                qHip + fitAdd,
+                qHip +
+                fitAdd,
                 bodyLength
             ],
 
@@ -602,9 +1090,9 @@
         ];
 
 
-        /*
-         * BACK
-         */
+        /* ====================================================
+           BACK
+           ==================================================== */
 
         const backBase = [
 
@@ -621,12 +1109,14 @@
             ],
 
             [
-                qChest + fitAdd,
+                qChest +
+                fitAdd,
                 armhole
             ],
 
             [
-                qHip + fitAdd,
+                qHip +
+                fitAdd,
                 bodyLength
             ],
 
@@ -638,14 +1128,18 @@
         ];
 
 
-        /*
-         * SLEEVE
-         */
+        /* ====================================================
+           SLEEVE
+           ==================================================== */
 
         const sleeveWidth =
             Math.max(
+
                 18,
-                upperArm / 2
+
+                upperArm /
+                2
+
             );
 
 
@@ -660,11 +1154,13 @@
 
             [
                 sleeveWidth + 3,
-                sleeveLength * 0.48
+                sleeveLength *
+                0.48
             ],
 
             [
-                sleeveWidth * 0.78,
+                sleeveWidth *
+                0.78,
                 sleeveLength
             ],
 
@@ -676,10 +1172,9 @@
         ];
 
 
-        /*
-         * FULL OPEN POSITION
-         * Same arrangement logic as V5.
-         */
+        /* ====================================================
+           OPEN POSITION
+           ==================================================== */
 
         const frontX =
             15;
@@ -707,32 +1202,39 @@
             25;
 
 
+        /* ====================================================
+           OPTIONS
+           ==================================================== */
+
         const includeNotches =
             context?.options?.notches !==
             false;
 
 
-        /*
-         * Legacy radial seam is OFF
-         * for the normal base-pattern path.
-         */
-
         const includeLegacySeam =
-            context?.options?.includeLegacySeam ===
+            context?.options
+                ?.includeLegacySeam ===
             true;
 
 
         const seam =
+
             num(
                 context?.options?.seam,
                 0
-            ) +
+            )
+
+            +
 
             num(
                 context?.options?.tolerance,
                 0
             );
 
+
+        /* ====================================================
+           CATEGORY
+           ==================================================== */
 
         const category =
             context?.profile?.category ||
@@ -745,6 +1247,10 @@
                 category
             );
 
+
+        /* ====================================================
+           TRANSLATE
+           ==================================================== */
 
         const frontPoints =
             translatePoints(
@@ -794,8 +1300,15 @@
             );
 
 
-        const applyLegacySeam =
-            points =>
+        /* ====================================================
+           LEGACY SEAM
+           ==================================================== */
+
+        function applyLegacySeam(
+            points
+        ) {
+
+            return (
 
                 includeLegacySeam
 
@@ -806,12 +1319,20 @@
 
                     : clonePoints(
                         points
-                    );
+                    )
+
+            );
+
+        }
 
 
-        const pieces = [
+        /* ====================================================
+           PIECES
+           ==================================================== */
 
+        const frontPiece =
             makePiece(
+
                 "FRONT",
 
                 applyLegacySeam(
@@ -824,7 +1345,8 @@
 
                         [
                             frontX +
-                            qHip / 2,
+                            qHip /
+                            2,
 
                             y + 8
 
@@ -832,7 +1354,8 @@
 
                         [
                             frontX +
-                            qHip / 2,
+                            qHip /
+                            2,
 
                             y +
                             bodyLength -
@@ -843,6 +1366,7 @@
                     ],
 
                     notches:
+
                         includeNotches
 
                             ? [
@@ -865,10 +1389,12 @@
 
                 }
 
-            ),
+            );
 
 
+        const backPiece =
             makePiece(
+
                 "BACK",
 
                 applyLegacySeam(
@@ -881,7 +1407,8 @@
 
                         [
                             backX +
-                            qHip / 2,
+                            qHip /
+                            2,
 
                             y + 8
 
@@ -889,7 +1416,8 @@
 
                         [
                             backX +
-                            qHip / 2,
+                            qHip /
+                            2,
 
                             y +
                             bodyLength -
@@ -900,6 +1428,7 @@
                     ],
 
                     notches:
+
                         includeNotches
 
                             ? [
@@ -922,10 +1451,12 @@
 
                 }
 
-            ),
+            );
 
 
+        const sleeveLeftPiece =
             makePiece(
+
                 "SLEEVE_L",
 
                 applyLegacySeam(
@@ -938,7 +1469,8 @@
 
                         [
                             sleeve1X +
-                            sleeveWidth / 2,
+                            sleeveWidth /
+                            2,
 
                             y + 12
 
@@ -946,7 +1478,8 @@
 
                         [
                             sleeve1X +
-                            sleeveWidth / 2,
+                            sleeveWidth /
+                            2,
 
                             y +
                             sleeveLength -
@@ -957,6 +1490,7 @@
                     ],
 
                     notches:
+
                         includeNotches
 
                             ? [
@@ -979,10 +1513,12 @@
 
                 }
 
-            ),
+            );
 
 
+        const sleeveRightPiece =
             makePiece(
+
                 "SLEEVE_R",
 
                 applyLegacySeam(
@@ -995,7 +1531,8 @@
 
                         [
                             sleeve2X +
-                            sleeveWidth / 2,
+                            sleeveWidth /
+                            2,
 
                             y + 12
 
@@ -1003,7 +1540,8 @@
 
                         [
                             sleeve2X +
-                            sleeveWidth / 2,
+                            sleeveWidth /
+                            2,
 
                             y +
                             sleeveLength -
@@ -1014,6 +1552,7 @@
                     ],
 
                     notches:
+
                         includeNotches
 
                             ? [
@@ -1036,94 +1575,77 @@
 
                 }
 
-            )
+            );
+
+
+        /* ====================================================
+           ATTACH GRADE POINTS
+           ==================================================== */
+
+        const bodyGradeDefinitions =
+            createBodyGradePoints();
+
+
+        const sleeveGradeDefinitions =
+            createSleeveGradePoints();
+
+
+        const frontWithGrade =
+            attachGradePoints(
+
+                frontPiece,
+
+                bodyGradeDefinitions
+
+            );
+
+
+        const backWithGrade =
+            attachGradePoints(
+
+                backPiece,
+
+                bodyGradeDefinitions
+
+            );
+
+
+        const sleeveLeftWithGrade =
+            attachGradePoints(
+
+                sleeveLeftPiece,
+
+                sleeveGradeDefinitions
+
+            );
+
+
+        const sleeveRightWithGrade =
+            attachGradePoints(
+
+                sleeveRightPiece,
+
+                sleeveGradeDefinitions
+
+            );
+
+
+        const pieces = [
+
+            frontWithGrade,
+
+            backWithGrade,
+
+            sleeveLeftWithGrade,
+
+            sleeveRightWithGrade
 
         ];
 
 
-        /*
-         * SHIRT PLACKET
-         */
-
-        if (
-
-            context?.garment?.id ===
-                "shirt"
-
-            ||
-
-            context?.garmentId ===
-                "shirt"
-
-            ||
-
-            context?.kind ===
-                "shirt"
-
-        ) {
-
-            const placketW =
-                Math.max(
-                    3,
-                    seam + 1.5
-                );
-
-
-            const x =
-                frontX +
-                qHip +
-                7;
-
-
-            pieces.push(
-
-                makePiece(
-
-                    "PLACKET",
-
-                    [
-
-                        [
-                            x,
-                            y + 4
-                        ],
-
-                        [
-                            x +
-                            placketW,
-                            y + 4
-                        ],
-
-                        [
-                            x +
-                            placketW,
-                            y +
-                            bodyLength -
-                            4
-                        ],
-
-                        [
-                            x,
-                            y +
-                            bodyLength -
-                            4
-                        ]
-
-                    ],
-
-                    {
-
-                        label:
-                            `PLACKET • ${categoryLabel}`
-
-                    }
-
-                )
-
-            );
-
-        }
-
+        /* ====================================================
+           RESULT
+           ==================================================== */
 
         return {
 
@@ -1167,6 +1689,19 @@
                 productionGeometry:
                     false,
 
+                grading: {
+
+                    supported:
+                        true,
+
+                    strict:
+                        true,
+
+                    gradePointSchema:
+                        GradePointSchema.VERSION
+
+                },
+
                 formula:
                     "V5 makeUpperPieces extraction"
 
@@ -1176,6 +1711,26 @@
 
     }
 
+
+    /* ========================================================
+       VALIDATE GRADE POINTS
+       ======================================================== */
+
+    function validateGradePoints(
+        pattern
+    ) {
+
+        return GradePointSchema
+            .validatePatternGradePoints(
+                pattern
+            );
+
+    }
+
+
+    /* ========================================================
+       ENGINE CONTRACT
+       ======================================================== */
 
     const BodiceEngine = {
 
@@ -1198,10 +1753,16 @@
 
         },
 
-        makeUpperPieces
+        makeUpperPieces,
+
+        validateGradePoints
 
     };
 
+
+    /* ========================================================
+       GLOBAL
+       ======================================================== */
 
     window.PatternMakerBodice =
         BodiceEngine;
