@@ -1,1284 +1,1105 @@
+```html
 <!DOCTYPE html>
 <html lang="id">
-
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <meta charset="UTF-8">
-
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0"
-  >
-
-  <title>PatternMaker</title>
-
-
-  <style>
-
-    /* =====================================================
-       GLOBAL
-    ====================================================== */
-
-    * {
-      box-sizing: border-box;
-    }
-
-
-    body {
-
-      margin: 0;
-
-      padding: 0;
-
-      background: #f3f4f6;
-
-      color: #111827;
-
-      font-family:
-        Arial,
-        Helvetica,
-        sans-serif;
-
-    }
-
-
-    /* =====================================================
-       LAYOUT
-    ====================================================== */
-
-    .app {
-
-      display: grid;
-
-      grid-template-columns:
-        330px
-        minmax(0, 1fr);
-
-      min-height: 100vh;
-
-      gap: 18px;
-
-      padding: 18px;
-
-    }
-
-
-    .panel {
-
-      background: #ffffff;
-
-      border: 1px solid #d7d7d7;
-
-      border-radius: 12px;
-
-      padding: 18px;
-
-    }
-
-
-    .left-panel {
-
-      height: fit-content;
-
-      position: sticky;
-
-      top: 18px;
-
-    }
-
-
-    .right-panel {
-
-      min-width: 0;
-
-    }
-
-
-    /* =====================================================
-       HEADINGS
-    ====================================================== */
-
-    h1 {
-
-      margin-top: 0;
-
-      margin-bottom: 8px;
-
-      font-size: 26px;
-
-    }
-
-
-    h2 {
-
-      margin-top: 26px;
-
-      margin-bottom: 14px;
-
-      font-size: 20px;
-
-    }
-
-
-    h3 {
-
-      margin-top: 20px;
-
-      margin-bottom: 12px;
-
-      font-size: 16px;
-
-    }
-
-
-    h2:first-child {
-
-      margin-top: 0;
-
-    }
-
-
-    /* =====================================================
-       FORM
-    ====================================================== */
-
-    .form-group {
-
-      margin-bottom: 14px;
-
-    }
-
-
-    .form-group label {
-
-      display: block;
-
-      margin-bottom: 6px;
-
-      font-size: 14px;
-
-      color: #111827;
-
-    }
-
-
-    input,
-    select {
-
-      width: 100%;
-
-      min-height: 44px;
-
-      padding: 9px 11px;
-
-      border: 1px solid #b8b8b8;
-
-      border-radius: 7px;
-
-      background: #ffffff;
-
-      color: #111827;
-
-      font-size: 16px;
-
-      outline: none;
-
-    }
-
-
-    input:focus,
-    select:focus {
-
-      border-color: #555;
-
-    }
-
-
-    .unit {
-
-      display: block;
-
-      margin-top: 4px;
-
-      font-size: 13px;
-
-      color: #374151;
-
-    }
-
-
-    .form-help {
-
-      margin-top: -5px;
-
-      margin-bottom: 14px;
-
-      font-size: 12px;
-
-      line-height: 1.5;
-
-      color: #6b7280;
-
-    }
-
-
-    /* =====================================================
-       BUTTON
-    ====================================================== */
-
-    .button-group {
-
-      display: flex;
-
-      flex-direction: column;
-
-      gap: 10px;
-
-      margin-top: 26px;
-
-    }
-
-
-    button {
-
-      width: 100%;
-
-      min-height: 46px;
-
-      border: 0;
-
-      border-radius: 8px;
-
-      background: #e5e7eb;
-
-      color: #111827;
-
-      font-size: 15px;
-
-      font-weight: 700;
-
-      cursor: pointer;
-
-    }
-
-
-    button:hover {
-
-      background: #d1d5db;
-
-    }
-
-
-    button:active {
-
-      transform: translateY(1px);
-
-    }
-
-
-    /* =====================================================
-       HASIL
-    ====================================================== */
-
-    .result-title {
-
-      margin-top: 0;
-
-      font-size: 26px;
-
-    }
-
-
-    #status {
-
-      min-height: 24px;
-
-      margin-bottom: 18px;
-
-      color: #374151;
-
-      line-height: 1.5;
-
-    }
-
-
-    /* =====================================================
-       FABRIC OPTIMIZER
-    ====================================================== */
-
-    .optimizer {
-
-      margin-top: 10px;
-
-    }
-
-
-    .optimizer h2 {
-
-      margin-top: 0;
-
-    }
-
-
-    .result-row {
-
-      margin-bottom: 12px;
-
-      font-size: 16px;
-
-      line-height: 1.45;
-
-    }
-
-
-    .result-row strong {
-
-      font-weight: 700;
-
-    }
-
-
-    /* =====================================================
-       PATTERN PREVIEW
-    ====================================================== */
-
-    .preview-title {
-
-      margin-top: 22px;
-
-      margin-bottom: 12px;
-
-    }
-
-
-    #canvasWrap {
-
-      width: 100%;
-
-      min-height: 300px;
-
-      overflow: auto;
-
-      border: 1px dashed #b8b8b8;
-
-      border-radius: 8px;
-
-      background: #ffffff;
-
-      padding: 8px;
-
-    }
-
-
-    #canvasWrap svg {
-
-      display: block;
-
-      width: 100%;
-
-      height: auto;
-
-      min-width: 760px;
-
-    }
-
-
-    /* =====================================================
-       RESPONSIVE
-    ====================================================== */
-
-    @media (max-width: 900px) {
-
-      .app {
-
-        grid-template-columns: 1fr;
-
-        padding: 12px;
-
-      }
-
-
-      .left-panel {
-
-        position: static;
-
-      }
-
-
-      #canvasWrap {
-
-        min-height: 400px;
-
-      }
-
-    }
-
-
-    @media (max-width: 600px) {
-
-      body {
-
-        font-size: 15px;
-
-      }
-
-
-      .app {
-
-        padding: 8px;
-
-        gap: 10px;
-
-      }
-
-
-      .panel {
-
-        padding: 14px;
-
-        border-radius: 10px;
-
-      }
-
-
-      h1 {
-
-        font-size: 23px;
-
-      }
-
-
-      h2 {
-
-        font-size: 19px;
-
-      }
-
-
-      #canvasWrap svg {
-
-        min-width: 700px;
-
-      }
-
-    }
-
-  </style>
-
+    <title>PatternMaker Universal</title>
 </head>
-
 
 <body>
 
+<div id="app">
 
-  <main class="app">
+    <!-- =========================================================
+         SIDEBAR
+         ========================================================= -->
+    <aside id="sidebar">
+
+        <div class="brand">
+            <h1>PatternMaker</h1>
+            <p>Universal Pattern System</p>
+        </div>
+
+        <!-- MODE PENGGUNA -->
+        <section class="panel" id="userModePanel">
+
+            <h2>Mode Pengguna</h2>
+
+            <label for="userMode">
+                Tampilan kerja
+            </label>
+
+            <select id="userMode">
+                <option value="newbie">
+                    Newbie — Mudah
+                </option>
+
+                <option value="tailor" selected>
+                    Tailor — Lengkap
+                </option>
+
+                <option value="expert">
+                    Expert / Garment — Profesional
+                </option>
+            </select>
+
+            <div id="modeDescription"></div>
+
+        </section>
 
 
-    <!-- ===================================================
-         PANEL KIRI
-    ==================================================== -->
+        <!-- =====================================================
+             PROFIL UKURAN
+             ===================================================== -->
 
-    <aside class="panel left-panel">
+        <section class="panel" id="profilePanel">
+
+            <h2>Profil Ukuran</h2>
+
+            <label for="category">
+                Kategori Pemakai
+            </label>
+
+            <select id="category">
+
+                <option value="child">
+                    Anak
+                </option>
+
+                <option value="teen">
+                    Remaja
+                </option>
+
+                <option value="women">
+                    Wanita
+                </option>
+
+                <option value="men">
+                    Pria
+                </option>
+
+                <option value="custom">
+                    Custom
+                </option>
+
+            </select>
 
 
-      <h1>
-        PatternMaker
-      </h1>
+            <label for="sizeSystem">
+                Sistem Ukuran
+            </label>
+
+            <select id="sizeSystem">
+
+                <option value="cm" selected>
+                    Centimeter (cm)
+                </option>
+
+                <option value="inch">
+                    Inch (in)
+                </option>
+
+            </select>
 
 
-      <p>
-        Pola pakaian anak berdasarkan ukuran badan,
-        bahan kain, dan kebutuhan produksi.
-      </p>
+            <div id="ageWrap">
+
+                <label for="age">
+                    Umur
+                </label>
+
+                <input
+                    type="number"
+                    id="age"
+                    min="0"
+                    max="120"
+                    step="1"
+                    placeholder="Opsional"
+                >
+
+                <small>
+                    Umur hanya informasi tambahan.
+                    Konstruksi pola menggunakan ukuran tubuh.
+                </small>
+
+            </div>
+
+        </section>
 
 
-      <!-- ===============================================
-           UKURAN ANAK
-      ================================================ -->
+        <!-- =====================================================
+             JENIS PAKAIAN
+             ===================================================== -->
 
-      <h2>
-        Ukuran Anak
-      </h2>
+        <section class="panel" id="garmentPanel">
+
+            <h2>Jenis Pakaian</h2>
+
+            <label for="garmentType">
+                Pilih Jenis Pola
+            </label>
+
+            <select id="garmentType">
+
+                <option value="tshirt">
+                    Kaos
+                </option>
+
+                <option value="blouse">
+                    Blus
+                </option>
+
+                <option value="shirt">
+                    Kemeja
+                </option>
+
+                <option value="sweater">
+                    Sweater
+                </option>
+
+                <option value="dress">
+                    Dress
+                </option>
+
+                <option value="skirt">
+                    Rok
+                </option>
+
+                <option value="pants">
+                    Celana
+                </option>
+
+                <option value="shorts">
+                    Shorts
+                </option>
+
+                <option value="outer">
+                    Outer / Jaket
+                </option>
+
+                <option value="custom">
+                    Custom Pattern
+                </option>
+
+            </select>
+
+            <div id="garmentNote"></div>
+
+        </section>
 
 
-      <!-- UMUR -->
+        <!-- =====================================================
+             UKURAN TUBUH
+             ===================================================== -->
 
-      <div class="form-group">
+        <section class="panel" id="measurementPanel">
 
-        <label for="age">
-          Umur
-        </label>
+            <h2>Ukuran Tubuh</h2>
 
-        <input
-          type="number"
-          id="age"
-          name="age"
-          value="6"
-          min="1"
-          max="18"
-          step="1"
+            <div id="measurementFields">
+                <!-- Diisi oleh JavaScript -->
+            </div>
+
+            <div
+                id="measurementStatus"
+                class="status"
+            >
+                Pilih jenis pakaian terlebih dahulu.
+            </div>
+
+        </section>
+
+
+        <!-- =====================================================
+             MATERIAL KAIN
+             ===================================================== -->
+
+        <section class="panel" id="fabricPanel">
+
+            <h2>Kain & Produksi</h2>
+
+
+            <label for="fabric">
+                Material
+            </label>
+
+            <select id="fabric">
+
+                <option value="cotton">
+                    Cotton
+                </option>
+
+                <option value="cotton-combed">
+                    Cotton Combed
+                </option>
+
+                <option value="jersey">
+                    Jersey
+                </option>
+
+                <option value="sublime-jersey">
+                    Sublime Jersey
+                </option>
+
+                <option value="rib-knit">
+                    Rib Knit
+                </option>
+
+                <option value="french-terry">
+                    French Terry
+                </option>
+
+                <option value="fleece">
+                    Fleece
+                </option>
+
+                <option value="linen">
+                    Linen
+                </option>
+
+                <option value="rayon">
+                    Rayon
+                </option>
+
+                <option value="denim">
+                    Denim
+                </option>
+
+                <option value="polyester">
+                    Polyester
+                </option>
+
+                <option value="knit">
+                    Knit
+                </option>
+
+                <option value="custom">
+                    Custom
+                </option>
+
+            </select>
+
+
+            <div class="two-column">
+
+                <div>
+
+                    <label for="fabricWidth">
+                        Lebar Kain
+                    </label>
+
+                    <input
+                        type="number"
+                        id="fabricWidth"
+                        value="150"
+                        min="1"
+                        step="0.1"
+                    >
+
+                </div>
+
+
+                <div>
+
+                    <label for="fabricLength">
+                        Panjang Kain
+                    </label>
+
+                    <input
+                        type="number"
+                        id="fabricLength"
+                        value="200"
+                        min="1"
+                        step="0.1"
+                    >
+
+                </div>
+
+            </div>
+
+
+            <div class="two-column">
+
+                <div>
+
+                    <label for="stretch">
+                        Stretch
+                    </label>
+
+                    <select id="stretch">
+
+                        <option value="none">
+                            None
+                        </option>
+
+                        <option value="low">
+                            Low
+                        </option>
+
+                        <option value="medium" selected>
+                            Medium
+                        </option>
+
+                        <option value="high">
+                            High
+                        </option>
+
+                    </select>
+
+                </div>
+
+
+                <div>
+
+                    <label for="stretchDirection">
+                        Arah Stretch
+                    </label>
+
+                    <select id="stretchDirection">
+
+                        <option value="crosswise" selected>
+                            Crosswise
+                        </option>
+
+                        <option value="lengthwise">
+                            Lengthwise
+                        </option>
+
+                        <option value="both">
+                            Both
+                        </option>
+
+                    </select>
+
+                </div>
+
+            </div>
+
+
+            <div class="two-column">
+
+                <div>
+
+                    <label for="ease">
+                        Ease
+                    </label>
+
+                    <input
+                        type="number"
+                        id="ease"
+                        value="2"
+                        min="0"
+                        step="0.1"
+                    >
+
+                </div>
+
+
+                <div>
+
+                    <label for="seam">
+                        Seam Allowance
+                    </label>
+
+                    <input
+                        type="number"
+                        id="seam"
+                        value="1"
+                        min="0"
+                        step="0.1"
+                    >
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- =====================================================
+             TAILOR SETTINGS
+             ===================================================== -->
+
+        <section
+            class="panel"
+            id="tailorPanel"
         >
 
-        <span class="unit">
-          tahun
-        </span>
-
-      </div>
+            <h2>Pengaturan Tailor</h2>
 
 
-      <!-- LINGKAR DADA -->
+            <div class="two-column">
 
-      <div class="form-group">
+                <div>
 
-        <label for="bust">
-          Lingkar dada
-        </label>
+                    <label for="fit">
+                        Fit
+                    </label>
 
-        <input
-          type="number"
-          id="bust"
-          name="bust"
-          value="64"
-          min="1"
-          step="0.1"
+                    <select id="fit">
+
+                        <option value="close">
+                            Close Fit
+                        </option>
+
+                        <option value="regular" selected>
+                            Regular Fit
+                        </option>
+
+                        <option value="relaxed">
+                            Relaxed Fit
+                        </option>
+
+                        <option value="oversize">
+                            Oversize
+                        </option>
+
+                    </select>
+
+                </div>
+
+
+                <div>
+
+                    <label for="dart">
+                        Kupnat
+                    </label>
+
+                    <select id="dart">
+
+                        <option value="none" selected>
+                            Tanpa Kupnat
+                        </option>
+
+                        <option value="bust">
+                            Kupnat Dada
+                        </option>
+
+                        <option value="waist">
+                            Kupnat Pinggang
+                        </option>
+
+                        <option value="both">
+                            Dada + Pinggang
+                        </option>
+
+                    </select>
+
+                </div>
+
+            </div>
+
+
+            <div class="two-column">
+
+                <div>
+
+                    <label for="hemExtra">
+                        Kelonggaran Kelim
+                    </label>
+
+                    <input
+                        type="number"
+                        id="hemExtra"
+                        value="2"
+                        min="0"
+                        step="0.1"
+                    >
+
+                </div>
+
+
+                <div>
+
+                    <label for="notch">
+                        Notch
+                    </label>
+
+                    <select id="notch">
+
+                        <option value="standard" selected>
+                            Standard
+                        </option>
+
+                        <option value="minimal">
+                            Minimal
+                        </option>
+
+                        <option value="detailed">
+                            Detailed
+                        </option>
+
+                    </select>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- =====================================================
+             EXPERT / GARMENT
+             ===================================================== -->
+
+        <section
+            class="panel"
+            id="expertPanel"
         >
 
-        <span class="unit">
-          cm
-        </span>
-
-      </div>
+            <h2>Expert / Garment</h2>
 
 
-      <!-- LINGKAR PINGGANG -->
+            <div class="two-column">
 
-      <div class="form-group">
+                <div>
 
-        <label for="waist">
-          Lingkar pinggang
-        </label>
+                    <label for="patternScale">
+                        Skala Pola
+                    </label>
 
-        <input
-          type="number"
-          id="waist"
-          name="waist"
-          value="58"
-          min="1"
-          step="0.1"
+                    <select id="patternScale">
+
+                        <option value="1" selected>
+                            1:1 Produksi
+                        </option>
+
+                        <option value="0.5">
+                            1:2
+                        </option>
+
+                        <option value="0.25">
+                            1:4
+                        </option>
+
+                    </select>
+
+                </div>
+
+
+                <div>
+
+                    <label for="grading">
+                        Grading
+                    </label>
+
+                    <select id="grading">
+
+                        <option value="none" selected>
+                            Tidak
+                        </option>
+
+                        <option value="manual">
+                            Manual
+                        </option>
+
+                        <option value="size-set">
+                            Size Set
+                        </option>
+
+                        <option value="auto">
+                            Auto Grading
+                        </option>
+
+                    </select>
+
+                </div>
+
+            </div>
+
+
+            <div class="two-column">
+
+                <div>
+
+                    <label for="nesting">
+                        Nesting
+                    </label>
+
+                    <select id="nesting">
+
+                        <option value="off" selected>
+                            Off
+                        </option>
+
+                        <option value="manual">
+                            Manual Layout
+                        </option>
+
+                        <option value="auto">
+                            Auto Layout
+                        </option>
+
+                    </select>
+
+                </div>
+
+
+                <div>
+
+                    <label for="markerEfficiency">
+                        Target Efisiensi Marker (%)
+                    </label>
+
+                    <input
+                        type="number"
+                        id="markerEfficiency"
+                        value="85"
+                        min="1"
+                        max="100"
+                    >
+
+                </div>
+
+            </div>
+
+
+            <div class="two-column">
+
+                <div>
+
+                    <label for="productionType">
+                        Jenis Produksi
+                    </label>
+
+                    <select id="productionType">
+
+                        <option value="sample">
+                            Sample
+                        </option>
+
+                        <option value="small-batch">
+                            Small Batch
+                        </option>
+
+                        <option value="mass-production">
+                            Mass Production
+                        </option>
+
+                    </select>
+
+                </div>
+
+
+                <div>
+
+                    <label for="tolerance">
+                        Toleransi Produksi (mm)
+                    </label>
+
+                    <input
+                        type="number"
+                        id="tolerance"
+                        value="2"
+                        min="0"
+                        step="0.5"
+                    >
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- =====================================================
+             PRODUCTION DRAFTING
+             ===================================================== -->
+
+        <section
+            class="panel"
+            id="draftingPanel"
         >
 
-        <span class="unit">
-          cm
-        </span>
+            <h2>Production Drafting Engine</h2>
 
-      </div>
 
+            <div class="two-column">
 
-      <!-- LEBAR BAHU -->
+                <div>
 
-      <div class="form-group">
+                    <label for="patternTolerance">
+                        Toleransi Pola (mm)
+                    </label>
 
-        <label for="shoulder">
-          Lebar bahu
-        </label>
+                    <input
+                        type="number"
+                        id="patternTolerance"
+                        value="0"
+                        min="0"
+                        step="0.5"
+                    >
 
-        <input
-          type="number"
-          id="shoulder"
-          name="shoulder"
-          value="27"
-          min="1"
-          step="0.1"
-        >
+                </div>
 
-        <span class="unit">
-          cm
-        </span>
 
-      </div>
+                <div>
 
+                    <label for="addSeam">
+                        Seam Allowance
+                    </label>
 
-      <!-- PANJANG BADAN -->
+                    <select id="addSeam">
 
-      <div class="form-group">
+                        <option value="yes" selected>
+                            Masukkan ke Output
+                        </option>
 
-        <label for="bodyLength">
-          Panjang badan
-        </label>
+                        <option value="no">
+                            Tanpa Seam
+                        </option>
 
-        <input
-          type="number"
-          id="bodyLength"
-          name="bodyLength"
-          value="30"
-          min="1"
-          step="0.1"
-        >
+                    </select>
 
-        <span class="unit">
-          cm
-        </span>
+                </div>
 
-      </div>
+            </div>
 
 
-      <!-- LINGKAR LEHER -->
+            <div class="two-column">
 
-      <div class="form-group">
+                <div>
 
-        <label for="neck">
-          Lingkar leher
-        </label>
+                    <label for="addNotches">
+                        Notch
+                    </label>
 
-        <input
-          type="number"
-          id="neck"
-          name="neck"
-          value="27"
-          min="1"
-          step="0.1"
-        >
+                    <select id="addNotches">
 
-        <span class="unit">
-          cm
-        </span>
+                        <option value="yes" selected>
+                            Aktif
+                        </option>
 
-      </div>
+                        <option value="no">
+                            Nonaktif
+                        </option>
 
+                    </select>
 
-      <!-- ===============================================
-           LENGAN
-      ================================================ -->
+                </div>
 
-      <h2>
-        Lengan
-      </h2>
 
+                <div>
 
-      <!-- LINGKAR LENGAN ATAS -->
+                    <label for="addGrainline">
+                        Grainline
+                    </label>
 
-      <div class="form-group">
+                    <select id="addGrainline">
 
-        <label for="upperArm">
-          Lingkar lengan atas
-        </label>
+                        <option value="yes" selected>
+                            Aktif
+                        </option>
 
-        <input
-          type="number"
-          id="upperArm"
-          name="upperArm"
-          value="20"
-          min="1"
-          step="0.1"
-        >
+                        <option value="no">
+                            Nonaktif
+                        </option>
 
-        <span class="unit">
-          cm
-        </span>
+                    </select>
 
-      </div>
+                </div>
 
+            </div>
 
-      <!-- PANJANG LENGAN -->
+        </section>
 
-      <div class="form-group">
 
-        <label for="sleeveLength">
-          Panjang lengan
-        </label>
+        <!-- =====================================================
+             BUTTON
+             ===================================================== -->
 
-        <input
-          type="number"
-          id="sleeveLength"
-          name="sleeveLength"
-          value="38"
-          min="1"
-          step="0.1"
-        >
+        <div class="action-buttons">
 
-        <span class="unit">
-          cm
-        </span>
-
-      </div>
-
-
-      <!-- LINGKAR UJUNG LENGAN -->
-
-      <div class="form-group">
-
-        <label for="wrist">
-          Lingkar ujung lengan
-        </label>
-
-        <input
-          type="number"
-          id="wrist"
-          name="wrist"
-          value="16"
-          min="1"
-          step="0.1"
-        >
-
-        <span class="unit">
-          cm
-        </span>
-
-      </div>
-
-
-      <!-- ===============================================
-           FIT
-      ================================================ -->
-
-      <h2>
-        Fit
-      </h2>
-
-
-      <!-- PENGURANGAN UKURAN -->
-
-      <div class="form-group">
-
-        <label for="negativeEase">
-          Pengurangan ukuran (%)
-        </label>
-
-        <input
-          type="number"
-          id="negativeEase"
-          name="negativeEase"
-          value="5"
-          min="0"
-          max="30"
-          step="0.5"
-        >
-
-        <span class="unit">
-          persen
-        </span>
-
-      </div>
-
-
-      <div class="form-help">
-
-        Digunakan untuk mengurangi ukuran pola
-        sesuai tingkat fit yang diinginkan.
-
-      </div>
-
-
-      <!-- KAMPUH -->
-
-      <div class="form-group">
-
-        <label for="seam">
-          Kampuh
-        </label>
-
-        <input
-          type="number"
-          id="seam"
-          name="seam"
-          value="1"
-          min="0"
-          step="0.1"
-        >
-
-        <span class="unit">
-          cm
-        </span>
-
-      </div>
-
-
-      <!-- ===============================================
-           BAHAN & KAIN
-      ================================================ -->
-
-      <h2>
-        Bahan &amp; Kain
-      </h2>
-
-
-      <!-- BAHAN -->
-
-      <div class="form-group">
-
-        <label for="fabricMaterial">
-          Bahan
-        </label>
-
-        <select
-          id="fabricMaterial"
-          name="fabricMaterial"
-        >
-
-          <option
-            value="sublime_jersey"
-            selected
-          >
-            Sublime Jersey
-          </option>
-
-          <option
-            value="rib_knit"
-          >
-            Rib Knit
-          </option>
-
-          <option
-            value="cotton"
-          >
-            Cotton
-          </option>
-
-          <option
-            value="woven"
-          >
-            Woven / Non Stretch
-          </option>
-
-        </select>
-
-      </div>
-
-
-      <!-- LEBAR KAIN -->
-
-      <div class="form-group">
-
-        <label for="fabricWidth">
-          Lebar kain
-        </label>
-
-        <input
-          type="number"
-          id="fabricWidth"
-          name="fabricWidth"
-          value="150"
-          min="1"
-          step="0.1"
-        >
-
-        <span class="unit">
-          cm
-        </span>
-
-      </div>
-
-
-      <!-- PANJANG KAIN -->
-
-      <div class="form-group">
-
-        <label for="fabricLength">
-          Panjang kain
-        </label>
-
-        <input
-          type="number"
-          id="fabricLength"
-          name="fabricLength"
-          value="200"
-          min="1"
-          step="0.1"
-        >
-
-        <span class="unit">
-          cm
-        </span>
-
-      </div>
-
-
-      <!-- ===============================================
-           TEPI KAIN
-      ================================================ -->
-
-      <h3>
-        Tepi Kain
-      </h3>
-
-
-      <div class="form-group">
-
-        <label for="selvedgeLeft">
-          Tepi kiri
-        </label>
-
-        <input
-          type="number"
-          id="selvedgeLeft"
-          name="selvedgeLeft"
-          value="0"
-          min="0"
-          step="0.1"
-        >
-
-        <span class="unit">
-          cm
-        </span>
-
-      </div>
-
-
-      <div class="form-group">
-
-        <label for="selvedgeRight">
-          Tepi kanan
-        </label>
-
-        <input
-          type="number"
-          id="selvedgeRight"
-          name="selvedgeRight"
-          value="0"
-          min="0"
-          step="0.1"
-        >
-
-        <span class="unit">
-          cm
-        </span>
-
-      </div>
-
-
-      <!-- ===============================================
-           ARAH MOTIF
-      ================================================ -->
-
-      <div class="form-group">
-
-        <label for="printDirection">
-          Arah motif
-        </label>
-
-        <select
-          id="printDirection"
-          name="printDirection"
-        >
-
-          <option
-            value="none"
-            selected
-          >
-            Tidak ada
-          </option>
-
-          <option
-            value="up"
-          >
-            Satu arah
-          </option>
-
-          <option
-            value="vertical"
-          >
-            Vertikal
-          </option>
-
-          <option
-            value="horizontal"
-          >
-            Horizontal
-          </option>
-
-        </select>
-
-      </div>
-
-
-      <!-- ===============================================
-           PRODUKSI
-      ================================================ -->
-
-      <h2>
-        Produksi
-      </h2>
-
-
-      <div class="form-group">
-
-        <label for="garmentQuantity">
-          Jumlah pakaian
-        </label>
-
-        <input
-          type="number"
-          id="garmentQuantity"
-          name="garmentQuantity"
-          value="1"
-          min="1"
-          step="1"
-        >
-
-        <span class="unit">
-          pcs
-        </span>
-
-      </div>
-
-
-      <!-- ===============================================
-           BUTTON
-      ================================================ -->
-
-      <div class="button-group">
-
-        <button
-          type="button"
-          id="generateBtn"
-        >
-          BUAT POLA
-        </button>
-
-
-        <button
-          type="button"
-          id="optimizeBtn"
-        >
-          OPTIMASI KAIN
-        </button>
-
-
-        <button
-          type="button"
-          id="downloadBtn"
-        >
-          DOWNLOAD SVG
-        </button>
-
-      </div>
-
+            <button
+                id="resetBtn"
+                type="button"
+            >
+                Reset
+            </button>
+
+
+            <button
+                id="generateBtn"
+                type="button"
+            >
+                Buat Pola
+            </button>
+
+        </div>
 
     </aside>
 
 
-    <!-- ===================================================
-         PANEL KANAN
-    ==================================================== -->
+    <!-- =========================================================
+         MAIN CONTENT
+         ========================================================= -->
 
-    <section class="panel right-panel">
+    <main id="main">
 
+        <header id="mainHeader">
 
-      <h1 class="result-title">
-        Hasil
-      </h1>
+            <h2>PatternMaker Universal</h2>
 
+            <div
+                id="resultStatus"
+                class="status"
+            >
+                Belum ada pola yang dibuat.
+            </div>
 
-      <!-- STATUS -->
-
-      <div id="status">
-        Masukkan ukuran kemudian tekan
-        BUAT POLA.
-      </div>
-
-
-      <!-- ===============================================
-           FABRIC OPTIMIZER
-      ================================================ -->
-
-      <div class="optimizer">
-
-        <h2>
-          Fabric Optimizer
-        </h2>
+        </header>
 
 
-        <div class="result-row">
+        <!-- =====================================================
+             INFO HASIL
+             ===================================================== -->
 
-          Lebar kain:
+        <div class="result-grid">
 
-          <strong id="resultWidth">
-            -
-          </strong>
+            <section class="result-card">
 
-          cm
+                <h2>Pattern Information</h2>
 
-        </div>
+                <div
+                    id="modeResult"
+                    class="status"
+                >
+                    Mode kerja: Tailor
+                </div>
 
+                <div id="resultInfo">
 
-        <div class="result-row">
+                    <!-- JS -->
 
-          Panjang kain:
+                </div>
 
-          <strong id="resultLength">
-            -
-          </strong>
-
-          cm
-
-        </div>
+            </section>
 
 
-        <div class="result-row">
+            <section class="result-card">
 
-          Material:
+                <h2>Ukuran yang Dipakai</h2>
 
-          <strong id="resultMaterial">
-            -
-          </strong>
+                <div id="resultMeasurements">
+
+                    <!-- JS -->
+
+                </div>
+
+            </section>
 
         </div>
 
 
-        <div class="result-row">
+        <!-- =====================================================
+             PREVIEW FULL / OPEN
+             ===================================================== -->
 
-          Jumlah pakaian:
+        <section class="result-card">
 
-          <strong id="resultQuantity">
-            -
-          </strong>
+            <h2>
+                Pattern Preview — Full / Open
+            </h2>
 
-        </div>
 
+            <div
+                id="draftEngineStatus"
+                class="status"
+            >
+                Engine drafting belum dijalankan.
+            </div>
 
-        <div class="result-row">
 
-          Status:
+            <div class="preview-toolbar">
 
-          <strong id="resultStatus">
-            Belum dioptimasi
-          </strong>
+                <button
+                    id="fitPreviewBtn"
+                    type="button"
+                >
+                    Fit Semua Potongan
+                </button>
 
-        </div>
 
-      </div>
+                <button
+                    id="openPreviewBtn"
+                    type="button"
+                >
+                    Tampilkan Full / Open
+                </button>
 
+            </div>
 
-      <!-- ===============================================
-           INFORMASI KAIN
-      ================================================ -->
 
-      <div class="optimizer">
+            <svg
+                id="patternPreview"
+                viewBox="0 0 1000 620"
+                preserveAspectRatio="xMidYMid meet"
+            >
+            </svg>
 
-        <h2>
-          Informasi Kain
-        </h2>
 
+            <div id="previewNote">
 
-        <div class="result-row">
+                Semua potongan pola ditampilkan terbuka:
+                Front, Back, Sleeve, Panel kiri/kanan dan
+                bagian lain sesuai jenis pakaian.
 
-          Bahan:
+            </div>
 
-          <strong id="materialName">
-            -
-          </strong>
+        </section>
 
-        </div>
 
+        <!-- =====================================================
+             FABRIC OPTIMIZER
+             ===================================================== -->
 
-        <div class="result-row">
+        <section class="result-card">
 
-          Lebar kain:
+            <h2>Fabric Optimizer</h2>
 
-          <strong id="displayFabricWidth">
-            -
-          </strong>
+            <div id="fabricResult">
 
-          cm
+                <!-- JS -->
 
-        </div>
+            </div>
 
+        </section>
 
-        <div class="result-row">
 
-          Lebar efektif:
+        <!-- =====================================================
+             PLOTTER OUTPUT
+             ===================================================== -->
 
-          <strong id="effectiveWidth">
-            -
-          </strong>
+        <section class="result-card">
 
-          cm
+            <h2>
+                Production Plotter Output
+            </h2>
 
-        </div>
 
+            <div
+                id="plotterStatus"
+                class="status"
+            >
+                Output produksi belum dibuat.
+            </div>
 
-        <div class="result-row">
 
-          Panjang kain:
+            <div class="two-column">
 
-          <strong id="displayFabricLength">
-            -
-          </strong>
+                <div>
 
-          cm
+                    <label for="plotterUnit">
+                        Unit Output
+                    </label>
 
-        </div>
+                    <select id="plotterUnit">
 
+                        <option value="mm" selected>
+                            mm
+                        </option>
 
-        <div class="result-row">
+                        <option value="cm">
+                            cm
+                        </option>
 
-          Tingkat stretch:
+                    </select>
 
-          <strong id="fabricStretch">
-            -
-          </strong>
+                </div>
 
-        </div>
 
+                <div>
 
-        <div class="result-row">
+                    <label for="plotterScale">
+                        Skala Output
+                    </label>
 
-          Arah stretch:
+                    <select id="plotterScale">
 
-          <strong id="stretchDirection">
-            -
-          </strong>
+                        <option value="1" selected>
+                            1:1 Produksi
+                        </option>
 
-        </div>
+                        <option value="0.5">
+                            1:2
+                        </option>
 
+                        <option value="0.25">
+                            1:4
+                        </option>
 
-        <div class="result-row">
+                    </select>
 
-          Rotasi pola:
+                </div>
 
-          <strong id="allowedRotation">
-            -
-          </strong>
+            </div>
 
-        </div>
 
-      </div>
+            <div class="export-grid">
 
+                <button
+                    id="exportDxfBtn"
+                    type="button"
+                >
+                    Export DXF R12
+                </button>
 
-      <!-- ===============================================
-           PATTERN PREVIEW
-      ================================================ -->
 
-      <h2 class="preview-title">
-        Pattern Preview
-      </h2>
+                <button
+                    id="exportPltBtn"
+                    type="button"
+                >
+                    Export PLT / HPGL
+                </button>
 
 
-      <div id="canvasWrap">
+                <button
+                    id="exportSvgBtn"
+                    type="button"
+                >
+                    Export SVG
+                </button>
 
-        <!--
-          SVG pola akan dimasukkan oleh main.js
-        -->
 
-      </div>
+                <button
+                    id="exportJsonBtn"
+                    type="button"
+                >
+                    Export Pattern JSON
+                </button>
 
+            </div>
 
-    </section>
+        </section>
 
+    </main>
 
-  </main>
+</div>
 
 
-  <!-- =====================================================
-       MAIN APPLICATION
-  ====================================================== -->
+<!-- =============================================================
+     JAVASCRIPT AKAN DIMASUKKAN PADA KODE 3 DAN SETERUSNYA
+     ============================================================= -->
 
-  <script
-    type="module"
-    src="./main.js"
-  ></script>
+<script>
 
+    /*
+        PatternMaker Universal
+        JavaScript module akan ditempel bertahap.
+
+        Kode berikutnya:
+        1. CONFIG
+        2. STATE
+        3. MEASUREMENT ENGINE
+        4. DRAFTING ENGINE
+        5. PREVIEW ENGINE
+        6. EXPORT ENGINE
+    */
+
+</script>
 
 </body>
-
 </html>
+```
